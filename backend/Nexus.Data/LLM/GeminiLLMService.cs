@@ -69,7 +69,7 @@ public class GeminiLLMService : ILLMService
             }
 
             var model = string.IsNullOrWhiteSpace(_options.Model)
-                ? "gemini-2.5-flash"
+                ? "gemini-3.6-flash"
                 : _options.Model;
 
             // Build the request body
@@ -230,7 +230,7 @@ public class GeminiLLMService : ILLMService
     {
         var sw = Stopwatch.StartNew();
         var model = string.IsNullOrWhiteSpace(_options.Model)
-            ? "gemini-2.5-flash"
+            ? "gemini-3.6-flash"
             : _options.Model;
 
         var apiKey = _options.ApiKey;

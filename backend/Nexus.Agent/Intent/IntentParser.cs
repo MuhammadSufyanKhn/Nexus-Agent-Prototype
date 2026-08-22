@@ -42,10 +42,16 @@ Analyze the user's natural language request and classify it into EXACTLY ONE of 
 - EMPLOYEE_READ
 - EMPLOYEE_UPDATE (use for salary updates, budget allocations, workforce modifications)
 - EMPLOYEE_DELETE
-- BUDGET_ANALYSIS (use ONLY for read-only budget questions and analytics)
+- BUDGET_ANALYSIS (use ONLY for read-only budget questions and analytics on the Budgets/Departments tables)
 - EXPENSE_COMPLIANCE
 - EMPLOYEE_ONBOARDING
+- SQL_AGENT (use for ANY natural-language query against DepartmentBudgets: listing departments, adding/creating/inserting departments, updating budgets, deleting department records, or analytical queries on DepartmentBudgets)
 - UNKNOWN
+
+IMPORTANT: Use SQL_AGENT for requests like:
+  'give me department names', 'which departments exist', 'add Finance with 50k budget',
+  'create HR with budget 75000', 'set Finance Q3 budget to 60000', 'delete Finance from Q3',
+  'how much did Finance spend', 'which department has highest spending'
 
 Determine the SCOPE:
 - ALL (if user requests operation on all/every/entire employee list)
@@ -165,7 +171,22 @@ Return a JSON object with this exact structure:
         var p = prompt.ToLower();
         var result = new ParsedIntentResult();
 
-        if (p.Contains("onboard") || p.Contains("onboarding"))
+        // SQL_AGENT — DepartmentBudgets CRUD and department-level queries
+        bool isDeptQuery = p.Contains("department") || p.Contains("dept") || p.Contains("departmentbudget");
+        bool isAddDept = (p.Contains("add") || p.Contains("create") || p.Contains("insert") || p.Contains("register")) && isDeptQuery;
+        bool isUpdateDept = (p.Contains("set") || p.Contains("update") || p.Contains("change") || p.Contains("increase") || p.Contains("modify") || p.Contains("adjust")) && isDeptQuery;
+        bool isDeleteDept = (p.Contains("delete") || p.Contains("remove") || p.Contains("erase")) && isDeptQuery;
+        bool isReadDept = isDeptQuery && !isAddDept && !isUpdateDept && !isDeleteDept;
+        bool isBudgetSpend = p.Contains("spent") || p.Contains("spending") || p.Contains("expenditure");
+        bool isFinanceHrDeptRef = p.Contains("finance") || p.Contains("marketing") || p.Contains("operations");
+
+        if (isAddDept || isUpdateDept || isDeleteDept ||
+            (isReadDept && isDeptQuery) ||
+            (isBudgetSpend && isFinanceHrDeptRef))
+        {
+            result.Intent = IntentType.SQL_AGENT.ToString();
+        }
+        else if (p.Contains("onboard") || p.Contains("onboarding"))
         {
             result.Intent = IntentType.EMPLOYEE_ONBOARDING.ToString();
         }

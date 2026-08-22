@@ -16,9 +16,9 @@ public class LLMOptions
     public string? ApiKey { get; set; }
 
     /// <summary>
-    /// Gemini model name (e.g. "gemini-2.5-flash") or Ollama model (e.g. "llama3.2").
+    /// Gemini model name (e.g. "gemini-3.6-flash") or Ollama model (e.g. "llama3.2").
     /// </summary>
-    public string Model { get; set; } = "gemini-2.5-flash";
+    public string Model { get; set; } = "gemini-3.6-flash";
 
     /// <summary>
     /// Only used when Provider is "Ollama". Base URL of the local Ollama server.

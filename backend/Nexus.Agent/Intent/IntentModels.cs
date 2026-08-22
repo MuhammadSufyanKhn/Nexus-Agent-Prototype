@@ -13,7 +13,13 @@ public enum IntentType
     EMPLOYEE_DELETE = 4,
     BUDGET_ANALYSIS = 5,
     EXPENSE_COMPLIANCE = 6,
-    EMPLOYEE_ONBOARDING = 7
+    EMPLOYEE_ONBOARDING = 7,
+    /// <summary>
+    /// Routes any natural-language database query directly to the Production SQL Agent
+    /// (sql.analytics tool) — covers SELECT/INSERT/UPDATE/DELETE on DepartmentBudgets
+    /// and other schema tables via the Gemini SQL Agent system prompt.
+    /// </summary>
+    SQL_AGENT = 8
 }
 
 public class StructuredEntities

@@ -135,7 +135,10 @@ public class AgentOrchestrator : IAgentOrchestrator
 
         // 4.5 HUMAN-IN-THE-LOOP HIGH-RISK PLAN OF ACTION INTERCEPTOR (Only for mutation operations, never read-only queries)
         var promptLower = userPrompt.ToLower();
-        var isReadOnly = parsedIntent.ParsedIntentType == IntentType.BUDGET_ANALYSIS || parsedIntent.ParsedIntentType == IntentType.EXPENSE_COMPLIANCE || parsedIntent.ParsedIntentType == IntentType.EMPLOYEE_READ;
+        var isReadOnly = parsedIntent.ParsedIntentType == IntentType.BUDGET_ANALYSIS
+            || parsedIntent.ParsedIntentType == IntentType.EXPENSE_COMPLIANCE
+            || parsedIntent.ParsedIntentType == IntentType.EMPLOYEE_READ
+            || parsedIntent.ParsedIntentType == IntentType.SQL_AGENT; // SQL_AGENT handles its own risk internally
 
         if (!isReadOnly && (plan.TotalRiskLevel >= RiskLevel.High || promptLower.Contains("increase") || promptLower.Contains("10%") || promptLower.Contains("bulk") || promptLower.Contains("onboard") || promptLower.Contains("delete") || promptLower.Contains("remove")))
         {
@@ -706,6 +709,12 @@ public class AgentOrchestrator : IAgentOrchestrator
                 plan.Steps.Add(new AgentStep { StepNumber = 3, ToolName = "onboarding.submit_legacy_form", Description = "Submit legacy HR portal form via Playwright", RiskLevel = RiskLevel.Medium });
                 plan.Steps.Add(new AgentStep { StepNumber = 4, ToolName = "sap.employee.create", Description = "Provision employee in Mock SAP HCM", RiskLevel = RiskLevel.Medium });
                 plan.Steps.Add(new AgentStep { StepNumber = 5, ToolName = "email.welcome", Description = "Generate welcome email", RiskLevel = RiskLevel.Low });
+                break;
+
+            case IntentType.SQL_AGENT:
+                // Route all natural-language DepartmentBudgets queries to the Production SQL Agent tool.
+                // Risk level Low — the sql.analytics tool promotes to Medium/High internally for write ops.
+                plan.Steps.Add(new AgentStep { StepNumber = 1, ToolName = "sql.analytics", Description = "Execute Production SQL Agent query on DepartmentBudgets", RiskLevel = RiskLevel.Low });
                 break;
 
             default:

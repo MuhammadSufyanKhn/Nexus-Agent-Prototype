@@ -34,13 +34,21 @@ public class SqlValidationResult
 
 public interface ISqlValidator
 {
+    /// <summary>Validates a read-only SELECT query.</summary>
     SqlValidationResult ValidateQuery(string sqlQuery);
+
+    /// <summary>
+    /// Validates a write query (INSERT / UPDATE / DELETE) against the allowed-tables
+    /// whitelist and forbidden-keyword blocklist. Does NOT enforce SELECT-only.
+    /// </summary>
+    SqlValidationResult ValidateWriteQuery(string sqlQuery);
 }
 
 public class SqlValidator : ISqlValidator
 {
     private static readonly HashSet<string> AllowedTables = new(StringComparer.OrdinalIgnoreCase)
     {
+        // Core application tables
         "Departments",
         "Employees",
         "Budgets",
@@ -51,22 +59,29 @@ public class SqlValidator : ISqlValidator
         "AgentActions",
         "Approvals",
         "AuditLogs",
-        "OnboardingTasks"
+        "OnboardingTasks",
+        // Production SQL Agent table
+        "DepartmentBudgets"
     };
 
+    /// <summary>Keywords always forbidden in any query (read or write).</summary>
     private static readonly string[] ForbiddenKeywords = new[]
     {
-        "INSERT", "UPDATE", "DELETE", "DROP", "ALTER", "TRUNCATE",
-        "EXEC", "EXECUTE", "XP_CMDSHELL", "SP_", "CREATE", "MERGE",
+        "DROP", "ALTER", "TRUNCATE", "EXEC", "EXECUTE",
+        "XP_CMDSHELL", "SP_", "CREATE", "MERGE",
         "GRANT", "REVOKE", "SHUTDOWN", "DBCC"
+    };
+
+    /// <summary>Keywords forbidden specifically in read-only (SELECT) queries.</summary>
+    private static readonly string[] ReadOnlyForbiddenKeywords = new[]
+    {
+        "INSERT", "UPDATE", "DELETE"
     };
 
     public SqlValidationResult ValidateQuery(string sqlQuery)
     {
         if (string.IsNullOrWhiteSpace(sqlQuery))
-        {
             return SqlValidationResult.Failure("SQL query cannot be empty.");
-        }
 
         var trimmed = sqlQuery.Trim();
 
@@ -78,74 +93,118 @@ public class SqlValidator : ISqlValidator
         }
 
         // 2. Reject multi-statement semicolons and comments
-        if (trimmed.Contains(';'))
-        {
-            // Semicolons allowed only at the very end
-            var semicolonIndex = trimmed.IndexOf(';');
-            if (semicolonIndex < trimmed.Length - 1)
-            {
-                return SqlValidationResult.Failure("Security Violation: Multiple SQL statements separated by semicolons are strictly forbidden.");
-            }
-            trimmed = trimmed.Substring(0, semicolonIndex).Trim();
-        }
+        trimmed = StripTrailingSemicolon(trimmed, out var hasMulti);
+        if (hasMulti)
+            return SqlValidationResult.Failure("Security Violation: Multiple SQL statements separated by semicolons are forbidden.");
 
         if (trimmed.Contains("--") || trimmed.Contains("/*") || trimmed.Contains("*/"))
+            return SqlValidationResult.Failure("Security Violation: SQL comments are forbidden.");
+
+        // 3. Destructive keyword check (global + read-only specific)
+        foreach (var kw in ForbiddenKeywords.Concat(ReadOnlyForbiddenKeywords))
         {
-            return SqlValidationResult.Failure("Security Violation: SQL comments (-- or /* */) are forbidden in dynamically generated queries.");
+            if (Regex.IsMatch(trimmed, $@"\b{Regex.Escape(kw)}\b", RegexOptions.IgnoreCase))
+                return SqlValidationResult.Failure($"Security Violation: Forbidden keyword '{kw}' detected.");
         }
 
-        // 3. Scan for forbidden destructive keywords
-        foreach (var kw in ForbiddenKeywords)
-        {
-            // Regex match with word boundaries to avoid false positives (e.g. "UPDATED_AT")
-            var pattern = $@"\b{Regex.Escape(kw)}\b";
-            if (Regex.IsMatch(trimmed, pattern, RegexOptions.IgnoreCase))
-            {
-                return SqlValidationResult.Failure($"Security Violation: Forbidden keyword '{kw}' detected. Destructive or administrative SQL commands are forbidden.");
-            }
-        }
-
-        // 4. Extract and check table names against Whitelist
+        // 4. Table whitelist check
         var detectedTables = ExtractTableNames(trimmed);
         foreach (var table in detectedTables)
         {
             if (!AllowedTables.Contains(table))
-            {
-                return SqlValidationResult.Failure($"Security Violation: Table '{table}' is not in the allowed schema whitelist. Access denied.");
-            }
+                return SqlValidationResult.Failure($"Security Violation: Table '{table}' is not in the allowed schema whitelist.");
         }
 
-        // 5. Enforce Row Limit Cap (TOP 100)
-        var finalQuery = EnforceRowLimitCap(trimmed);
+        // 5. Enforce row limit cap (TOP 100)
+        return SqlValidationResult.Success(EnforceRowLimitCap(trimmed), detectedTables);
+    }
 
-        return SqlValidationResult.Success(finalQuery, detectedTables);
+    public SqlValidationResult ValidateWriteQuery(string sqlQuery)
+    {
+        if (string.IsNullOrWhiteSpace(sqlQuery))
+            return SqlValidationResult.Failure("SQL write query cannot be empty.");
+
+        var trimmed = sqlQuery.Trim();
+
+        // 1. Must start with INSERT, UPDATE, or DELETE
+        bool isWrite =
+            trimmed.StartsWith("INSERT", StringComparison.OrdinalIgnoreCase) ||
+            trimmed.StartsWith("UPDATE", StringComparison.OrdinalIgnoreCase) ||
+            trimmed.StartsWith("DELETE", StringComparison.OrdinalIgnoreCase);
+
+        if (!isWrite)
+            return SqlValidationResult.Failure("Write validator expects INSERT, UPDATE, or DELETE.");
+
+        // 2. Strip trailing semicolon / reject multi-statement
+        trimmed = StripTrailingSemicolon(trimmed, out var hasMulti);
+        if (hasMulti)
+            return SqlValidationResult.Failure("Security Violation: Multiple SQL statements are forbidden.");
+
+        if (trimmed.Contains("--") || trimmed.Contains("/*") || trimmed.Contains("*/"))
+            return SqlValidationResult.Failure("Security Violation: SQL comments are forbidden.");
+
+        // 3. Global forbidden keyword check (DROP, ALTER, TRUNCATE, EXEC, etc.)
+        foreach (var kw in ForbiddenKeywords)
+        {
+            if (Regex.IsMatch(trimmed, $@"\b{Regex.Escape(kw)}\b", RegexOptions.IgnoreCase))
+                return SqlValidationResult.Failure($"Security Violation: Forbidden keyword '{kw}' detected.");
+        }
+
+        // 4. Extract referenced table (INSERT INTO / UPDATE / DELETE FROM)
+        var tables = ExtractWriteTableNames(trimmed);
+        foreach (var table in tables)
+        {
+            if (!AllowedTables.Contains(table))
+                return SqlValidationResult.Failure($"Security Violation: Table '{table}' is not in the allowed schema whitelist.");
+        }
+
+        return SqlValidationResult.Success(trimmed, tables);
+    }
+
+    private static string StripTrailingSemicolon(string sql, out bool hasMultiStatement)
+    {
+        hasMultiStatement = false;
+        if (!sql.Contains(';')) return sql;
+        var idx = sql.IndexOf(';');
+        if (idx < sql.Length - 1) { hasMultiStatement = true; return sql; }
+        return sql[..idx].Trim();
     }
 
     private static List<string> ExtractTableNames(string sql)
     {
         var tables = new List<string>();
-
         // Match FROM <table_name> and JOIN <table_name>
         var regex = new Regex(@"\b(FROM|JOIN)\s+([a-zA-Z0-9_]+|\[[a-zA-Z0-9_]+\]|dbo\.[a-zA-Z0-9_]+)", RegexOptions.IgnoreCase);
-        var matches = regex.Matches(sql);
-
-        foreach (Match match in matches)
+        foreach (Match match in regex.Matches(sql))
         {
             if (match.Groups.Count >= 3)
             {
                 var tableName = match.Groups[2].Value
-                    .Replace("[", "")
-                    .Replace("]", "")
-                    .Replace("dbo.", "")
-                    .Trim();
-
+                    .Replace("[", "").Replace("]", "").Replace("dbo.", "").Trim();
                 if (!string.IsNullOrWhiteSpace(tableName) && !tables.Contains(tableName, StringComparer.OrdinalIgnoreCase))
-                {
                     tables.Add(tableName);
-                }
             }
         }
+        return tables;
+    }
 
+    /// <summary>Extracts table names from INSERT INTO / UPDATE / DELETE FROM statements.</summary>
+    private static List<string> ExtractWriteTableNames(string sql)
+    {
+        var tables = new List<string>();
+        var regex = new Regex(
+            @"\b(?:INSERT\s+INTO|UPDATE|DELETE\s+FROM)\s+([a-zA-Z0-9_]+|\[[a-zA-Z0-9_]+\])",
+            RegexOptions.IgnoreCase);
+        foreach (Match match in regex.Matches(sql))
+        {
+            if (match.Groups.Count >= 2)
+            {
+                var tableName = match.Groups[1].Value
+                    .Replace("[", "").Replace("]", "").Trim();
+                if (!string.IsNullOrWhiteSpace(tableName) && !tables.Contains(tableName, StringComparer.OrdinalIgnoreCase))
+                    tables.Add(tableName);
+            }
+        }
         return tables;
     }
 

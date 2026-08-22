@@ -13,3 +13,4 @@ D:\.NET PROJECTS\NEXUS AGENT LITE\backend\Nexus.Security\obj\Debug\net10.0\Nexus
 D:\.NET PROJECTS\NEXUS AGENT LITE\backend\Nexus.Security\obj\Debug\net10.0\refint\Nexus.Security.dll
 D:\.NET PROJECTS\NEXUS AGENT LITE\backend\Nexus.Security\obj\Debug\net10.0\Nexus.Security.pdb
 D:\.NET PROJECTS\NEXUS AGENT LITE\backend\Nexus.Security\obj\Debug\net10.0\ref\Nexus.Security.dll
+d:\.NET PROJECTS\NEXUS AGENT LITE\backend\Nexus.Security\obj\Debug\net10.0\Nexus.Security.sourcelink.json

@@ -15,3 +15,4 @@ D:\.NET PROJECTS\NEXUS AGENT LITE\backend\Nexus.Tools\obj\Debug\net10.0\Nexus.To
 D:\.NET PROJECTS\NEXUS AGENT LITE\backend\Nexus.Tools\obj\Debug\net10.0\refint\Nexus.Tools.dll
 D:\.NET PROJECTS\NEXUS AGENT LITE\backend\Nexus.Tools\obj\Debug\net10.0\Nexus.Tools.pdb
 D:\.NET PROJECTS\NEXUS AGENT LITE\backend\Nexus.Tools\obj\Debug\net10.0\ref\Nexus.Tools.dll
+d:\.NET PROJECTS\NEXUS AGENT LITE\backend\Nexus.Tools\obj\Debug\net10.0\Nexus.Tools.sourcelink.json

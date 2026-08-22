@@ -160,3 +160,4 @@ D:\.NET PROJECTS\NEXUS AGENT LITE\backend\Nexus.Api\obj\Debug\net10.0\refint\Nex
 D:\.NET PROJECTS\NEXUS AGENT LITE\backend\Nexus.Api\obj\Debug\net10.0\Nexus.Api.pdb
 D:\.NET PROJECTS\NEXUS AGENT LITE\backend\Nexus.Api\obj\Debug\net10.0\Nexus.Api.genruntimeconfig.cache
 D:\.NET PROJECTS\NEXUS AGENT LITE\backend\Nexus.Api\obj\Debug\net10.0\ref\Nexus.Api.dll
+d:\.NET PROJECTS\NEXUS AGENT LITE\backend\Nexus.Api\obj\Debug\net10.0\Nexus.Api.sourcelink.json
