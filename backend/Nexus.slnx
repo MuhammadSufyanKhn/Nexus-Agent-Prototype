@@ -1,0 +1,8 @@
+<Solution>
+  <Project Path="Nexus.Agent/Nexus.Agent.csproj" />
+  <Project Path="Nexus.Api/Nexus.Api.csproj" />
+  <Project Path="Nexus.Data/Nexus.Data.csproj" />
+  <Project Path="Nexus.Security/Nexus.Security.csproj" />
+  <Project Path="Nexus.Tests/Nexus.Tests.csproj" />
+  <Project Path="Nexus.Tools/Nexus.Tools.csproj" />
+</Solution>

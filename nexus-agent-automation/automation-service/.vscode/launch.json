@@ -1,0 +1,18 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "chrome",
+            "request": "launch",
+            "name": "Launch Opera GX against localhost",
+            "url": "http://localhost:52369",
+            "webRoot": "${workspaceFolder}",
+            "runtimeExecutable": "C:\\Users\\umr\\AppData\\Local\\Programs\\Opera GX\\opera.exe",
+            "runtimeArgs": [
+                "--user-data-dir=${workspaceFolder}/.vscode/opera-debug-profile",
+                "--disable-session-crashed-bubble",
+                "--disable-restore-session-state"
+            ]
+        }
+    ]
+}
