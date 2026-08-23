@@ -36,6 +36,8 @@ export interface ChangePreview {
   oldValue: string;
   newValue: string;
   difference?: string;
+  valueSource?: string;
+  isEditable?: boolean;
 }
 
 export interface AffectedRecord {
@@ -184,10 +186,11 @@ export async function fetchPendingApprovals(): Promise<PendingApproval[]> {
 }
 
 export async function decideApproval(
-  reqOrId: { approvalId: string; approved: boolean; approvedBy?: string; reason?: string } | string,
+  reqOrId: { approvalId: string; approved: boolean; approvedBy?: string; reason?: string; editedParameters?: Record<string, any> } | string,
   approvedArg?: boolean,
   approvedByArg: string = 'Executive Admin',
-  reasonArg?: string
+  reasonArg?: string,
+  editedParametersArg?: Record<string, any>
 ): Promise<any> {
   let bodyObj: any;
   if (typeof reqOrId === 'object') {
@@ -197,7 +200,8 @@ export async function decideApproval(
       approvalId: reqOrId,
       approved: approvedArg,
       approvedBy: approvedByArg,
-      reason: reasonArg
+      reason: reasonArg,
+      editedParameters: editedParametersArg
     };
   }
 

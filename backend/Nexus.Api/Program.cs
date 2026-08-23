@@ -89,6 +89,7 @@ builder.Services.AddScoped<MockSapTool>();
 builder.Services.AddScoped<PolicyCrudTool>();
 builder.Services.AddScoped<DepartmentCrudTool>();
 builder.Services.AddScoped<BudgetUpdateTool>();
+builder.Services.AddScoped<CvAnalysisTool>();
 
 builder.Services.AddScoped<IToolRegistry>(sp =>
 {
@@ -111,6 +112,7 @@ builder.Services.AddScoped<IToolRegistry>(sp =>
     registry.RegisterTool(sp.GetRequiredService<PolicyCrudTool>());
     registry.RegisterTool(sp.GetRequiredService<DepartmentCrudTool>());
     registry.RegisterTool(sp.GetRequiredService<BudgetUpdateTool>());
+    registry.RegisterTool(sp.GetRequiredService<CvAnalysisTool>());
     return registry;
 });
 

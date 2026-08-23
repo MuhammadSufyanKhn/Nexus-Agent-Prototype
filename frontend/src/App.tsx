@@ -11,6 +11,7 @@ import { ApprovalsView } from './components/ApprovalsView';
 import { OnboardingView } from './components/OnboardingView';
 import { AutomationView } from './components/AutomationView';
 import { AuditLogsView } from './components/AuditLogsView';
+import { CvCheckerView } from './components/CvCheckerView';
 import { fetchPendingApprovals, checkLLMHealth } from './services/api';
 import type { LLMHealthStatus } from './services/api';
 
@@ -74,6 +75,7 @@ export function App() {
           {activeTab === 'departments' && <DepartmentsView />}
           {activeTab === 'policies' && <PoliciesView />}
           {activeTab === 'expenses' && <ExpensesView />}
+          {activeTab === 'cv' && <CvCheckerView />}
           {activeTab === 'approvals' && (
             <ApprovalsView userRole={userRole} onApprovalChanged={refreshGlobalState} />
           )}

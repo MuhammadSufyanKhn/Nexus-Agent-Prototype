@@ -10,6 +10,8 @@ public class ChangePreview
     public string OldValue { get; set; } = string.Empty;
     public string NewValue { get; set; } = string.Empty;
     public string? Difference { get; set; }
+    public string ValueSource { get; set; } = "AI-proposed"; // AI-proposed, User-edited, Policy-derived, System-derived
+    public bool IsEditable { get; set; } = true;
 }
 
 public class AffectedRecord
@@ -48,4 +50,5 @@ public class ApprovalDecisionRequest
     public bool Approved { get; set; }
     public string ApprovedBy { get; set; } = "Admin User";
     public string? Reason { get; set; }
+    public Dictionary<string, object>? EditedParameters { get; set; }
 }

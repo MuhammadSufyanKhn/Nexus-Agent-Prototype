@@ -90,7 +90,7 @@ public class ApprovalController : ControllerBase
                     ?? HttpContext?.RequestServices?.GetService<IAgentOrchestrator>()
                     ?? CreateDefaultOrchestrator(_db);
 
-                var result = await orchestrator.ResumeApprovedRunAsync(approval.AgentRunId, approval.Id, approvedBy, cancellationToken);
+                var result = await orchestrator.ResumeApprovedRunAsync(approval.AgentRunId, approval.Id, approvedBy, request.EditedParameters, cancellationToken);
                 return Ok(new { message = $"Plan of Action approved and executed by {approvedBy}.", result });
             }
             catch (Exception ex)

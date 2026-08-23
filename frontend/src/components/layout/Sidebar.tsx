@@ -38,6 +38,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'policies',    label: 'Policy Center',  icon: FileText },
     { id: 'approvals',   label: 'Approvals',      icon: CheckSquare, badge: pendingCount },
     { id: 'expenses',    label: 'Expenses',       icon: Receipt },
+    { id: 'cv',          label: 'CV Checker',     icon: CheckSquare },
     { id: 'onboarding',  label: 'Onboarding',     icon: UserPlus },
     { id: 'automation',  label: 'Automation',     icon: Cpu },
     { id: 'audit',       label: 'Audit Logs',     icon: ShieldCheck },

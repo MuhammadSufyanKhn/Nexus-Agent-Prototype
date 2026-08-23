@@ -69,55 +69,67 @@ public class GeminiLLMService : ILLMService
             }
 
             var model = string.IsNullOrWhiteSpace(_options.Model)
-                ? "gemini-2.0-flash"
+                ? "gemini-1.5-flash"
                 : _options.Model;
 
-            // Build the request body
+            var candidateModels = new List<string> { model, "gemini-1.5-flash", "gemini-1.5-pro", "gemini-2.0-flash-exp" };
             var fullPrompt = BuildFullPrompt(prompt, systemPrompt, requestJson);
 
-            var requestBody = new
+            HttpResponseMessage? response = null;
+            string responseBody = string.Empty;
+            string usedModel = model;
+
+            foreach (var currentModel in candidateModels.Distinct())
             {
-                contents = new[]
+                var requestBody = new
                 {
-                    new
+                    contents = new[]
                     {
-                        parts = new[]
+                        new
                         {
-                            new { text = fullPrompt }
+                            parts = new[]
+                            {
+                                new { text = fullPrompt }
+                            }
                         }
+                    },
+                    generationConfig = new
+                    {
+                        temperature = 0.1,
+                        topK = 40,
+                        topP = 0.95,
+                        maxOutputTokens = 2048,
+                        responseMimeType = requestJson ? "application/json" : "text/plain"
                     }
-                },
-                generationConfig = new
+                };
+
+                var bodyJson = JsonSerializer.Serialize(requestBody);
+                var content = new StringContent(bodyJson, Encoding.UTF8, "application/json");
+
+                var endpoint = $"/v1beta/models/{currentModel}:generateContent?key={apiKey}";
+                response = await _httpClient.PostAsync(endpoint, content, cts.Token);
+                responseBody = await response.Content.ReadAsStringAsync(cts.Token);
+                usedModel = currentModel;
+
+                if (response.IsSuccessStatusCode)
                 {
-                    temperature = 0.1,
-                    topK = 40,
-                    topP = 0.95,
-                    maxOutputTokens = 2048,
-                    responseMimeType = requestJson ? "application/json" : "text/plain"
+                    break;
                 }
-            };
 
-            var bodyJson = JsonSerializer.Serialize(requestBody);
-            var content = new StringContent(bodyJson, Encoding.UTF8, "application/json");
+                _logger.LogWarning("Gemini API call to model '{Model}' returned HTTP {StatusCode}. Trying fallback model if 404...", currentModel, (int)response.StatusCode);
 
-            // Endpoint: /v1beta/models/{model}:generateContent?key={apiKey}
-            var endpoint = $"/v1beta/models/{model}:generateContent?key={apiKey}";
+                if ((int)response.StatusCode != 404)
+                {
+                    break; // Non-404 error (e.g. 401, 429, 500) — don't retry other models
+                }
+            }
 
-            var response = await _httpClient.PostAsync(endpoint, content, cts.Token);
-            var responseBody = await response.Content.ReadAsStringAsync(cts.Token);
-
-            if (!response.IsSuccessStatusCode)
+            if (response == null || !response.IsSuccessStatusCode)
             {
                 sw.Stop();
-                _logger.LogWarning(
-                    "Gemini API returned HTTP {StatusCode}: {Body}",
-                    (int)response.StatusCode, responseBody);
-
-                // Try to extract a meaningful error message from Gemini's response
-                var errorMsg = TryExtractGeminiError(responseBody)
-                    ?? $"Gemini API error HTTP {(int)response.StatusCode}.";
-
-                return LLMResponse.Failure(errorMsg, model);
+                _logger.LogWarning("Gemini API returned HTTP {StatusCode}: {Body}", (int)(response?.StatusCode ?? 0), responseBody);
+                var errorMsg = TryExtractGeminiError(responseBody) ?? $"Gemini API error HTTP {(int)(response?.StatusCode ?? 0)}.";
+                return LLMResponse.Failure(errorMsg, usedModel);
             }
 
             // Parse Gemini response structure

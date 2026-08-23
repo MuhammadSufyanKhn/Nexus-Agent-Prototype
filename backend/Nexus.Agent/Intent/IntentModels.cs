@@ -44,7 +44,10 @@ public enum IntentType
     DASHBOARD_ANALYTICS = 27,// summary dashboard stats
 
     // ── SQL Agent passthrough ─────────────────────────────────────────────────
-    SQL_AGENT = 8
+    SQL_AGENT = 8,
+
+    // ── General AI Conversation / Greetings ───────────────────────────────────
+    GENERAL_CONVERSATION = 99
 }
 
 public class StructuredEntities
@@ -127,6 +130,8 @@ public class ParsedIntentResult
                 "CHECK_EXPENSE" or "CHECK_EXPENSE_COMPLIANCE" or "EXPENSE_POLICY_CHECK" => "EXPENSE_COMPLIANCE",
                 "GET_EXPENSES" or "READ_EXPENSES" or "LIST_EXPENSES" => "EXPENSE_READ",
 
+                "GENERAL_CONVERSATION" or "GREETING" or "CHAT" or "HI" or "HELLO" => "GENERAL_CONVERSATION",
+
                 _ => raw
             };
 
@@ -158,6 +163,11 @@ public class ParsedIntentResult
     public bool RequiresClarification { get; set; } = false;
     public string? ClarificationPrompt { get; set; }
     public string RawPrompt { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Friendly AI response text for conversational prompts (greetings, chit-chat, assistant questions)
+    /// </summary>
+    public string? ConversationalResponse { get; set; }
 
     /// <summary>
     /// Set when the LLM API call fails (not a fallback decision — an actual error).

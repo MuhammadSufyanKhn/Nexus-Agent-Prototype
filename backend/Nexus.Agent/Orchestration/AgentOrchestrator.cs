@@ -80,6 +80,31 @@ public class AgentOrchestrator : IAgentOrchestrator
         feed.Add(AgentEvent.Create(AgentEventType.INTENT_PARSED, $"Parsed intent: {parsedIntent.Intent} (Confidence: {parsedIntent.Confidence:P0})", JsonSerializer.Serialize(parsedIntent.Entities)));
         await _broadcaster.BroadcastEventAsync(Nexus.Data.Events.AgentActivityEvent.Create(agentRun.Id, 0, "INTENT_PARSED", $"Parsed intent: {parsedIntent.Intent}"), cancellationToken);
 
+        // 2.5 HANDLE GENERAL CONVERSATIONAL CHATTER / GREETINGS
+        if (parsedIntent.ParsedIntentType == IntentType.GENERAL_CONVERSATION)
+        {
+            agentRun.Status = AgentRunStatus.Completed;
+            agentRun.CompletedAt = DateTime.UtcNow;
+            await _db.SaveChangesAsync(cancellationToken);
+
+            var reply = parsedIntent.ConversationalResponse
+                ?? "Hello! I am Nexus AI, your enterprise workforce assistant. How can I help you today?";
+
+            feed.Add(AgentEvent.Create(AgentEventType.EXECUTION_COMPLETED, reply));
+            sw.Stop();
+
+            return new AgentResult
+            {
+                RunId = agentRun.Id,
+                OriginalPrompt = userPrompt,
+                Intent = parsedIntent.Intent,
+                IsSuccess = true,
+                ResultData = new { message = reply, isConversational = true },
+                ExecutionFeed = feed,
+                ExecutionTimeMs = sw.ElapsedMilliseconds
+            };
+        }
+
         // 3. VALIDATE INTENT
         if (parsedIntent.RequiresClarification)
         {
@@ -350,7 +375,7 @@ public class AgentOrchestrator : IAgentOrchestrator
         };
     }
 
-    public async Task<AgentResult> ResumeApprovedRunAsync(Guid runId, Guid approvalId, string approvedBy = "Executive Admin", CancellationToken cancellationToken = default)
+    public async Task<AgentResult> ResumeApprovedRunAsync(Guid runId, Guid approvalId, string approvedBy = "Executive Admin", Dictionary<string, object>? editedParameters = null, CancellationToken cancellationToken = default)
     {
         var sw = Stopwatch.StartNew();
         var feed = new List<AgentEvent>();
@@ -404,6 +429,24 @@ public class AgentOrchestrator : IAgentOrchestrator
                 parsedIntent = JsonSerializer.Deserialize<ParsedIntentResult>(actionPlan.Metadata);
             }
             catch { }
+        }
+
+        if (editedParameters != null && editedParameters.Count > 0)
+        {
+            parsedIntent ??= new ParsedIntentResult();
+            parsedIntent.Parameters ??= new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+            parsedIntent.Entities ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var kv in editedParameters)
+            {
+                if (kv.Value != null)
+                {
+                    parsedIntent.Parameters[kv.Key] = kv.Value;
+                    parsedIntent.Entities[kv.Key] = kv.Value.ToString() ?? "";
+                }
+            }
+
+            feed.Add(AgentEvent.Create(AgentEventType.TOOL_STARTED, $"USER_EDITS_APPLIED: Workflow parameters updated with HR Admin user-edited values: {JsonSerializer.Serialize(editedParameters)}"));
         }
 
         var prompt = agentRun.OriginalPrompt ?? "";

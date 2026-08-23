@@ -28,7 +28,8 @@ import {
   FileText,
   Building2,
   Users,
-  PiggyBank
+  PiggyBank,
+  Bot
 } from 'lucide-react';
 
 interface AgentConsoleProps {
@@ -47,31 +48,47 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
   const [approvalProcessing, setApprovalProcessing] = useState(false);
   const [feedExpanded, setFeedExpanded] = useState(false);
 
+  // Editable workflow preview state
+  const [editedParams, setEditedParams] = useState<Record<string, string>>({});
+
+  // Quick Action Modal states
+  const [activeModal, setActiveModal] = useState<string | null>(null);
+  const [qaName, setQaName] = useState('Ali');
+  const [qaDept, setQaDept] = useState('IT');
+  const [qaDesig, setQaDesig] = useState('Junior .NET Developer');
+  const [qaSalary, setQaSalary] = useState('80000');
+  const [qaPolicyQuery, setQaPolicyQuery] = useState('leave policy');
+
   const quickPrompts = [
     {
       label: 'Onboard Employee',
       icon: UserPlus,
-      prompt: 'Onboard Ahmed Khan as a mid-level .NET developer in IT according to company policy. Apply the correct salary, create his employee record, submit the legacy IT onboarding form, create his Mock SAP record, and generate his welcome email.'
+      type: 'onboard',
+      prompt: 'Onboard employee Ali in IT as Junior .NET Developer with salary 80000'
     },
     {
       label: 'Analyze Budget',
       icon: BarChart3,
+      type: 'budget',
       prompt: 'Show me departments exceeding their allocated Q3 budget.'
     },
     {
       label: 'Check Policy',
       icon: FileCheck,
-      prompt: "Show me the current leave policy."
+      type: 'policy',
+      prompt: 'Show me the current leave policy.'
     },
     {
       label: 'Update Salary',
       icon: DollarSign,
-      prompt: 'Increase salaries of all IT developers by 10%.'
+      type: 'salary',
+      prompt: 'Update salary for Ali to 90000'
     },
     {
       label: 'Security Test',
       icon: Trash2,
-      prompt: 'Delete all employees.'
+      type: 'security',
+      prompt: 'security test'
     }
   ];
 
@@ -83,6 +100,8 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
     setErrorMsg(null);
     setResult(null);
     setFeedExpanded(false);
+    setEditedParams({});
+    setActiveModal(null);
 
     try {
       const res = await executeAgentPrompt(targetPrompt, userRole);
@@ -97,6 +116,15 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
     }
   };
 
+  const handleQuickActionClick = (q: typeof quickPrompts[0]) => {
+    if (q.type === 'budget' || q.type === 'security') {
+      setPrompt(q.prompt);
+      handleExecute(q.prompt);
+    } else {
+      setActiveModal(q.type);
+    }
+  };
+
   const handleApprovalDecision = async (approved: boolean) => {
     if (!result?.actionPlan?.approvalId) return;
 
@@ -106,7 +134,8 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
         approvalId: result.actionPlan.approvalId,
         approved,
         approvedBy: `${userRole} User`,
-        reason: approved ? 'Action Plan approved by Admin' : 'Action Plan rejected during review'
+        reason: approved ? 'Action Plan approved by Admin' : 'Action Plan rejected during review',
+        editedParameters: Object.keys(editedParams).length > 0 ? editedParams : undefined
       });
 
       if (decisionRes) {
@@ -120,10 +149,10 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
               : undefined
           };
         });
+        if (onApprovalStateChange) onApprovalStateChange();
       }
-      onApprovalStateChange();
     } catch (err: any) {
-      setErrorMsg('Failed to record approval decision.');
+      setErrorMsg(err.message || 'Failed to record approval decision.');
     } finally {
       setApprovalProcessing(false);
     }
@@ -133,18 +162,18 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
   const intentLabel = (intent: string) => {
     const map: Record<string, string> = {
       EMPLOYEE_CREATE: 'Create Employee',
-      EMPLOYEE_READ: 'Read Employees',
+      EMPLOYEE_READ: 'Read Employee',
       EMPLOYEE_UPDATE: 'Update Employee',
       EMPLOYEE_DELETE: 'Delete Employee',
-      EMPLOYEE_ONBOARDING: 'Onboarding',
-      POLICY_CREATE: 'Create Policy',
-      POLICY_READ: 'Read Policy',
-      POLICY_UPDATE: 'Update Policy',
-      POLICY_DELETE: 'Delete Policy',
+      EMPLOYEE_ONBOARDING: 'Employee Onboarding',
       DEPARTMENT_CREATE: 'Create Department',
       DEPARTMENT_READ: 'Read Departments',
       DEPARTMENT_UPDATE: 'Update Department',
       DEPARTMENT_DELETE: 'Delete Department',
+      POLICY_CREATE: 'Create Policy',
+      POLICY_READ: 'Read Policy',
+      POLICY_UPDATE: 'Update Policy',
+      POLICY_DELETE: 'Delete Policy',
       BUDGET_ANALYSIS: 'Budget Analysis',
       BUDGET_READ: 'Read Budgets',
       BUDGET_UPDATE: 'Update Budget',
@@ -156,6 +185,7 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
       AUDIT_READ: 'Audit Logs',
       DASHBOARD_ANALYTICS: 'Dashboard Analytics',
       SQL_AGENT: 'Data Query',
+      GENERAL_CONVERSATION: 'Conversational AI',
       UNKNOWN: 'Unknown Intent'
     };
     return map[intent] || intent;
@@ -188,6 +218,15 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
         </div>
       </div>
 
+      {/* Editable Workflow Banner */}
+      <div className="p-3.5 bg-blue-50/80 border border-blue-200 rounded-xl text-xs text-blue-900 flex items-start gap-2.5">
+        <Sparkles className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+        <div>
+          <span className="font-bold block">Interactive Editable Preview</span>
+          You can edit any proposed values below before executing. The backend will revalidate your inputs and apply your exact edits upon approval.
+        </div>
+      </div>
+
       {plan.warnings && plan.warnings.length > 0 && (
         <div className="bg-amber-50/60 border border-amber-200/80 rounded-lg p-3 text-xs text-amber-800 space-y-1">
           <div className="font-bold flex items-center gap-1.5 text-amber-900">
@@ -199,28 +238,72 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
         </div>
       )}
 
+      {/* Editable Parameters Grid */}
       {plan.affectedRecords && plan.affectedRecords.length > 0 && (
+        <div className="space-y-3">
+          <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center justify-between">
+            <span>Proposed Record Changes &amp; Input Fields</span>
+            <span className="text-[10px] text-slate-400 font-medium font-normal">Click any field value to edit</span>
+          </h4>
+          <div className="space-y-3">
+            {plan.affectedRecords.map((rec, rIdx) => (
+              <div key={rIdx} className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
+                <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                  <span className="font-bold text-xs text-slate-800">{rec.entityName} Master</span>
+                  <span className="text-xs font-semibold text-emerald-700">{rec.primaryLabel || 'New Record'}</span>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {rec.changes?.map((c, cIdx) => {
+                    const isEdited = editedParams[c.fieldName] !== undefined;
+                    const currentValue = editedParams[c.fieldName] ?? c.newValue;
+                    const sourceTag = isEdited
+                      ? { label: 'User-edited', class: 'bg-purple-100 text-purple-700 border-purple-200' }
+                      : c.valueSource === 'Policy-derived'
+                        ? { label: 'Policy-derived', class: 'bg-emerald-100 text-emerald-700 border-emerald-200' }
+                        : { label: 'AI-proposed', class: 'bg-blue-100 text-blue-700 border-blue-200' };
+
+                    return (
+                      <div key={cIdx} className="bg-white p-3 rounded-lg border border-slate-200 space-y-1.5 shadow-2xs">
+                        <div className="flex items-center justify-between">
+                          <label className="text-[11px] font-bold text-slate-600 uppercase tracking-wide">
+                            {c.fieldName.replace(/([A-Z])/g, ' $1').trim()}
+                          </label>
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold border ${sourceTag.class}`}>
+                            {sourceTag.label}
+                          </span>
+                        </div>
+                        <input
+                          type="text"
+                          value={currentValue}
+                          onChange={(e) => setEditedParams({ ...editedParams, [c.fieldName]: e.target.value })}
+                          className="w-full text-xs font-semibold text-slate-900 bg-slate-50 hover:bg-white focus:bg-white border border-slate-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 rounded-lg px-2.5 py-1.5 transition-all outline-hidden"
+                          placeholder={`Enter ${c.fieldName}...`}
+                        />
+                        <div className="text-[10px] text-slate-400 flex items-center justify-between">
+                          <span>Original AI: {c.newValue}</span>
+                          {c.oldValue && <span>Previous: {c.oldValue}</span>}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Proposed Tool Execution Steps */}
+      {plan.steps && plan.steps.length > 0 && (
         <div className="space-y-2">
-          <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">Proposed Record Changes</h4>
-          <div className="border border-slate-200 rounded-lg overflow-hidden">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold">
-                <tr>
-                  <th className="py-2.5 px-3">Target Entity</th>
-                  <th className="py-2.5 px-3">Primary Label</th>
-                  <th className="py-2.5 px-3 text-right">Record ID</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 bg-white">
-                {plan.affectedRecords.map((rec, idx) => (
-                  <tr key={idx} className="hover:bg-slate-50/80">
-                    <td className="py-2.5 px-3 font-semibold text-slate-800">{rec.entityName}</td>
-                    <td className="py-2.5 px-3 font-medium text-emerald-700">{rec.primaryLabel || 'Pending Provision'}</td>
-                    <td className="py-2.5 px-3 text-right font-bold text-slate-800">#{rec.recordId}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">Execution Plan Sequence</h4>
+          <div className="space-y-1.5">
+            {plan.steps.map((s, sIdx) => (
+              <div key={sIdx} className="flex items-center justify-between p-2.5 bg-slate-50 rounded-lg border border-slate-100 text-xs">
+                <span className="font-semibold text-slate-700">Step {s.stepNumber}: {s.description}</span>
+                <span className="font-mono text-[10px] text-slate-400 bg-white px-2 py-0.5 rounded border border-slate-200">{s.toolName}</span>
+              </div>
+            ))}
           </div>
         </div>
       )}
@@ -238,7 +321,7 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
           disabled={approvalProcessing}
           className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-colors shadow-sm flex items-center gap-1.5"
         >
-          {approvalProcessing ? 'Executing...' : 'Approve & Execute Plan'}
+          {approvalProcessing ? 'Executing...' : Object.keys(editedParams).length > 0 ? 'Revalidate & Execute Edited Plan' : 'Approve & Execute Plan'}
         </button>
       </div>
     </div>
@@ -442,16 +525,39 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
     );
   };
 
+  const renderConversationalResult = (message: string) => {
+    return (
+      <div className="bg-gradient-to-r from-blue-50/80 to-indigo-50/80 rounded-xl border border-blue-200/80 p-5 shadow-xs flex items-start gap-4">
+        <div className="p-2.5 rounded-xl bg-blue-600 text-white shadow-sm shrink-0">
+          <Bot className="w-5 h-5" />
+        </div>
+        <div className="space-y-1.5 flex-1">
+          <div className="text-xs font-bold text-blue-900 uppercase tracking-wider flex items-center gap-2">
+            <span>Nexus AI Assistant</span>
+            <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 text-[10px] font-semibold">Conversational</span>
+          </div>
+          <div className="text-sm font-medium text-slate-800 leading-relaxed whitespace-pre-line">
+            {message}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   // Choose which result renderer to use based on intent
   const renderResultData = (res: AgentResult) => {
     if (!res.resultData) return null;
     const intent = res.intent ?? '';
+    const data = res.resultData as any;
+
+    if (intent === 'GENERAL_CONVERSATION' || data?.isConversational) {
+      return renderConversationalResult(data?.message ?? 'Hello! How can I assist you today?');
+    }
 
     // SQL / budget analytics
     if (intent === 'BUDGET_ANALYSIS' || intent === 'SQL_AGENT' ||
         intent === 'DASHBOARD_ANALYTICS' || intent === 'APPROVAL_READ' ||
         intent === 'ONBOARDING_READ' || intent === 'AUDIT_READ') {
-      const data = res.resultData as any;
       if (data?.columns) return renderSqlAnalytics(data as SqlAnalyticsResult);
       return renderGenericResult(data, intent);
     }
@@ -523,10 +629,7 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
               return (
                 <button
                   key={idx}
-                  onClick={() => {
-                    setPrompt(q.prompt);
-                    handleExecute(q.prompt);
-                  }}
+                  onClick={() => handleQuickActionClick(q)}
                   className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200 text-slate-700 border border-slate-200 rounded-lg text-xs font-semibold transition-all"
                 >
                   <Icon className="w-3.5 h-3.5 text-blue-600" />
@@ -606,6 +709,123 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
 
           {/* Execution Feed Timeline */}
           {result.executionFeed && result.executionFeed.length > 0 && renderFeed(result.executionFeed)}
+        </div>
+      )}
+      {/* Quick Action Interactive Dialog Modals */}
+      {activeModal === 'onboard' && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 border border-slate-200">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2 text-blue-600 font-bold text-sm">
+                <UserPlus className="w-5 h-5" />
+                <span>Quick Action: Onboard Employee</span>
+              </div>
+              <button onClick={() => setActiveModal(null)} className="text-slate-400 hover:text-slate-600 font-bold text-sm">✕</button>
+            </div>
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">Employee Name</label>
+                <input type="text" value={qaName} onChange={(e) => setQaName(e.target.value)} className="w-full p-2.5 border border-slate-300 rounded-lg text-xs font-semibold focus:border-blue-500" placeholder="e.g. Ali" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Department</label>
+                  <input type="text" value={qaDept} onChange={(e) => setQaDept(e.target.value)} className="w-full p-2.5 border border-slate-300 rounded-lg text-xs font-semibold focus:border-blue-500" placeholder="e.g. IT" />
+                </div>
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Salary ($)</label>
+                  <input type="text" value={qaSalary} onChange={(e) => setQaSalary(e.target.value)} className="w-full p-2.5 border border-slate-300 rounded-lg text-xs font-semibold focus:border-blue-500" placeholder="e.g. 80000" />
+                </div>
+              </div>
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">Designation</label>
+                <input type="text" value={qaDesig} onChange={(e) => setQaDesig(e.target.value)} className="w-full p-2.5 border border-slate-300 rounded-lg text-xs font-semibold focus:border-blue-500" placeholder="e.g. Junior .NET Developer" />
+              </div>
+            </div>
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+              <button onClick={() => setActiveModal(null)} className="px-3.5 py-2 border border-slate-300 rounded-lg text-xs font-bold text-slate-600 hover:bg-slate-50">Cancel</button>
+              <button
+                onClick={() => {
+                  const cmd = `Onboard employee ${qaName} in ${qaDept} as ${qaDesig} with salary ${qaSalary}`;
+                  setPrompt(cmd);
+                  handleExecute(cmd);
+                }}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold shadow-xs"
+              >
+                Launch Onboarding Workflow
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeModal === 'policy' && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 border border-slate-200">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2 text-blue-600 font-bold text-sm">
+                <FileCheck className="w-5 h-5" />
+                <span>Quick Action: Check Policy</span>
+              </div>
+              <button onClick={() => setActiveModal(null)} className="text-slate-400 hover:text-slate-600 font-bold text-sm">✕</button>
+            </div>
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">Policy Title or Code</label>
+                <input type="text" value={qaPolicyQuery} onChange={(e) => setQaPolicyQuery(e.target.value)} className="w-full p-2.5 border border-slate-300 rounded-lg text-xs font-semibold focus:border-blue-500" placeholder="e.g. leave policy, POL-HR-001..." />
+              </div>
+            </div>
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+              <button onClick={() => setActiveModal(null)} className="px-3.5 py-2 border border-slate-300 rounded-lg text-xs font-bold text-slate-600 hover:bg-slate-50">Cancel</button>
+              <button
+                onClick={() => {
+                  const cmd = `show policy ${qaPolicyQuery}`;
+                  setPrompt(cmd);
+                  handleExecute(cmd);
+                }}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold shadow-xs"
+              >
+                Evaluate Policy Compliance
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeModal === 'salary' && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 border border-slate-200">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2 text-blue-600 font-bold text-sm">
+                <DollarSign className="w-5 h-5" />
+                <span>Quick Action: Update Salary</span>
+              </div>
+              <button onClick={() => setActiveModal(null)} className="text-slate-400 hover:text-slate-600 font-bold text-sm">✕</button>
+            </div>
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">Employee Name</label>
+                <input type="text" value={qaName} onChange={(e) => setQaName(e.target.value)} className="w-full p-2.5 border border-slate-300 rounded-lg text-xs font-semibold focus:border-blue-500" placeholder="e.g. Ali" />
+              </div>
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">New Salary ($)</label>
+                <input type="text" value={qaSalary} onChange={(e) => setQaSalary(e.target.value)} className="w-full p-2.5 border border-slate-300 rounded-lg text-xs font-semibold focus:border-blue-500" placeholder="e.g. 90000" />
+              </div>
+            </div>
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+              <button onClick={() => setActiveModal(null)} className="px-3.5 py-2 border border-slate-300 rounded-lg text-xs font-bold text-slate-600 hover:bg-slate-50">Cancel</button>
+              <button
+                onClick={() => {
+                  const cmd = `update salary for ${qaName} to ${qaSalary}`;
+                  setPrompt(cmd);
+                  handleExecute(cmd);
+                }}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold shadow-xs"
+              >
+                Prepare Salary Update Plan
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
