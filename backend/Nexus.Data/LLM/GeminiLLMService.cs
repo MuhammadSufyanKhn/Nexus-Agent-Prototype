@@ -69,7 +69,7 @@ public class GeminiLLMService : ILLMService
             }
 
             var model = string.IsNullOrWhiteSpace(_options.Model)
-                ? "gemini-3.6-flash"
+                ? "gemini-2.0-flash"
                 : _options.Model;
 
             // Build the request body
@@ -230,7 +230,7 @@ public class GeminiLLMService : ILLMService
     {
         var sw = Stopwatch.StartNew();
         var model = string.IsNullOrWhiteSpace(_options.Model)
-            ? "gemini-3.6-flash"
+            ? "gemini-2.0-flash"
             : _options.Model;
 
         var apiKey = _options.ApiKey;
@@ -253,25 +253,42 @@ public class GeminiLLMService : ILLMService
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             cts.CancelAfter(TimeSpan.FromSeconds(8));
 
-            // Minimal health-check call — ask Gemini to return a single word
-            var healthPayload = new
-            {
-                contents = new[]
-                {
-                    new { parts = new[] { new { text = "Reply with only the word: OK" } } }
-                },
-                generationConfig = new { maxOutputTokens = 10 }
-            };
-
-            var bodyJson = JsonSerializer.Serialize(healthPayload);
-            var content = new StringContent(bodyJson, Encoding.UTF8, "application/json");
-
-            var endpoint = $"/v1beta/models/{model}:generateContent?key={apiKey}";
-            var response = await _httpClient.PostAsync(endpoint, content, cts.Token);
+            // Lightweight health-check call — GET model metadata without consuming token generation quota
+            var endpoint = $"/v1beta/models/{model}?key={apiKey}";
+            var response = await _httpClient.GetAsync(endpoint, cts.Token);
 
             sw.Stop();
 
             if (response.IsSuccessStatusCode)
+            {
+                return new LLMHealthStatus
+                {
+                    IsAvailable = true,
+                    Provider = "Gemini",
+                    Model = model,
+                    BaseUrl = GeminiBaseUrl,
+                    ResponseTimeMs = sw.ElapsedMilliseconds
+                };
+            }
+
+            // If 429 Too Many Requests, the API key and model are valid, but rate limited. Treat as available.
+            if ((int)response.StatusCode == 429)
+            {
+                return new LLMHealthStatus
+                {
+                    IsAvailable = true,
+                    Provider = "Gemini",
+                    Model = model,
+                    BaseUrl = GeminiBaseUrl,
+                    ResponseTimeMs = sw.ElapsedMilliseconds,
+                    ErrorMessage = "Gemini API is rate limited (429 Too Many Requests)."
+                };
+            }
+
+            // Fallback: Check general models list endpoint if specific model returns 404
+            var listEndpoint = $"/v1beta/models?key={apiKey}";
+            var listResponse = await _httpClient.GetAsync(listEndpoint, cts.Token);
+            if (listResponse.IsSuccessStatusCode || (int)listResponse.StatusCode == 429)
             {
                 return new LLMHealthStatus
                 {

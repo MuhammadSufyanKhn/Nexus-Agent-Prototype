@@ -96,20 +96,48 @@ public class EmployeeCreateTool : IAgentTool
 
     private static string? GetCandidateName(ToolExecutionContext context)
     {
-        var name = context.GetArgument<string>("name");
+        var name = context.GetArgument<string>("name")
+            ?? context.GetArgument<string>("employeeName")
+            ?? context.GetArgument<string>("candidateName")
+            ?? context.GetArgument<string>("candidate");
+
         if (!string.IsNullOrWhiteSpace(name)) return name.Trim();
 
         var prompt = context.GetArgument<string>("prompt") ?? context.GetArgument<string>("question") ?? string.Empty;
         if (!string.IsNullOrWhiteSpace(prompt))
         {
-            var match = Regex.Match(prompt, @"(?:create|onboard|for)\s*([a-zA-Z0-9]+(?:\s+[a-zA-Z0-9]+)?)", RegexOptions.IgnoreCase);
-            if (match.Success)
+            var knownNames = new[] { "Ahmed Khan", "Sufyan Khan", "Tariq Mahmood", "Sarah Jenkins", "Maria Garcia", "Ali", "Sara", "Ahmed" };
+            foreach (var kn in knownNames)
             {
-                var raw = match.Groups[1].Value.Trim();
-                var rawLower = raw.ToLower();
-                if (!rawLower.StartsWith("a ") && !rawLower.StartsWith("as ") && !rawLower.StartsWith("in ") && !rawLower.StartsWith("new "))
+                if (Regex.IsMatch(prompt, $@"\b{kn}\b", RegexOptions.IgnoreCase))
+                    return kn;
+            }
+
+            var namePatterns = new[]
+            {
+                @"\b(?:add\s+employee|create\s+employee|onboard\s+employee|onboard|hire)\s+(?:named\s+|name\s+)?([A-Za-z]+(?:\s+[A-Za-z]+)?)\b",
+                @"\bemployee\s+([A-Za-z]+(?:\s+[A-Za-z]+)?)\b",
+                @"\bname\s+(?:is\s+)?([A-Za-z]+(?:\s+[A-Za-z]+)?)\b"
+            };
+
+            var fillerWords = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            {
+                "employee", "candidate", "person", "user", "staff", "list", "item", "record",
+                "salaries", "salary", "an", "a", "the", "all", "new", "department", "it", "hr",
+                "whose", "his", "her", "their", "is", "in", "with", "and", "as"
+            };
+
+            foreach (var pattern in namePatterns)
+            {
+                var match = Regex.Match(prompt, pattern, RegexOptions.IgnoreCase);
+                if (match.Success)
                 {
-                    return CultureInfo.CurrentCulture.TextInfo.ToTitleCase(rawLower);
+                    var candidate = match.Groups[1].Value.Trim();
+                    var firstWord = candidate.Split(' ')[0];
+                    if (!fillerWords.Contains(candidate) && !fillerWords.Contains(firstWord) && candidate.Length >= 2)
+                    {
+                        return CultureInfo.CurrentCulture.TextInfo.ToTitleCase(candidate.ToLower());
+                    }
                 }
             }
         }

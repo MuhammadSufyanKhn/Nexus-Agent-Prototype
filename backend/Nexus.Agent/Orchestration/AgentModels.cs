@@ -75,6 +75,13 @@ public class AgentResult
     public object? ResultData { get; set; }
     public List<AgentEvent> ExecutionFeed { get; set; } = new();
     public string? ErrorMessage { get; set; }
+
+    /// <summary>
+    /// Set when the Gemini LLM API itself failed (e.g. bad key, quota, model not found).
+    /// Distinct from ErrorMessage which is a business/validation error.
+    /// </summary>
+    public string? LlmError { get; set; }
+
     public long ExecutionTimeMs { get; set; }
 }
 

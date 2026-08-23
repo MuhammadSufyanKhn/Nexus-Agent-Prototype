@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Globalization;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
@@ -97,9 +98,11 @@ public class AgentOrchestrator : IAgentOrchestrator
                 IsSuccess = false,
                 ExecutionFeed = feed,
                 ErrorMessage = parsedIntent.ClarificationPrompt,
+                LlmError = parsedIntent.LlmError,
                 ExecutionTimeMs = sw.ElapsedMilliseconds
             };
         }
+
 
         // 4. PLAN GENERATION & RISK EVALUATION
         var plan = BuildPlan(userPrompt, parsedIntent);
@@ -355,23 +358,15 @@ public class AgentOrchestrator : IAgentOrchestrator
         // 1. Load AgentRun & Approval
         var agentRun = await _db.AgentRuns.FirstOrDefaultAsync(r => r.Id == runId, cancellationToken);
         if (agentRun == null)
-        {
             throw new InvalidOperationException($"AgentRun '{runId}' not found.");
-        }
 
         var approval = await _db.Approvals.FirstOrDefaultAsync(a => a.Id == approvalId, cancellationToken);
         if (approval == null)
-        {
             throw new InvalidOperationException($"Approval record '{approvalId}' not found.");
-        }
 
-        // Concurrency Safeguard: Verify approval is pending
         if (approval.Status != ApprovalStatus.Pending)
-        {
             throw new InvalidOperationException($"Approval '{approvalId}' has already been processed (Status: {approval.Status}).");
-        }
 
-        // Update Approval & AgentRun state atomically
         approval.Status = ApprovalStatus.Approved;
         approval.ApprovedBy = approvedBy;
         approval.ApprovedAt = DateTime.UtcNow;
@@ -379,11 +374,9 @@ public class AgentOrchestrator : IAgentOrchestrator
         agentRun.Status = AgentRunStatus.Executing;
         await _db.SaveChangesAsync(cancellationToken);
 
-        // Broadcast APPROVAL_RECEIVED via SignalR
         feed.Add(AgentEvent.Create(AgentEventType.TOOL_SELECTED, $"APPROVAL_RECEIVED: Plan of Action approved by {approvedBy}. Resuming tool execution..."));
         await _broadcaster.BroadcastEventAsync(Nexus.Data.Events.AgentActivityEvent.Create(runId, 1, "APPROVAL_RECEIVED", $"Plan of Action approved by {approvedBy}. Resuming execution..."), cancellationToken);
 
-        // Deserialize persisted ActionPlan from approval.Reason
         Nexus.Data.ActionPlan.ActionPlan? actionPlan = null;
         try
         {
@@ -418,35 +411,117 @@ public class AgentOrchestrator : IAgentOrchestrator
         int affectedCount = 0;
         string resultMessage = "";
 
-        // Execute Approved Plan
-        if (agentRun.Intent == "EMPLOYEE_ONBOARDING" || pLower.Contains("onboard"))
+        var intentType = parsedIntent?.ParsedIntentType ?? IntentType.UNKNOWN;
+
+        // ── 1. DEPARTMENT CREATION / UPDATE ─────────────────────────────────────
+        if (intentType == IntentType.DEPARTMENT_CREATE || intentType == IntentType.DEPARTMENT_UPDATE || (pLower.Contains("department") && (pLower.Contains("create") || pLower.Contains("add")) && !pLower.Contains("employee")))
         {
-            // Parse candidate name
-            string empName = "Sufan Khan";
-            var nameMatch = System.Text.RegularExpressions.Regex.Match(prompt, @"(?:onboard|for)\s*([a-zA-Z0-9]+(?:\s+[a-zA-Z0-9]+)?)", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-            if (nameMatch.Success)
+            var deptName = parsedIntent?.Parameters?.GetValueOrDefault("name")?.ToString()
+                ?? parsedIntent?.Entities?.GetValueOrDefault("name")
+                ?? "Finance";
+
+            var head = parsedIntent?.Parameters?.GetValueOrDefault("head")?.ToString()
+                ?? parsedIntent?.Entities?.GetValueOrDefault("head")
+                ?? "Sufyan";
+
+            decimal budgetAmt = 50000m;
+            if (parsedIntent?.Parameters?.TryGetValue("budgetAmount", out var bObj) == true && decimal.TryParse(bObj?.ToString(), out var bVal))
+                budgetAmt = bVal;
+
+            var deptTool = _toolRegistry.GetTool("department.crud");
+            if (deptTool != null)
             {
-                var raw = nameMatch.Groups[1].Value.Trim();
-                var rawLower = raw.ToLower();
-                if (!rawLower.StartsWith("a ") && !rawLower.StartsWith("as ") && !rawLower.StartsWith("in ") && !rawLower.StartsWith("new "))
+                var toolArgs = new Dictionary<string, object>
                 {
-                    empName = System.Globalization.CultureInfo.CurrentCulture.TextInfo.ToTitleCase(rawLower);
+                    { "operation", intentType == IntentType.DEPARTMENT_UPDATE ? "UPDATE" : "CREATE" },
+                    { "name", deptName },
+                    { "description", $"Department Head: {head}, Initial Staff: 0" }
+                };
+                var toolCtx = new ToolExecutionContext
+                {
+                    AgentRunId = runId,
+                    UserId = agentRun.UserId,
+                    UserRole = "Admin",
+                    ArgumentsJson = JsonSerializer.Serialize(toolArgs)
+                };
+                await deptTool.ExecuteAsync(toolCtx);
+            }
+
+            if (budgetAmt > 0)
+            {
+                var budgetTool = _toolRegistry.GetTool("budget.update");
+                if (budgetTool != null)
+                {
+                    var budgetArgs = new Dictionary<string, object>
+                    {
+                        { "department", deptName },
+                        { "budgetAmount", budgetAmt },
+                        { "quarter", "Q3" },
+                        { "mode", "SET" }
+                    };
+                    var budgetCtx = new ToolExecutionContext
+                    {
+                        AgentRunId = runId,
+                        UserId = agentRun.UserId,
+                        UserRole = "Admin",
+                        ArgumentsJson = JsonSerializer.Serialize(budgetArgs)
+                    };
+                    await budgetTool.ExecuteAsync(budgetCtx);
                 }
             }
 
-            // Parse salary
-            decimal empSalary = 68000.00m;
-            var salMatch = System.Text.RegularExpressions.Regex.Match(prompt, @"\$?\s*([0-9]{1,3}(?:,[0-9]{3})+|[0-9]{5,8})\b");
-            if (salMatch.Success && decimal.TryParse(salMatch.Groups[1].Value.Replace(",", ""), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var parsedSal))
+            affectedCount = 1;
+            resultMessage = $"Created Department '{deptName}' (Head: {head}, Initial Staff: 0) with ${budgetAmt:N2} allocated Q3 budget.";
+            feed.Add(AgentEvent.Create(AgentEventType.TOOL_COMPLETED, $"DEPARTMENT_CREATED: {resultMessage}"));
+            await _broadcaster.BroadcastEventAsync(Nexus.Data.Events.AgentActivityEvent.Create(runId, 2, "DEPARTMENT_CREATED", resultMessage), cancellationToken);
+        }
+        // ── 2. BUDGET UPDATE / ALLOCATE ─────────────────────────────────────────
+        else if (intentType == IntentType.BUDGET_UPDATE)
+        {
+            var deptName = parsedIntent?.Parameters?.GetValueOrDefault("department")?.ToString()
+                ?? parsedIntent?.Entities?.GetValueOrDefault("department")
+                ?? "IT";
+
+            decimal budgetAmt = 50000m;
+            if (parsedIntent?.Parameters?.TryGetValue("budgetAmount", out var bObj) == true && decimal.TryParse(bObj?.ToString(), out var bVal))
+                budgetAmt = bVal;
+
+            var budgetTool = _toolRegistry.GetTool("budget.update");
+            if (budgetTool != null)
             {
-                empSalary = parsedSal;
+                var budgetArgs = new Dictionary<string, object>
+                {
+                    { "department", deptName },
+                    { "budgetAmount", budgetAmt },
+                    { "quarter", "Q3" },
+                    { "mode", "ADD" }
+                };
+                var budgetCtx = new ToolExecutionContext
+                {
+                    AgentRunId = runId,
+                    UserId = agentRun.UserId,
+                    UserRole = "Admin",
+                    ArgumentsJson = JsonSerializer.Serialize(budgetArgs)
+                };
+                await budgetTool.ExecuteAsync(budgetCtx);
             }
 
-            // Lookup IT department from SQL Server
+            affectedCount = 1;
+            resultMessage = $"Allocated +${budgetAmt:N2} budget to {deptName} department for Q3.";
+            feed.Add(AgentEvent.Create(AgentEventType.TOOL_COMPLETED, $"BUDGET_UPDATED: {resultMessage}"));
+            await _broadcaster.BroadcastEventAsync(Nexus.Data.Events.AgentActivityEvent.Create(runId, 2, "BUDGET_UPDATED", resultMessage), cancellationToken);
+        }
+        // ── 3. EMPLOYEE ONBOARDING ──────────────────────────────────────────────
+        else if (intentType == IntentType.EMPLOYEE_ONBOARDING || pLower.Contains("onboard"))
+        {
+            string empName = parsedIntent?.Entities?.GetValueOrDefault("name") ?? "Sufyan Khan";
+            decimal empSalary = 68000.00m;
+            if (parsedIntent?.Entities?.TryGetValue("salary", out var salStr) == true && decimal.TryParse(salStr, NumberStyles.Any, CultureInfo.InvariantCulture, out var parsedSal))
+                empSalary = parsedSal;
+
             var dept = await _db.Departments.FirstOrDefaultAsync(d => d.Name.ToLower().Contains("it") || d.Name.ToLower().Contains("software"), cancellationToken);
             int deptId = dept?.Id ?? 1;
 
-            // STEP 1: SQL Employee Creation
             feed.Add(AgentEvent.Create(AgentEventType.TOOL_STARTED, $"EMPLOYEE_CREATION_STARTED: Inserting employee '{empName}' into SQL Server database..."));
             await _broadcaster.BroadcastEventAsync(Nexus.Data.Events.AgentActivityEvent.Create(runId, 2, "EMPLOYEE_CREATION_STARTED", $"Creating SQL record for {empName}..."), cancellationToken);
 
@@ -455,7 +530,7 @@ public class AgentOrchestrator : IAgentOrchestrator
                 Name = empName,
                 Email = $"{empName.ToLower().Replace(" ", ".")}@nexus.local",
                 DepartmentId = deptId,
-                Designation = pLower.Contains("frontend") ? "Frontend Developer" : "Mid-Level .NET Developer",
+                Designation = parsedIntent?.Entities?.GetValueOrDefault("designation") ?? "Developer",
                 Salary = empSalary,
                 ExperienceYears = 3,
                 Status = EmployeeStatus.Active,
@@ -467,10 +542,6 @@ public class AgentOrchestrator : IAgentOrchestrator
 
             feed.Add(AgentEvent.Create(AgentEventType.TOOL_COMPLETED, $"EMPLOYEE_CREATED: Created SQL Employee ID #{newEmp.Id} for {empName} (${empSalary:N2})."));
             await _broadcaster.BroadcastEventAsync(Nexus.Data.Events.AgentActivityEvent.Create(runId, 3, "EMPLOYEE_CREATED", $"Created SQL Employee ID #{newEmp.Id} for {empName}."), cancellationToken);
-
-            // STEP 2: Playwright Legacy HR Portal Automation
-            feed.Add(AgentEvent.Create(AgentEventType.TOOL_STARTED, $"LEGACY_AUTOMATION_STARTED: Launching Playwright browser automation for Legacy HR Portal..."));
-            await _broadcaster.BroadcastEventAsync(Nexus.Data.Events.AgentActivityEvent.Create(runId, 4, "LEGACY_AUTOMATION_STARTED", $"Launching Playwright legacy HR portal sync..."), cancellationToken);
 
             var legacyTool = _toolRegistry.GetTool("onboarding.submit_legacy_form");
             var legacyRef = $"HR-REC-2026-{newEmp.Id}";
@@ -493,17 +564,11 @@ public class AgentOrchestrator : IAgentOrchestrator
 
                 var legacyResult = await legacyTool.ExecuteAsync(toolCtx);
                 if (legacyResult.Data is Dictionary<string, object> d && d.TryGetValue("portalRecordId", out var prId))
-                {
                     legacyRef = prId.ToString() ?? legacyRef;
-                }
             }
 
             feed.Add(AgentEvent.Create(AgentEventType.TOOL_COMPLETED, $"LEGACY_AUTOMATION_COMPLETED: Submitted Legacy HR Portal form (Ref: {legacyRef})."));
             await _broadcaster.BroadcastEventAsync(Nexus.Data.Events.AgentActivityEvent.Create(runId, 5, "LEGACY_AUTOMATION_COMPLETED", $"Submitted Legacy HR Portal form ({legacyRef})."), cancellationToken);
-
-            // STEP 3: Mock SAP HCM Provisioning
-            feed.Add(AgentEvent.Create(AgentEventType.TOOL_STARTED, $"SAP_OPERATION_STARTED: Provisioning employee in Enterprise SAP HCM..."));
-            await _broadcaster.BroadcastEventAsync(Nexus.Data.Events.AgentActivityEvent.Create(runId, 6, "SAP_OPERATION_STARTED", $"Provisioning candidate in Enterprise SAP HCM..."), cancellationToken);
 
             var sapTool = _toolRegistry.GetTool("sap.employee.create");
             var sapRef = $"SAP-EMP-2026-{newEmp.Id}";
@@ -526,17 +591,11 @@ public class AgentOrchestrator : IAgentOrchestrator
 
                 var sapResult = await sapTool.ExecuteAsync(toolCtx);
                 if (sapResult.Data is Dictionary<string, object> d && d.TryGetValue("personnelId", out var pId))
-                {
                     sapRef = pId.ToString() ?? sapRef;
-                }
             }
 
             feed.Add(AgentEvent.Create(AgentEventType.TOOL_COMPLETED, $"SAP_OPERATION_COMPLETED: Provisioned SAP Master Data (ID: {sapRef})."));
             await _broadcaster.BroadcastEventAsync(Nexus.Data.Events.AgentActivityEvent.Create(runId, 7, "SAP_OPERATION_COMPLETED", $"Provisioned SAP Master Data (ID: {sapRef})."), cancellationToken);
-
-            // STEP 4: Welcome Email Generation
-            feed.Add(AgentEvent.Create(AgentEventType.TOOL_STARTED, $"WELCOME_EMAIL_STARTED: Generating welcome email for {newEmp.Email}..."));
-            await _broadcaster.BroadcastEventAsync(Nexus.Data.Events.AgentActivityEvent.Create(runId, 8, "WELCOME_EMAIL_STARTED", $"Generating welcome email for {newEmp.Email}..."), cancellationToken);
 
             var emailTool = _toolRegistry.GetTool("email.welcome");
             if (emailTool != null)
@@ -554,7 +613,6 @@ public class AgentOrchestrator : IAgentOrchestrator
                     UserRole = "Admin",
                     ArgumentsJson = JsonSerializer.Serialize(toolArgs)
                 };
-
                 await emailTool.ExecuteAsync(toolCtx);
             }
 
@@ -564,7 +622,8 @@ public class AgentOrchestrator : IAgentOrchestrator
             affectedCount = 1;
             resultMessage = $"Onboarding Fully Provisioned for {empName}. Created SQL Record ID #{newEmp.Id} (${empSalary:N2}), Legacy HR Portal Ref ({legacyRef}), Mock SAP Personnel ID ({sapRef}), and sent welcome email.";
         }
-        else if (agentRun.Intent == "EMPLOYEE_DELETE" || pLower.Contains("delete") || pLower.Contains("remove"))
+        // ── 4. EMPLOYEE DELETE ──────────────────────────────────────────────────
+        else if (intentType == IntentType.EMPLOYEE_DELETE)
         {
             List<Employee> toDelete;
             if (targetRecordIds.Count > 0)
@@ -594,28 +653,24 @@ public class AgentOrchestrator : IAgentOrchestrator
             feed.Add(AgentEvent.Create(AgentEventType.TOOL_COMPLETED, $"EMPLOYEE_DELETED: {resultMessage}"));
             await _broadcaster.BroadcastEventAsync(Nexus.Data.Events.AgentActivityEvent.Create(runId, 2, "EMPLOYEE_DELETED", resultMessage), cancellationToken);
         }
-        else if (agentRun.Intent == "EMPLOYEE_UPDATE" || pLower.Contains("increase") || pLower.Contains("salary") || pLower.Contains("update"))
+        // ── 5. EMPLOYEE SALARY UPDATE (ONLY for explicit EMPLOYEE_UPDATE intent) ──
+        else if (intentType == IntentType.EMPLOYEE_UPDATE)
         {
             List<Employee> toUpdate;
             if (targetRecordIds.Count > 0)
             {
-                toUpdate = await _db.Employees
-                    .Where(e => targetRecordIds.Contains(e.Id))
-                    .ToListAsync(cancellationToken);
+                toUpdate = await _db.Employees.Where(e => targetRecordIds.Contains(e.Id)).ToListAsync(cancellationToken);
             }
             else
             {
-                toUpdate = await _db.Employees
-                    .Include(e => e.Department)
+                toUpdate = await _db.Employees.Include(e => e.Department)
                     .Where(e => e.DepartmentId == 1 || (e.Department != null && e.Department.Name == "IT"))
                     .ToListAsync(cancellationToken);
             }
 
             decimal pct = 10m;
             if (parsedIntent?.Entities?.TryGetValue("percentage", out var pStr) == true && decimal.TryParse(pStr, out var pDec))
-            {
                 pct = pDec;
-            }
 
             foreach (var emp in toUpdate)
             {
@@ -646,20 +701,17 @@ public class AgentOrchestrator : IAgentOrchestrator
         await _db.SaveChangesAsync(cancellationToken);
 
         feed.Add(AgentEvent.Create(AgentEventType.EXECUTION_COMPLETED, $"WORKFLOW_COMPLETED: {resultMessage}"));
-        await _broadcaster.BroadcastEventAsync(Nexus.Data.Events.AgentActivityEvent.Create(runId, 12, "EXECUTION_COMPLETED", $"Workflow Completed: {resultMessage}"), cancellationToken);
+        await _broadcaster.BroadcastEventAsync(Nexus.Data.Events.AgentActivityEvent.Create(runId, 12, "WORKFLOW_COMPLETED", resultMessage), cancellationToken);
 
         sw.Stop();
-
         return new AgentResult
         {
             RunId = runId,
             OriginalPrompt = agentRun.OriginalPrompt,
             Intent = agentRun.Intent,
             IsSuccess = true,
-            RequiresApproval = false,
-            Plan = BuildPlan(agentRun.OriginalPrompt, new ParsedIntentResult { Intent = agentRun.Intent }),
+            ResultData = new { message = resultMessage, affectedCount },
             ExecutionFeed = feed,
-            ResultData = resultMessage,
             ExecutionTimeMs = sw.ElapsedMilliseconds
         };
     }
@@ -671,16 +723,11 @@ public class AgentOrchestrator : IAgentOrchestrator
 
         switch (intentType)
         {
+            // ── Employee ────────────────────────────────────────────────────
             case IntentType.EMPLOYEE_CREATE:
                 if (_toolRegistry.HasTool("policy.evaluate"))
-                {
                     plan.Steps.Add(new AgentStep { StepNumber = 1, ToolName = "policy.evaluate", Description = "Evaluate HR policy rule", RiskLevel = RiskLevel.Low });
-                    plan.Steps.Add(new AgentStep { StepNumber = 2, ToolName = "employee.create", Description = "Create employee record", RiskLevel = RiskLevel.Medium });
-                }
-                else
-                {
-                    plan.Steps.Add(new AgentStep { StepNumber = 1, ToolName = "employee.create", Description = "Create employee record", RiskLevel = RiskLevel.Medium });
-                }
+                plan.Steps.Add(new AgentStep { StepNumber = plan.Steps.Count + 1, ToolName = "employee.create", Description = "Create employee record", RiskLevel = RiskLevel.Medium });
                 break;
 
             case IntentType.EMPLOYEE_READ:
@@ -695,14 +742,6 @@ public class AgentOrchestrator : IAgentOrchestrator
                 plan.Steps.Add(new AgentStep { StepNumber = 1, ToolName = "employee.delete", Description = "Delete employee record", RiskLevel = intent.Scope == "ALL" ? RiskLevel.Critical : RiskLevel.High });
                 break;
 
-            case IntentType.BUDGET_ANALYSIS:
-                plan.Steps.Add(new AgentStep { StepNumber = 1, ToolName = "sql.analytics", Description = "Execute natural language T-SQL budget query", RiskLevel = RiskLevel.Low });
-                break;
-
-            case IntentType.EXPENSE_COMPLIANCE:
-                plan.Steps.Add(new AgentStep { StepNumber = 1, ToolName = "policy.evaluate", Description = "Evaluate expense claim against POL-FIN-002 policy limit", RiskLevel = RiskLevel.Low });
-                break;
-
             case IntentType.EMPLOYEE_ONBOARDING:
                 plan.Steps.Add(new AgentStep { StepNumber = 1, ToolName = "policy.evaluate", Description = "Evaluate HR Policy POL-HR-001 salary band", RiskLevel = RiskLevel.Low });
                 plan.Steps.Add(new AgentStep { StepNumber = 2, ToolName = "employee.create", Description = "Create employee SQL record", RiskLevel = RiskLevel.Medium });
@@ -711,10 +750,78 @@ public class AgentOrchestrator : IAgentOrchestrator
                 plan.Steps.Add(new AgentStep { StepNumber = 5, ToolName = "email.welcome", Description = "Generate welcome email", RiskLevel = RiskLevel.Low });
                 break;
 
+            // ── Policy ──────────────────────────────────────────────────────
+            case IntentType.POLICY_READ:
+                plan.Steps.Add(new AgentStep { StepNumber = 1, ToolName = "policy.crud", Description = "Read / search policy records", RiskLevel = RiskLevel.Low });
+                break;
+
+            case IntentType.POLICY_CREATE:
+                plan.Steps.Add(new AgentStep { StepNumber = 1, ToolName = "policy.crud", Description = "Create new policy record", RiskLevel = RiskLevel.Medium });
+                break;
+
+            case IntentType.POLICY_UPDATE:
+                plan.Steps.Add(new AgentStep { StepNumber = 1, ToolName = "policy.crud", Description = "Update policy record", RiskLevel = RiskLevel.Medium });
+                break;
+
+            case IntentType.POLICY_DELETE:
+                plan.Steps.Add(new AgentStep { StepNumber = 1, ToolName = "policy.crud", Description = "Deactivate / delete policy record", RiskLevel = RiskLevel.High });
+                break;
+
+            // ── Department ──────────────────────────────────────────────────
+            case IntentType.DEPARTMENT_READ:
+                plan.Steps.Add(new AgentStep { StepNumber = 1, ToolName = "department.read", Description = "Read department records", RiskLevel = RiskLevel.Low });
+                break;
+
+            case IntentType.DEPARTMENT_CREATE:
+                plan.Steps.Add(new AgentStep { StepNumber = 1, ToolName = "department.crud", Description = "Create new department", RiskLevel = RiskLevel.Medium });
+                break;
+
+            case IntentType.DEPARTMENT_UPDATE:
+                plan.Steps.Add(new AgentStep { StepNumber = 1, ToolName = "department.crud", Description = "Update department record", RiskLevel = RiskLevel.Medium });
+                break;
+
+            case IntentType.DEPARTMENT_DELETE:
+                plan.Steps.Add(new AgentStep { StepNumber = 1, ToolName = "department.crud", Description = "Delete department", RiskLevel = RiskLevel.High });
+                break;
+
+            // ── Budget ──────────────────────────────────────────────────────
+            case IntentType.BUDGET_ANALYSIS:
+                plan.Steps.Add(new AgentStep { StepNumber = 1, ToolName = "sql.analytics", Description = "Execute T-SQL budget analysis query", RiskLevel = RiskLevel.Low });
+                break;
+
+            case IntentType.BUDGET_READ:
+                plan.Steps.Add(new AgentStep { StepNumber = 1, ToolName = "budget.read", Description = "Read budget records", RiskLevel = RiskLevel.Low });
+                break;
+
+            case IntentType.BUDGET_UPDATE:
+                plan.Steps.Add(new AgentStep { StepNumber = 1, ToolName = "budget.update", Description = "Update department budget allocation", RiskLevel = RiskLevel.High });
+                break;
+
+            // ── Expense ─────────────────────────────────────────────────────
+            case IntentType.EXPENSE_COMPLIANCE:
+                plan.Steps.Add(new AgentStep { StepNumber = 1, ToolName = "policy.evaluate", Description = "Evaluate expense claim against policy limit", RiskLevel = RiskLevel.Low });
+                break;
+
+            case IntentType.EXPENSE_READ:
+                plan.Steps.Add(new AgentStep { StepNumber = 1, ToolName = "expense.read", Description = "Read expense records", RiskLevel = RiskLevel.Low });
+                break;
+
+            case IntentType.EXPENSE_CREATE:
+                plan.Steps.Add(new AgentStep { StepNumber = 1, ToolName = "policy.evaluate", Description = "Validate expense against policy", RiskLevel = RiskLevel.Low });
+                plan.Steps.Add(new AgentStep { StepNumber = 2, ToolName = "expense.read", Description = "Record expense (read tool used for compliance only)", RiskLevel = RiskLevel.Medium });
+                break;
+
+            // ── Read-Only Cross-Cutting ──────────────────────────────────────
+            case IntentType.APPROVAL_READ:
+            case IntentType.ONBOARDING_READ:
+            case IntentType.AUDIT_READ:
+            case IntentType.DASHBOARD_ANALYTICS:
+                plan.Steps.Add(new AgentStep { StepNumber = 1, ToolName = "sql.analytics", Description = "Query enterprise records for summary", RiskLevel = RiskLevel.Low });
+                break;
+
+            // ── SQL Agent passthrough ────────────────────────────────────────
             case IntentType.SQL_AGENT:
-                // Route all natural-language DepartmentBudgets queries to the Production SQL Agent tool.
-                // Risk level Low — the sql.analytics tool promotes to Medium/High internally for write ops.
-                plan.Steps.Add(new AgentStep { StepNumber = 1, ToolName = "sql.analytics", Description = "Execute Production SQL Agent query on DepartmentBudgets", RiskLevel = RiskLevel.Low });
+                plan.Steps.Add(new AgentStep { StepNumber = 1, ToolName = "sql.analytics", Description = "Execute Production SQL Agent query", RiskLevel = RiskLevel.Low });
                 break;
 
             default:
@@ -729,26 +836,102 @@ public class AgentOrchestrator : IAgentOrchestrator
     private async Task<Nexus.Data.ActionPlan.ActionPlan> BuildActionPlanAsync(Guid runId, string prompt, ParsedIntentResult intent, CancellationToken ct)
     {
         var pLower = prompt.ToLower();
+        var intentType = intent.ParsedIntentType;
 
-        if (intent.ParsedIntentType == IntentType.EMPLOYEE_ONBOARDING || pLower.Contains("onboard"))
+        // ── 1. DEPARTMENT CREATION / MANAGEMENT ────────────────────────────────
+        if (intentType == IntentType.DEPARTMENT_CREATE || intentType == IntentType.DEPARTMENT_UPDATE || (intent.TargetEntity == "DEPARTMENT" && (intent.Operation == "CREATE" || intent.Operation == "UPDATE")))
+        {
+            var deptName = intent.Parameters.GetValueOrDefault("name")?.ToString()
+                ?? intent.Entities.GetValueOrDefault("name")
+                ?? "Finance";
+
+            var head = intent.Parameters.GetValueOrDefault("head")?.ToString()
+                ?? intent.Entities.GetValueOrDefault("head")
+                ?? "Sufyan";
+
+            decimal budgetAmt = 50000m;
+            if (intent.Parameters.TryGetValue("budgetAmount", out var bObj) && decimal.TryParse(bObj?.ToString(), out var bVal))
+                budgetAmt = bVal;
+
+            var actionPlan = new Nexus.Data.ActionPlan.ActionPlan
+            {
+                Title = $"Plan of Action: Create Department '{deptName}'",
+                RiskLevel = RiskLevel.Medium,
+                Status = "AWAITING_APPROVAL",
+                TotalFinancialImpact = budgetAmt,
+                Metadata = JsonSerializer.Serialize(intent)
+            };
+
+            actionPlan.AffectedRecords.Add(new Nexus.Data.ActionPlan.AffectedRecord
+            {
+                RecordId = 0,
+                EntityName = "Department Master (SQL Server)",
+                PrimaryLabel = $"{deptName} Department",
+                Changes = new List<Nexus.Data.ActionPlan.ChangePreview>
+                {
+                    new Nexus.Data.ActionPlan.ChangePreview { FieldName = "Department Name", OldValue = "[NEW]", NewValue = deptName, Difference = "New Entity" },
+                    new Nexus.Data.ActionPlan.ChangePreview { FieldName = "Department Head", OldValue = "None", NewValue = head, Difference = "Assignment" },
+                    new Nexus.Data.ActionPlan.ChangePreview { FieldName = "Initial Staff Count", OldValue = "0", NewValue = "0", Difference = "Empty Dept" },
+                    new Nexus.Data.ActionPlan.ChangePreview { FieldName = "Allocated Q3 Budget", OldValue = "$0.00", NewValue = $"${budgetAmt:N2}", Difference = "Budget Allocation" }
+                }
+            });
+
+            actionPlan.Steps.Add(new Nexus.Data.ActionPlan.ActionPlanStep { StepNumber = 1, ToolName = "department.crud", Description = $"Create Department record '{deptName}' (Head: {head})", RiskLevel = RiskLevel.Medium });
+            if (budgetAmt > 0)
+            {
+                actionPlan.Steps.Add(new Nexus.Data.ActionPlan.ActionPlanStep { StepNumber = 2, ToolName = "budget.update", Description = $"Initialize allocated Q3 budget (${budgetAmt:N2})", RiskLevel = RiskLevel.Medium });
+            }
+
+            actionPlan.Warnings.Add($"Creates new {deptName} department with ${budgetAmt:N2} allocated Q3 budget and {head} as Department Head.");
+            return actionPlan;
+        }
+
+        // ── 2. BUDGET UPDATE / ALLOCATE ─────────────────────────────────────────
+        if (intentType == IntentType.BUDGET_UPDATE || intent.TargetEntity == "DEPARTMENT_BUDGET")
+        {
+            var deptName = intent.Parameters.GetValueOrDefault("department")?.ToString()
+                ?? intent.Entities.GetValueOrDefault("department")
+                ?? "IT";
+
+            decimal budgetAmt = 50000m;
+            if (intent.Parameters.TryGetValue("budgetAmount", out var bObj) && decimal.TryParse(bObj?.ToString(), out var bVal))
+                budgetAmt = bVal;
+
+            var actionPlan = new Nexus.Data.ActionPlan.ActionPlan
+            {
+                Title = $"Plan of Action: Update Q3 Budget for {deptName} Department",
+                RiskLevel = RiskLevel.Medium,
+                Status = "AWAITING_APPROVAL",
+                TotalFinancialImpact = budgetAmt,
+                Metadata = JsonSerializer.Serialize(intent)
+            };
+
+            actionPlan.AffectedRecords.Add(new Nexus.Data.ActionPlan.AffectedRecord
+            {
+                RecordId = 0,
+                EntityName = "Department Budget (SQL Server)",
+                PrimaryLabel = $"{deptName} Q3 Budget",
+                Changes = new List<Nexus.Data.ActionPlan.ChangePreview>
+                {
+                    new Nexus.Data.ActionPlan.ChangePreview { FieldName = "Q3 Allocated Budget", OldValue = "[CURRENT]", NewValue = $"${budgetAmt:N2}", Difference = $"Allocation +${budgetAmt:N2}" }
+                }
+            });
+
+            actionPlan.Steps.Add(new Nexus.Data.ActionPlan.ActionPlanStep { StepNumber = 1, ToolName = "budget.update", Description = $"Allocate +${budgetAmt:N2} budget to {deptName}", RiskLevel = RiskLevel.Medium });
+            actionPlan.Warnings.Add($"Adjusts allocated Q3 budget for {deptName} by ${budgetAmt:N2}.");
+            return actionPlan;
+        }
+
+        // ── 3. EMPLOYEE ONBOARDING ──────────────────────────────────────────────
+        if (intentType == IntentType.EMPLOYEE_ONBOARDING || pLower.Contains("onboard"))
         {
             var name = intent.Entities.GetValueOrDefault("name", "Candidate");
             var dept = intent.Entities.GetValueOrDefault("department", "IT");
             var desig = intent.Entities.GetValueOrDefault("designation", ".NET Developer");
             
             decimal proposedSalary = 68000.00m;
-            if (intent.Entities.TryGetValue("salary", out var salStr) && decimal.TryParse(salStr, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var salVal))
-            {
+            if (intent.Entities.TryGetValue("salary", out var salStr) && decimal.TryParse(salStr, NumberStyles.Any, CultureInfo.InvariantCulture, out var salVal))
                 proposedSalary = salVal;
-            }
-            else
-            {
-                var salMatch = System.Text.RegularExpressions.Regex.Match(prompt, @"\$?\s*([0-9]{1,3}(?:,[0-9]{3})+|[0-9]{5,8})\b");
-                if (salMatch.Success && decimal.TryParse(salMatch.Groups[1].Value.Replace(",", ""), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var parsedSal))
-                {
-                    proposedSalary = parsedSal;
-                }
-            }
 
             var actionPlan = new Nexus.Data.ActionPlan.ActionPlan
             {
@@ -766,47 +949,7 @@ public class AgentOrchestrator : IAgentOrchestrator
                 PrimaryLabel = name,
                 Changes = new List<Nexus.Data.ActionPlan.ChangePreview>
                 {
-                    new Nexus.Data.ActionPlan.ChangePreview
-                    {
-                        FieldName = "Provisioning Profile",
-                        OldValue = "[WILL BE CREATED]",
-                        NewValue = $"{desig} @ ${proposedSalary:N2}",
-                        Difference = "New SQL Record"
-                    }
-                }
-            });
-
-            actionPlan.AffectedRecords.Add(new Nexus.Data.ActionPlan.AffectedRecord
-            {
-                RecordId = 0,
-                EntityName = "Legacy HR Portal",
-                PrimaryLabel = "Legacy Directory Sync",
-                Changes = new List<Nexus.Data.ActionPlan.ChangePreview>
-                {
-                    new Nexus.Data.ActionPlan.ChangePreview
-                    {
-                        FieldName = "Portal Form",
-                        OldValue = "[NOT SUBMITTED]",
-                        NewValue = "HR-REC-2026 (WILL BE CREATED)",
-                        Difference = "Playwright Form Entry"
-                    }
-                }
-            });
-
-            actionPlan.AffectedRecords.Add(new Nexus.Data.ActionPlan.AffectedRecord
-            {
-                RecordId = 0,
-                EntityName = "Enterprise SAP HCM",
-                PrimaryLabel = "SAP Master Data",
-                Changes = new List<Nexus.Data.ActionPlan.ChangePreview>
-                {
-                    new Nexus.Data.ActionPlan.ChangePreview
-                    {
-                        FieldName = "Personnel ID",
-                        OldValue = "[UNPROVISIONED]",
-                        NewValue = "SAP-EMP-2026 (WILL BE CREATED)",
-                        Difference = "Mock SAP Connector"
-                    }
+                    new Nexus.Data.ActionPlan.ChangePreview { FieldName = "Provisioning Profile", OldValue = "[WILL BE CREATED]", NewValue = $"{desig} @ ${proposedSalary:N2}", Difference = "New SQL Record" }
                 }
             });
 
@@ -817,199 +960,74 @@ public class AgentOrchestrator : IAgentOrchestrator
             actionPlan.Steps.Add(new Nexus.Data.ActionPlan.ActionPlanStep { StepNumber = 5, ToolName = "email.welcome", Description = "Generate welcome email", RiskLevel = RiskLevel.Low });
 
             actionPlan.Warnings.Add($"Multi-system onboarding provisions SQL Server, Legacy Portal, SAP ERP, and Welcome Email.");
-            actionPlan.Warnings.Add($"Annual base compensation calculated at ${proposedSalary:N2} based on POL-HR-001 policy rules.");
-
             return actionPlan;
         }
-        else if (intent.ParsedIntentType == IntentType.EMPLOYEE_DELETE || pLower.Contains("delete") || pLower.Contains("remove"))
+
+        // ── 4. EMPLOYEE DELETE ──────────────────────────────────────────────────
+        if (intentType == IntentType.EMPLOYEE_DELETE)
         {
             var scope = intent.Scope;
             var empName = intent.Entities.GetValueOrDefault("name", string.Empty);
             var deptFilter = intent.Entities.GetValueOrDefault("department", string.Empty);
-            var statusFilter = intent.Entities.GetValueOrDefault("status", string.Empty);
 
             List<Employee> matchingEmps = new();
-
-            if (scope == "ALL")
-            {
-                matchingEmps = await _db.Employees.Include(e => e.Department).ToListAsync(ct);
-            }
-            else if (scope == "FILTERED")
-            {
-                var q = _db.Employees.Include(e => e.Department).AsQueryable();
-                if (!string.IsNullOrWhiteSpace(deptFilter))
-                {
-                    q = q.Where(e => e.Department != null && e.Department.Name.ToLower() == deptFilter.ToLower());
-                }
-                if (!string.IsNullOrWhiteSpace(statusFilter) && Enum.TryParse<EmployeeStatus>(statusFilter, true, out var stEnum))
-                {
-                    q = q.Where(e => e.Status == stEnum);
-                }
-                matchingEmps = await q.ToListAsync(ct);
-            }
-            else
-            {
-                if (!string.IsNullOrWhiteSpace(empName))
-                {
-                    matchingEmps = await _db.Employees.Include(e => e.Department)
-                        .Where(e => e.Name.ToLower().Contains(empName.ToLower()))
-                        .ToListAsync(ct);
-                }
-            }
-
-            var title = scope switch
-            {
-                "ALL" => $"Plan of Action: Permanent Removal of All Employees ({matchingEmps.Count} Records)",
-                "FILTERED" => $"Plan of Action: Permanent Removal of Filtered Employees ({matchingEmps.Count} Records)",
-                _ => string.IsNullOrWhiteSpace(empName) ? "Plan of Action: Employee Deletion" : $"Plan of Action: Permanent Removal of Employee '{empName}'"
-            };
+            if (scope == "ALL") matchingEmps = await _db.Employees.Include(e => e.Department).ToListAsync(ct);
+            else if (!string.IsNullOrWhiteSpace(empName)) matchingEmps = await _db.Employees.Where(e => e.Name.ToLower().Contains(empName.ToLower())).ToListAsync(ct);
 
             var actionPlan = new Nexus.Data.ActionPlan.ActionPlan
             {
-                Title = title,
+                Title = scope == "ALL" ? "Plan of Action: Permanent Removal of All Employees" : $"Plan of Action: Permanent Removal of Employee '{empName}'",
                 RiskLevel = scope == "ALL" ? RiskLevel.Critical : RiskLevel.High,
                 Status = "AWAITING_APPROVAL",
                 Metadata = JsonSerializer.Serialize(intent)
             };
 
-            decimal totalSavings = 0m;
-            if (matchingEmps.Count > 0)
+            decimal totalSavings = matchingEmps.Sum(e => e.Salary);
+            foreach (var emp in matchingEmps)
             {
-                foreach (var emp in matchingEmps)
+                actionPlan.AffectedRecords.Add(new Nexus.Data.ActionPlan.AffectedRecord
                 {
-                    totalSavings += emp.Salary;
-                    actionPlan.AffectedRecords.Add(new Nexus.Data.ActionPlan.AffectedRecord
+                    RecordId = emp.Id,
+                    EntityName = "Employee Master (SQL Server)",
+                    PrimaryLabel = emp.Name,
+                    Changes = new List<Nexus.Data.ActionPlan.ChangePreview>
                     {
-                        RecordId = emp.Id,
-                        EntityName = "Employee Master (SQL Server)",
-                        PrimaryLabel = emp.Name,
-                        Changes = new List<Nexus.Data.ActionPlan.ChangePreview>
-                        {
-                            new Nexus.Data.ActionPlan.ChangePreview
-                            {
-                                FieldName = "Employment Status",
-                                OldValue = $"{emp.Status} (${emp.Salary:N2}/yr)",
-                                NewValue = "[PERMANENTLY DELETED]",
-                                Difference = "Record Purge"
-                            }
-                        }
-                    });
-                }
-            }
-            else
-            {
-                actionPlan.Warnings.Add(scope == "ALL"
-                    ? "Zero employee records exist in SQL Server database."
-                    : $"Zero matching employee records found in SQL Server database.");
+                        new Nexus.Data.ActionPlan.ChangePreview { FieldName = "Employment Status", OldValue = $"{emp.Status} (${emp.Salary:N2}/yr)", NewValue = "[PERMANENTLY DELETED]", Difference = "Record Purge" }
+                    }
+                });
             }
 
             actionPlan.TotalFinancialImpact = -totalSavings;
-            actionPlan.Steps.Add(new Nexus.Data.ActionPlan.ActionPlanStep
-            {
-                StepNumber = 1,
-                ToolName = "employee.delete",
-                Description = $"Purge {matchingEmps.Count} target employee record(s) from SQL Server database",
-                RiskLevel = scope == "ALL" ? RiskLevel.Critical : RiskLevel.High
-            });
-
-            actionPlan.Warnings.Add($"⚠ High-Risk Operation: Deleting employee records will permanently purge matching database entries.");
-            actionPlan.Warnings.Add($"Annual payroll reduction of -${totalSavings:N2}. Requires explicit executive authorization.");
-
+            actionPlan.Steps.Add(new Nexus.Data.ActionPlan.ActionPlanStep { StepNumber = 1, ToolName = "employee.delete", Description = $"Purge {matchingEmps.Count} employee record(s)", RiskLevel = RiskLevel.High });
+            actionPlan.Warnings.Add($"⚠ High-Risk Operation: Permanent database purge.");
             return actionPlan;
         }
-        else
+
+        // ── 5. EMPLOYEE SALARY UPDATE (ONLY when intent is explicitly EMPLOYEE_UPDATE)
+        if (intentType == IntentType.EMPLOYEE_UPDATE)
         {
-            var scope = intent.Scope;
             var targetEmpName = intent.Entities.GetValueOrDefault("name", string.Empty);
             var targetDept = intent.Entities.GetValueOrDefault("department", string.Empty);
-            var targetDesig = intent.Entities.GetValueOrDefault("designation", string.Empty);
             
             decimal pct = 10m;
             if (intent.Entities.TryGetValue("percentage", out var pStr) && decimal.TryParse(pStr, out var pDec))
-            {
                 pct = pDec;
-            }
-
-            if (scope == "SINGLE" && (!string.IsNullOrWhiteSpace(targetDept) || !string.IsNullOrWhiteSpace(targetDesig)))
-            {
-                scope = "FILTERED";
-            }
 
             var query = _db.Employees.Include(e => e.Department).AsQueryable();
-            if (scope == "FILTERED")
-            {
-                if (!string.IsNullOrWhiteSpace(targetDept))
-                {
-                    var tDeptLower = targetDept.ToLower();
-                    if (tDeptLower == "it" || tDeptLower == "software")
-                    {
-                        query = query.Where(e => e.DepartmentId == 1 || (e.Department != null && (e.Department.Name.ToLower() == "it" || e.Department.Name.ToLower().Contains("software"))));
-                    }
-                    else if (tDeptLower == "hr" || tDeptLower == "human resources")
-                    {
-                        query = query.Where(e => e.DepartmentId == 2 || (e.Department != null && (e.Department.Name.ToLower() == "hr" || e.Department.Name.ToLower().Contains("human"))));
-                    }
-                    else
-                    {
-                        query = query.Where(e => e.Department != null && e.Department.Name.ToLower() == tDeptLower);
-                    }
-                }
-                if (!string.IsNullOrWhiteSpace(targetDesig))
-                {
-                    query = query.Where(e => e.Designation.ToLower().Contains(targetDesig.ToLower()));
-                }
-            }
-            else if (scope == "SINGLE" && !string.IsNullOrWhiteSpace(targetEmpName))
-            {
-                query = query.Where(e => e.Name.ToLower().Contains(targetEmpName.ToLower()));
-            }
+            if (!string.IsNullOrWhiteSpace(targetDept)) query = query.Where(e => e.Department != null && e.Department.Name.ToLower() == targetDept.ToLower());
+            else if (!string.IsNullOrWhiteSpace(targetEmpName)) query = query.Where(e => e.Name.ToLower().Contains(targetEmpName.ToLower()));
 
             var employees = await query.ToListAsync(ct);
 
-            var title = scope switch
-            {
-                "ALL" => $"Plan of Action: Bulk Salary Adjustment (+{pct}%) for All Employees ({employees.Count} Records)",
-                "FILTERED" => $"Plan of Action: Salary Adjustment (+{pct}%) for Filtered Employees ({employees.Count} Records)",
-                _ => string.IsNullOrWhiteSpace(targetEmpName) ? $"Plan of Action: Salary Adjustment (+{pct}%)" : $"Plan of Action: Salary Adjustment (+{pct}%) for {targetEmpName}"
-            };
-
             var actionPlan = new Nexus.Data.ActionPlan.ActionPlan
             {
-                Title = title,
+                Title = $"Plan of Action: Salary Adjustment (+{pct}%) for {employees.Count} Employee(s)",
                 RiskLevel = RiskLevel.High,
                 Status = "AWAITING_APPROVAL",
                 Metadata = JsonSerializer.Serialize(intent)
             };
 
             decimal totalImpact = 0m;
-            if (employees.Count > 0)
-            {
-                foreach (var emp in employees)
-                {
-                    var oldSalary = emp.Salary;
-                    var newSalary = Math.Round(oldSalary * (1m + (pct / 100m)), 2);
-                    var diff = newSalary - oldSalary;
-                    totalImpact += diff;
-
-                    actionPlan.AffectedRecords.Add(new Nexus.Data.ActionPlan.AffectedRecord
-                    {
-                        RecordId = emp.Id,
-                        EntityName = "Employee Master (SQL Server)",
-                        PrimaryLabel = emp.Name,
-                        Changes = new List<Nexus.Data.ActionPlan.ChangePreview>
-                        {
-                            new Nexus.Data.ActionPlan.ChangePreview
-                            {
-                                FieldName = "Compensation Band",
-                                OldValue = $"${oldSalary:N2}",
-                                NewValue = $"${newSalary:N2}",
-                                Difference = $"+${diff:N2} (+{pct}%)"
-                            }
-                        }
-                    });
-                }
-            }
-            else
             {
                 actionPlan.Warnings.Add("Zero matching employee records found in SQL Server database for salary adjustment.");
             }
@@ -1028,6 +1046,39 @@ public class AgentOrchestrator : IAgentOrchestrator
 
             return actionPlan;
         }
+
+        // ── 6. GENERIC MUTATION ACTION PLAN (Clean fallback for any other entity) ──
+        var genericPlan = new Nexus.Data.ActionPlan.ActionPlan
+        {
+            Title = $"Plan of Action: {intent.Operation} {intent.TargetEntity}",
+            RiskLevel = RiskLevel.Medium,
+            Status = "AWAITING_APPROVAL",
+            Metadata = JsonSerializer.Serialize(intent)
+        };
+
+        genericPlan.AffectedRecords.Add(new Nexus.Data.ActionPlan.AffectedRecord
+        {
+            RecordId = 0,
+            EntityName = $"{intent.TargetEntity} Master",
+            PrimaryLabel = intent.Parameters.GetValueOrDefault("name")?.ToString() ?? intent.TargetEntity,
+            Changes = intent.Parameters.Select(p => new Nexus.Data.ActionPlan.ChangePreview
+            {
+                FieldName = p.Key,
+                OldValue = "[CURRENT]",
+                NewValue = String.Concat(p.Value),
+                Difference = "Value Update"
+            }).ToList()
+        });
+
+        genericPlan.Steps.Add(new Nexus.Data.ActionPlan.ActionPlanStep
+        {
+            StepNumber = 1,
+            ToolName = "system.execution",
+            Description = $"Execute {intent.Operation} on {intent.TargetEntity}",
+            RiskLevel = RiskLevel.Medium
+        });
+
+        return genericPlan;
     }
 
     private async Task RecordAuditLogAsync(Guid runId, int? userId, string toolName, string actionDescription, object? resultData, CancellationToken ct)

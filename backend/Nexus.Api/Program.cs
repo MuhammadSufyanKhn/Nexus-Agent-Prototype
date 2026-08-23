@@ -34,6 +34,15 @@ builder.Services.AddScoped<IExpenseService, ExpenseService>();
 // Register Local Open-Source LLM Subsystem
 builder.Services.Configure<LLMOptions>(builder.Configuration.GetSection(LLMOptions.SectionName));
 
+// Startup validation — catch the known bad model name early
+var llmModel = builder.Configuration.GetSection(LLMOptions.SectionName).GetValue<string>("Model") ?? string.Empty;
+if (llmModel.Contains("3.6", StringComparison.OrdinalIgnoreCase))
+{
+    Console.ForegroundColor = ConsoleColor.Yellow;
+    Console.WriteLine($"[NEXUS WARNING] LLM:Model '{llmModel}' does not exist. Change to 'gemini-2.0-flash' in appsettings.json.");
+    Console.ResetColor();
+}
+
 // Provider-aware LLM service registration:
 //   Provider = "Gemini"  → GeminiLLMService  (Google Generative Language API)
 //   Provider = "Ollama"  → LocalLLMService   (local Ollama runtime)
@@ -45,7 +54,7 @@ if (llmProvider.Equals("Gemini", StringComparison.OrdinalIgnoreCase))
 {
     builder.Services.AddHttpClient<ILLMService, GeminiLLMService>(client =>
     {
-        client.Timeout = TimeSpan.FromSeconds(60); // outer HTTP timeout
+        client.Timeout = TimeSpan.FromSeconds(60);
     });
     builder.Logging.AddFilter("System.Net.Http.HttpClient.GeminiLLMService", LogLevel.Warning);
 }
@@ -76,6 +85,10 @@ builder.Services.AddScoped<WelcomeEmailTool>();
 builder.Services.AddScoped<CreateTicketTool>();
 builder.Services.AddScoped<BrowserAutomationTool>();
 builder.Services.AddScoped<MockSapTool>();
+// New CRUD Tools
+builder.Services.AddScoped<PolicyCrudTool>();
+builder.Services.AddScoped<DepartmentCrudTool>();
+builder.Services.AddScoped<BudgetUpdateTool>();
 
 builder.Services.AddScoped<IToolRegistry>(sp =>
 {
@@ -94,6 +107,10 @@ builder.Services.AddScoped<IToolRegistry>(sp =>
     registry.RegisterTool(sp.GetRequiredService<CreateTicketTool>());
     registry.RegisterTool(sp.GetRequiredService<BrowserAutomationTool>());
     registry.RegisterTool(sp.GetRequiredService<MockSapTool>());
+    // New CRUD tools
+    registry.RegisterTool(sp.GetRequiredService<PolicyCrudTool>());
+    registry.RegisterTool(sp.GetRequiredService<DepartmentCrudTool>());
+    registry.RegisterTool(sp.GetRequiredService<BudgetUpdateTool>());
     return registry;
 });
 

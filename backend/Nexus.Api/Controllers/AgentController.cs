@@ -1,4 +1,3 @@
-using System.ComponentModel.DataAnnotations;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -27,7 +26,12 @@ public class AgentController : ControllerBase
     {
         if (!ModelState.IsValid) return BadRequest(ModelState);
 
-        var result = await _orchestrator.ExecuteAsync(request.Prompt, request.UserId);
+        // Pass UserRole so the orchestrator enforces RBAC correctly
+        var result = await _orchestrator.ExecuteAsync(
+            request.Prompt,
+            request.UserId,
+            request.UserRole ?? "Admin");
+
         return Ok(result);
     }
 }

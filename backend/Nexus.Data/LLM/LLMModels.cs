@@ -16,9 +16,9 @@ public class LLMOptions
     public string? ApiKey { get; set; }
 
     /// <summary>
-    /// Gemini model name (e.g. "gemini-3.6-flash") or Ollama model (e.g. "llama3.2").
+    /// Gemini model name (e.g. "gemini-2.0-flash") or Ollama model (e.g. "llama3.2").
     /// </summary>
-    public string Model { get; set; } = "gemini-3.6-flash";
+    public string Model { get; set; } = "gemini-2.0-flash";
 
     /// <summary>
     /// Only used when Provider is "Ollama". Base URL of the local Ollama server.
@@ -68,9 +68,17 @@ public class LLMResponse
 public class LLMHealthStatus
 {
     public bool IsAvailable { get; set; }
-    public string Provider { get; set; } = "Ollama";
+    public string Provider { get; set; } = "Gemini";
     public string Model { get; set; } = string.Empty;
     public string BaseUrl { get; set; } = string.Empty;
     public long ResponseTimeMs { get; set; }
     public string? ErrorMessage { get; set; }
+
+    // ── Frontend compatibility aliases ─────────────────────────────────────
+    // The React api.ts type uses camelCase: modelName, responseLatencyMs, statusMessage
+    public string ModelName => Model;
+    public string ResponseLatencyMs => ResponseTimeMs.ToString();
+    public string StatusMessage => IsAvailable
+        ? $"{Provider} ({Model}) is online and responding."
+        : ErrorMessage ?? $"{Provider} is unavailable.";
 }

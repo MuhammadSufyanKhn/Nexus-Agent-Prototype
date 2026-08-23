@@ -33,7 +33,7 @@ export function App() {
 
   useEffect(() => {
     refreshGlobalState();
-    const interval = setInterval(refreshGlobalState, 10000);
+    const interval = setInterval(refreshGlobalState, 30000);
     return () => clearInterval(interval);
   }, []);
 

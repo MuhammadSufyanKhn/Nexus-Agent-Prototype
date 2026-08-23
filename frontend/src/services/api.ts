@@ -8,6 +8,8 @@ export interface AgentResult {
   resultData?: any;
   executionFeed: AgentEvent[];
   errorMessage?: string;
+  /** Set when the Gemini API itself failed — distinct from a business error */
+  llmError?: string;
   executionTimeMs: number;
 }
 
