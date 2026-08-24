@@ -44,10 +44,10 @@ public class MockSapTool : IAgentTool
     {
         var sw = Stopwatch.StartNew();
 
-        var name = context.GetArgument<string>("name") ?? "Ahmed Khan";
+        var name = context.GetArgument<string>("name") ?? "Candidate";
         var department = context.GetArgument<string>("department") ?? "IT";
-        var designation = context.GetArgument<string>("designation") ?? "Mid-Level .NET Developer";
-        var salary = context.GetArgument<decimal?>("salary") ?? 68000.00m;
+        var designation = context.GetArgument<string>("designation") ?? "Team Member";
+        var salary = context.GetArgument<decimal?>("salary") ?? 75000.00m;
 
         var result = await _sapConnector.CreateEmployeeMasterDataAsync(name, department, designation, salary);
 

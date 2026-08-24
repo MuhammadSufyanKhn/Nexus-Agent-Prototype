@@ -6,6 +6,7 @@ using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
@@ -323,14 +324,22 @@ public class AgentOrchestrator : IAgentOrchestrator
                 entitiesDict["operation"] = parsedIntent.Operation;
             }
 
-            // Entity Aliasing for downstream tool parameters
-            if (entitiesDict.TryGetValue("department", out var deptVal) && (!entitiesDict.ContainsKey("name") || string.IsNullOrWhiteSpace(entitiesDict["name"]?.ToString())))
+            // Entity Aliasing for downstream tool parameters (ONLY for department intent)
+            bool isDeptIntent = parsedIntent.TargetEntity.Equals("DEPARTMENT", StringComparison.OrdinalIgnoreCase) ||
+                                parsedIntent.ParsedIntentType == IntentType.DEPARTMENT_CREATE ||
+                                parsedIntent.ParsedIntentType == IntentType.DEPARTMENT_UPDATE ||
+                                parsedIntent.ParsedIntentType == IntentType.DEPARTMENT_DELETE;
+
+            if (isDeptIntent)
             {
-                entitiesDict["name"] = deptVal;
-            }
-            if (entitiesDict.TryGetValue("name", out var nameVal) && (!entitiesDict.ContainsKey("department") || string.IsNullOrWhiteSpace(entitiesDict["department"]?.ToString())))
-            {
-                entitiesDict["department"] = nameVal;
+                if (entitiesDict.TryGetValue("department", out var deptVal) && (!entitiesDict.ContainsKey("name") || string.IsNullOrWhiteSpace(entitiesDict["name"]?.ToString())))
+                {
+                    entitiesDict["name"] = deptVal;
+                }
+                if (entitiesDict.TryGetValue("name", out var nameVal) && (!entitiesDict.ContainsKey("department") || string.IsNullOrWhiteSpace(entitiesDict["department"]?.ToString())))
+                {
+                    entitiesDict["department"] = nameVal;
+                }
             }
             if (entitiesDict.TryGetValue("employee_name", out var empNameVal) && (!entitiesDict.ContainsKey("name") || string.IsNullOrWhiteSpace(entitiesDict["name"]?.ToString())))
             {
@@ -637,10 +646,26 @@ public class AgentOrchestrator : IAgentOrchestrator
         // ── 3. EMPLOYEE ONBOARDING ──────────────────────────────────────────────
         else if (intentType == IntentType.EMPLOYEE_ONBOARDING || pLower.Contains("onboard"))
         {
-            string empName = parsedIntent?.Entities?.GetValueOrDefault("name") ?? "Sufyan Khan";
-            decimal empSalary = 68000.00m;
-            if (parsedIntent?.Entities?.TryGetValue("salary", out var salStr) == true && decimal.TryParse(salStr, NumberStyles.Any, CultureInfo.InvariantCulture, out var parsedSal))
+            string empName = parsedIntent?.Entities?.GetValueOrDefault("name")
+                ?? parsedIntent?.Parameters?.GetValueOrDefault("name")?.ToString()
+                ?? "Candidate";
+
+            decimal empSalary = 75000.00m;
+            string? salString = parsedIntent?.Entities?.GetValueOrDefault("salary") ?? parsedIntent?.Parameters?.GetValueOrDefault("salary")?.ToString();
+            if (!string.IsNullOrWhiteSpace(salString) && decimal.TryParse(salString, NumberStyles.Any, CultureInfo.InvariantCulture, out var parsedSal) && parsedSal > 0)
+            {
                 empSalary = parsedSal;
+            }
+            else
+            {
+                var origP = agentRun.OriginalPrompt ?? string.Empty;
+                var promptSalMatch = System.Text.RegularExpressions.Regex.Match(origP, @"\b([0-9]+(?:\.[0-9]+)?)\s*(k|m)\b", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                if (promptSalMatch.Success && decimal.TryParse(promptSalMatch.Groups[1].Value, NumberStyles.Any, CultureInfo.InvariantCulture, out var parsedPromptSal))
+                {
+                    empSalary = parsedPromptSal * (promptSalMatch.Groups[2].Value.ToLower() == "k" ? 1000m : 1000000m);
+                    if (origP.ToLowerInvariant().Contains("monthly")) empSalary *= 12m;
+                }
+            }
 
             var dept = await _db.Departments.FirstOrDefaultAsync(d => d.Name.ToLower().Contains("it") || d.Name.ToLower().Contains("software"), cancellationToken);
             int deptId = dept?.Id ?? 1;
@@ -1226,9 +1251,21 @@ public class AgentOrchestrator : IAgentOrchestrator
             var dept = intent.Entities.GetValueOrDefault("department") ?? intent.Parameters.GetValueOrDefault("department")?.ToString() ?? "IT";
             var desig = intent.Entities.GetValueOrDefault("designation") ?? intent.Parameters.GetValueOrDefault("designation")?.ToString() ?? "Team Member";
             
-            decimal proposedSalary = 68000.00m;
-            if ((intent.Entities.TryGetValue("salary", out var salStr) || intent.Entities.TryGetValue("budgetAmount", out salStr)) && decimal.TryParse(salStr, NumberStyles.Any, CultureInfo.InvariantCulture, out var salVal))
+            decimal proposedSalary = 75000.00m;
+            string? salString = intent.Entities.GetValueOrDefault("salary") ?? intent.Parameters.GetValueOrDefault("salary")?.ToString();
+            if (!string.IsNullOrWhiteSpace(salString) && decimal.TryParse(salString, NumberStyles.Any, CultureInfo.InvariantCulture, out var salVal) && salVal > 0)
+            {
                 proposedSalary = salVal;
+            }
+            else
+            {
+                var promptSalMatch = System.Text.RegularExpressions.Regex.Match(prompt, @"\b([0-9]+(?:\.[0-9]+)?)\s*(k|m)\b", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                if (promptSalMatch.Success && decimal.TryParse(promptSalMatch.Groups[1].Value, NumberStyles.Any, CultureInfo.InvariantCulture, out var parsedPromptSalPlan))
+                {
+                    proposedSalary = parsedPromptSalPlan * (promptSalMatch.Groups[2].Value.ToLower() == "k" ? 1000m : 1000000m);
+                    if (prompt.ToLowerInvariant().Contains("monthly")) proposedSalary *= 12m;
+                }
+            }
 
             var actionPlan = new Nexus.Data.ActionPlan.ActionPlan
             {

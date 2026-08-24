@@ -269,6 +269,65 @@ export async function fetchAuditLogs(): Promise<AuditLogRecord[]> {
   return res.json();
 }
 
+export interface PolicyItem {
+  id: number;
+  code: string;
+  title: string;
+  category: string;
+  contentSummary: string;
+  documentPath?: string;
+  isActive: boolean;
+  updatedAt: string;
+}
+
+export async function fetchPolicies(category?: string, search?: string): Promise<PolicyItem[]> {
+  const params = new URLSearchParams();
+  if (category) params.append('category', category);
+  if (search) params.append('search', search);
+  const url = `${API_BASE}/policies${params.toString() ? `?${params.toString()}` : ''}`;
+  const res = await fetch(url);
+  if (!res.ok) return [];
+  return res.json();
+}
+
+export async function createPolicy(data: Partial<PolicyItem>): Promise<PolicyItem> {
+  const res = await fetch(`${API_BASE}/policies`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  });
+  if (!res.ok) throw new Error('Failed to create policy');
+  return res.json();
+}
+
+export async function updatePolicy(id: number, data: Partial<PolicyItem>): Promise<PolicyItem> {
+  const res = await fetch(`${API_BASE}/policies/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  });
+  if (!res.ok) throw new Error('Failed to update policy');
+  return res.json();
+}
+
+export async function deletePolicy(id: number): Promise<boolean> {
+  const res = await fetch(`${API_BASE}/policies/${id}`, {
+    method: 'DELETE'
+  });
+  return res.ok;
+}
+
+export async function uploadPolicyFile(file: File): Promise<{ documentPath: string; fileName: string }> {
+  const formData = new FormData();
+  formData.append('file', file);
+  const res = await fetch(`${API_BASE}/policies/upload`, {
+    method: 'POST',
+    body: formData
+  });
+  if (!res.ok) throw new Error('Failed to upload document file');
+  return res.json();
+}
+
 export async function checkLLMHealth(): Promise<LLMHealthStatus> {
   try {
     const res = await fetch(`${API_BASE}/llm/health`);

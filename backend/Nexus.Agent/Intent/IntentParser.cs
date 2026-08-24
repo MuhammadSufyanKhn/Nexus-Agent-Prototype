@@ -845,14 +845,24 @@ User: ""hello"" or ""what can you do?""
             }
         }
 
-        // 6. Dynamic Amount / Budget / Salary Extraction (e.g. 50k, 80000, 50,000, $150k)
-        if (!entities.ContainsKey("salary") && !entities.ContainsKey("budgetAmount") && !parameters.ContainsKey("salary") && !parameters.ContainsKey("budgetAmount"))
+        // 6. Dynamic Amount / Budget / Salary Extraction (e.g. 100k, 100k monthly, 50k, 80000, $150k)
+        string? existingSal = entities.GetValueOrDefault("salary") ?? parameters.GetValueOrDefault("salary")?.ToString();
+        string? existingBud = entities.GetValueOrDefault("budgetAmount") ?? parameters.GetValueOrDefault("budgetAmount")?.ToString();
+
+        if (string.IsNullOrWhiteSpace(existingSal) && string.IsNullOrWhiteSpace(existingBud))
         {
             var shortMatch = Regex.Match(prompt, @"\b([0-9]+(?:\.[0-9]+)?)\s*(k|m)\b", RegexOptions.IgnoreCase);
             if (shortMatch.Success && decimal.TryParse(shortMatch.Groups[1].Value, NumberStyles.Any, CultureInfo.InvariantCulture, out var shortVal))
             {
                 var mult = shortMatch.Groups[2].Value.ToLower() == "k" ? 1000m : 1000000m;
                 var amount = shortVal * mult;
+                
+                // If prompt explicitly specifies monthly (e.g. "100k monthly"), convert to annual salary (* 12)
+                if (p.Contains("monthly") || p.Contains("/month") || p.Contains("per month") || p.Contains("a month"))
+                {
+                    amount = amount * 12m;
+                }
+
                 var isBudget = isDeptIntent || result.TargetEntity.Equals("DEPARTMENT_BUDGET", StringComparison.OrdinalIgnoreCase) || result.Intent.Contains("BUDGET");
                 string key = isBudget ? "budgetAmount" : "salary";
                 entities[key] = amount.ToString(CultureInfo.InvariantCulture);
@@ -866,6 +876,11 @@ User: ""hello"" or ""what can you do?""
                     var rawSal = salMatch.Groups[1].Value.Replace(",", "");
                     if (decimal.TryParse(rawSal, NumberStyles.Any, CultureInfo.InvariantCulture, out var salVal) && salVal >= 100)
                     {
+                        if ((p.Contains("monthly") || p.Contains("/month") || p.Contains("per month") || p.Contains("a month")) && salVal < 500000)
+                        {
+                            salVal = salVal * 12m;
+                        }
+
                         var isBudget = isDeptIntent || result.TargetEntity.Equals("DEPARTMENT_BUDGET", StringComparison.OrdinalIgnoreCase) || result.Intent.Contains("BUDGET");
                         string key = isBudget ? "budgetAmount" : "salary";
                         entities[key] = salVal.ToString(CultureInfo.InvariantCulture);
@@ -876,6 +891,7 @@ User: ""hello"" or ""what can you do?""
         }
 
         // 7. Dynamic Email Extraction (e.g. 4t195es@gmail.com)
+        // Explicit email addresses in the user prompt ALWAYS override any LLM hallucinated email!
         var emailMatch = Regex.Match(prompt, @"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b");
         if (emailMatch.Success)
         {
@@ -883,10 +899,10 @@ User: ""hello"" or ""what can you do?""
             parameters["email"] = emailMatch.Value;
         }
 
-        // 8. Dynamic Designation Extraction (e.g. "junior SQA", "software engineer")
-        if (!entities.ContainsKey("designation") && !parameters.ContainsKey("designation"))
+        // 8. Dynamic Designation Extraction (e.g. "junior SQA", "AI automation engineer")
+        if (!entities.ContainsKey("designation") || string.IsNullOrWhiteSpace(entities.GetValueOrDefault("designation")))
         {
-            var desigMatch = Regex.Match(prompt, @"\b(?:is\s+(?:a|an)?|role\s+(?:is)?|designation\s+(?:is)?|position\s+(?:is)?|as\s+(?:a|an)?)\s+([A-Za-z0-9\.\s\-\#\+]+?)(?:\s*\.|\s*\,|\s+with|\s+his|\s+her|\s+salary|\s+starting|\s+on|\s+and|\s+send|\s+joining|\s*email|\s*$)", RegexOptions.IgnoreCase);
+            var desigMatch = Regex.Match(prompt, @"\b(?:is\s+(?:a|an)?|role\s+(?:is)?|designation\s+(?:is)?|position\s+(?:is)?|as\s+(?:a|an)?)\s+([A-Za-z0-9\.\s\-\#\+]+?)(?:\s*\.|\s*\,|\s+in|\s+department|\s+with|\s+his|\s+her|\s+salary|\s+starting|\s+on|\s+and|\s+send|\s+joining|\s*email|\s*$)", RegexOptions.IgnoreCase);
             if (desigMatch.Success)
             {
                 var candidateDesig = desigMatch.Groups[1].Value.Trim();
@@ -897,6 +913,7 @@ User: ""hello"" or ""what can you do?""
                     cleanDesig = Regex.Replace(cleanDesig, @"\bSqa\b", "SQA", RegexOptions.IgnoreCase);
                     cleanDesig = Regex.Replace(cleanDesig, @"\bQa\b", "QA", RegexOptions.IgnoreCase);
                     cleanDesig = Regex.Replace(cleanDesig, @"\bNet\b", ".NET", RegexOptions.IgnoreCase);
+                    cleanDesig = Regex.Replace(cleanDesig, @"\bAi\b", "AI", RegexOptions.IgnoreCase);
                     entities["designation"] = cleanDesig;
                     parameters["designation"] = cleanDesig;
                 }
@@ -937,7 +954,7 @@ User: ""hello"" or ""what can you do?""
             }
         }
 
-        // 10. Auto-generate email from name if email not explicitly provided
+        // 10. Auto-generate email from name ONLY if no email was provided in prompt
         if (entities.TryGetValue("name", out var empName) && !string.IsNullOrWhiteSpace(empName) && !isDeptIntent
             && (!entities.ContainsKey("email") || string.IsNullOrWhiteSpace(entities.GetValueOrDefault("email"))))
         {

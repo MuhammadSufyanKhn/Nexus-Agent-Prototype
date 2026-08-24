@@ -30,6 +30,7 @@ builder.Services.AddScoped<IEmployeeService, EmployeeService>();
 builder.Services.AddScoped<IDepartmentService, DepartmentService>();
 builder.Services.AddScoped<IBudgetService, BudgetService>();
 builder.Services.AddScoped<IExpenseService, ExpenseService>();
+builder.Services.AddScoped<IPolicyService, PolicyService>();
 
 // Register Local Open-Source LLM Subsystem
 builder.Services.Configure<LLMOptions>(builder.Configuration.GetSection(LLMOptions.SectionName));
