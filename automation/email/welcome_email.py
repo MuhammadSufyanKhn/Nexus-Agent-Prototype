@@ -8,7 +8,7 @@ def generate_welcome_email(args: dict) -> dict:
     department = args.get("department", "IT")
     
     first_name = name.split()[0] if name else "Team Member"
-    email_address = f"{name.lower().replace(' ', '.')}@nexus.local"
+    email_address = args.get("email") or f"{name.lower().replace(' ', '.')}@nexus.local"
     
     subject = f"Welcome to Nexus Agent Lite - {department} Department!"
     

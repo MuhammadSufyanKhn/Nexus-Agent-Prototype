@@ -43,6 +43,11 @@ public enum IntentType
     AUDIT_READ = 26,         // show audit log entries
     DASHBOARD_ANALYTICS = 27,// summary dashboard stats
 
+    // ── Spec-aligned top-level intents ───────────────────────────────────────
+    UPDATE_SALARY = 28,      // dedicated salary adjustment (maps to EMPLOYEE_UPDATE + salary params)
+    SECURITY_TEST = 29,      // vulnerability check, connection audit, access review
+    EXECUTE_AUTOMATION = 30, // trigger n8n flow, Zapier webhook, SQL stored procedure
+
     // ── SQL Agent passthrough ─────────────────────────────────────────────────
     SQL_AGENT = 8,
 
@@ -75,6 +80,17 @@ public class StructuredEntities
     // Expense
     public decimal? ExpenseAmount { get; set; }
     public string? ExpenseType { get; set; }
+
+    // Salary Update (spec: UPDATE_SALARY)
+    public decimal? NewSalary { get; set; }
+    public string? EffectiveDate { get; set; }
+
+    // Workflow target system (spec: target_system)
+    public string TargetSystem { get; set; } = "SQL_SERVER";
+
+    // Automation (spec: EXECUTE_AUTOMATION)
+    public string? AutomationTarget { get; set; }  // e.g. n8n flow name, Zapier hook URL
+    public string? StoredProcedure { get; set; }
 }
 
 public class ParsedIntentResult
@@ -111,6 +127,18 @@ public class ParsedIntentResult
                 "UPDATE_EMPLOYEE" or "MODIFY_EMPLOYEE" or "SET_EMPLOYEE_SALARY" or "UPDATE_EMPLOYEE_SALARY" => "EMPLOYEE_UPDATE",
                 "DELETE_EMPLOYEE" or "REMOVE_EMPLOYEE" or "FIRE_EMPLOYEE" => "EMPLOYEE_DELETE",
                 "ONBOARD_EMPLOYEE" or "EMPLOYEE_JOINING" => "EMPLOYEE_ONBOARDING",
+
+                // ── Spec-aligned salary update ────────────────────────────────────
+                "UPDATE_SALARY" or "SALARY_UPDATE" or "PAY_RAISE" or "SALARY_ADJUSTMENT"
+                    or "INCREMENT" or "COMPENSATION_CHANGE" or "UPDATE_EMPLOYEE_COMPENSATION" => "UPDATE_SALARY",
+
+                // ── Security / System Health ──────────────────────────────────────
+                "SECURITY_TEST" or "SYSTEM_HEALTH" or "VULNERABILITY_CHECK"
+                    or "CONNECTION_AUDIT" or "ACCESS_REVIEW" => "SECURITY_TEST",
+
+                // ── Automation Execution ──────────────────────────────────────────
+                "EXECUTE_AUTOMATION" or "TRIGGER_AUTOMATION" or "TRIGGER_N8N"
+                    or "TRIGGER_ZAPIER" or "EXECUTE_WORKFLOW" or "RUN_AUTOMATION" => "EXECUTE_AUTOMATION",
 
                 "CREATE_DEPARTMENT" or "ADD_DEPARTMENT" => "DEPARTMENT_CREATE",
                 "GET_DEPARTMENTS" or "LIST_DEPARTMENTS" or "READ_DEPARTMENTS" => "DEPARTMENT_READ",

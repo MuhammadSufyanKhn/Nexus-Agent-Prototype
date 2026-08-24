@@ -63,7 +63,16 @@ public class EmployeeCreateTool : IAgentTool
             var email = context.GetArgument<string>("email");
             if (string.IsNullOrWhiteSpace(email))
             {
-                email = $"{name.Trim().ToLower().Replace(" ", ".")}@nexus.local";
+                var prompt = context.GetArgument<string>("prompt") ?? context.GetArgument<string>("question") ?? string.Empty;
+                var emailMatch = Regex.Match(prompt, @"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b");
+                if (emailMatch.Success)
+                {
+                    email = emailMatch.Value;
+                }
+                else
+                {
+                    email = $"{name.Trim().ToLower().Replace(" ", ".")}@nexus.local";
+                }
             }
 
             var deptId = context.GetArgument<int?>("departmentId") ?? 1;

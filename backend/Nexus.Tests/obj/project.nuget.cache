@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "Z34HmrsaYNY=",
+  "dgSpecHash": "B6rSVxWbQIk=",
   "success": true,
-  "projectFilePath": "d:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Tests\\Nexus.Tests.csproj",
+  "projectFilePath": "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Tests\\Nexus.Tests.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\DELL\\.nuget\\packages\\azure.core\\1.38.0\\azure.core.1.38.0.nupkg.sha512",
     "C:\\Users\\DELL\\.nuget\\packages\\azure.identity\\1.11.4\\azure.identity.1.11.4.nupkg.sha512",
@@ -64,9 +64,9 @@
       "code": "NU1903",
       "level": "Warning",
       "message": "Package 'Microsoft.OpenApi' 2.0.0 has a known high severity vulnerability, https://github.com/advisories/GHSA-v5pm-xwqc-g5wc",
-      "projectPath": "d:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Tests\\Nexus.Tests.csproj",
+      "projectPath": "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Tests\\Nexus.Tests.csproj",
       "warningLevel": 1,
-      "filePath": "d:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Tests\\Nexus.Tests.csproj",
+      "filePath": "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Tests\\Nexus.Tests.csproj",
       "libraryId": "Microsoft.OpenApi",
       "targetGraphs": [
         "net10.0"

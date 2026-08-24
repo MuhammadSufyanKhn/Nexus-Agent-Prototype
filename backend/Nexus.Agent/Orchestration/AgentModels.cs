@@ -14,6 +14,25 @@ public enum AgentState
     Failed = 6
 }
 
+/// <summary>
+/// Spec-aligned 4-state workflow state machine surfaced in the API response.
+/// Maps directly to the Identity & Objective specification output contract.
+/// </summary>
+public enum WorkflowState
+{
+    /// <summary>Intent and parameters identified; awaiting user validation before any mutation.</summary>
+    CONFIRMATION_REQUIRED,
+
+    /// <summary>Input is ambiguous or critical parameters are missing — prompting user for more info.</summary>
+    CLARIFICATION_REQUIRED,
+
+    /// <summary>User explicitly confirmed; execution payload is populated and backend action is triggered.</summary>
+    READY_TO_EXECUTE,
+
+    /// <summary>Informational / read-only / conversational response — no backend action required.</summary>
+    ANSWER_DIRECT
+}
+
 public enum AgentEventType
 {
     REQUEST_RECEIVED = 1,
@@ -62,6 +81,22 @@ public class AgentPlan
     public int EstimatedStepsCount => Steps.Count;
 }
 
+/// <summary>
+/// Spec-defined confirmation block shown to the user before any mutation is executed.
+/// Corresponds to the JSON field "confirmation_details" in the output contract.
+/// </summary>
+public class ConfirmationDetails
+{
+    /// <summary>Short description of what will be done, e.g. "Update employee compensation record in SQL Server"</summary>
+    public string ProposedAction { get; set; } = string.Empty;
+
+    /// <summary>Human-readable key-value summary, e.g. "Employee: Muhammad | New Amount: 150,000/mo | Effective Date: Next Month"</summary>
+    public string ActionSummary { get; set; } = string.Empty;
+
+    /// <summary>True when still awaiting user input (CONFIRMATION_REQUIRED / CLARIFICATION_REQUIRED); false once confirmed.</summary>
+    public bool RequiresUserAction { get; set; } = true;
+}
+
 public class AgentResult
 {
     public Guid RunId { get; set; }
@@ -83,6 +118,37 @@ public class AgentResult
     public string? LlmError { get; set; }
 
     public long ExecutionTimeMs { get; set; }
+
+    // ── Spec-aligned Workflow State Machine fields ─────────────────────────────
+
+    /// <summary>
+    /// One of: CONFIRMATION_REQUIRED | CLARIFICATION_REQUIRED | READY_TO_EXECUTE | ANSWER_DIRECT.
+    /// Drives the frontend rendering mode.
+    /// </summary>
+    public string State { get; set; } = WorkflowState.ANSWER_DIRECT.ToString();
+
+    /// <summary>
+    /// The clear, concise message displayed directly on the UI to the user.
+    /// Maps to the spec's "user_message" field.
+    /// </summary>
+    public string UserMessage { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Summary of proposed action shown for confirmation. Maps to spec's "confirmation_details".
+    /// </summary>
+    public ConfirmationDetails? ConfirmationDetails { get; set; }
+
+    /// <summary>
+    /// Target backend system: SQL_SERVER | N8N_WORKFLOW | ZAPIER | UNKNOWN.
+    /// Maps to spec's parameters.target_system.
+    /// </summary>
+    public string TargetSystem { get; set; } = "SQL_SERVER";
+
+    /// <summary>
+    /// Populated only when state is READY_TO_EXECUTE. Contains the structured payload
+    /// ready for the backend API/SQL tool call. Maps to spec's "execution_payload".
+    /// </summary>
+    public object? ExecutionPayload { get; set; }
 }
 
 public class ExecuteAgentRequest

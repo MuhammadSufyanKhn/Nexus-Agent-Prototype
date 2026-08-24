@@ -39,8 +39,8 @@
               "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Security\\Nexus.Security.csproj": {
                 "projectPath": "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Security\\Nexus.Security.csproj"
               },
-              "d:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Tools\\Nexus.Tools.csproj": {
-                "projectPath": "d:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Tools\\Nexus.Tools.csproj"
+              "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Tools\\Nexus.Tools.csproj": {
+                "projectPath": "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Tools\\Nexus.Tools.csproj"
               }
             }
           }
@@ -392,8 +392,8 @@
               "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Security\\Nexus.Security.csproj": {
                 "projectPath": "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Security\\Nexus.Security.csproj"
               },
-              "d:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Tools\\Nexus.Tools.csproj": {
-                "projectPath": "d:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Tools\\Nexus.Tools.csproj"
+              "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Tools\\Nexus.Tools.csproj": {
+                "projectPath": "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Tools\\Nexus.Tools.csproj"
               }
             }
           }
@@ -1566,14 +1566,14 @@
         }
       }
     },
-    "d:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Tools\\Nexus.Tools.csproj": {
+    "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Tools\\Nexus.Tools.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "d:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Tools\\Nexus.Tools.csproj",
+        "projectUniqueName": "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Tools\\Nexus.Tools.csproj",
         "projectName": "Nexus.Tools",
-        "projectPath": "d:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Tools\\Nexus.Tools.csproj",
+        "projectPath": "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Tools\\Nexus.Tools.csproj",
         "packagesPath": "C:\\Users\\DELL\\.nuget\\packages\\",
-        "outputPath": "d:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Tools\\obj\\",
+        "outputPath": "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Tools\\obj\\",
         "projectStyle": "PackageReference",
         "fallbackFolders": [
           "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"

@@ -110,53 +110,208 @@ CRITICAL DISAMBIGUATION RULES:
      * Intent = ALLOCATE_DEPARTMENT_BUDGET / BUDGET_UPDATE
 
 2. LINGUISTIC & VARIANT PARSING EXAMPLES:
-   CREATE_EMPLOYEE:
-     - 'add employee Ali'
-     - 'create Ali as an employee'
-     - 'Ali ko employee add karo'
-     - 'Ali ko staff mein daal do'
-     - 'make a new employee record for Ali'
-     - 'employee bana do Ali ko'
-     - 'Ali onboarding'
+   CREATE_EMPLOYEE / ONBOARD_EMPLOYEE:
+     - 'add employee Ali', 'hire Ali', 'onboard Ali', 'register new staff Ali'
+     - 'Ali ko employee add karo', 'employee bana do Ali ko', 'new joiner Ali'
+     - 'Ali onboarding', 'create profile for Ali'
+
+   UPDATE_SALARY (DEDICATED INTENT — not generic employee update):
+     - 'bump up Muhammad's salary to 150k', 'give Ali a pay raise to 90k'
+     - 'salary increment for Sara to 120000 from next month'
+     - 'update compensation for Ali to 80000', 'adjust salary'
+     - 'Ali ki salary 100k kar do', 'salary badha do Ali ka'
 
    EMPLOYEE_READ:
-     - 'show Ali details'
-     - 'tell me about Ali'
-     - 'get Ali's employee record'
-     - 'what information do we have for Ali?'
-     - 'Ali ki details dikhao'
+     - 'show Ali details', 'tell me about Ali', 'get Ali employee record'
+     - 'Ali ki details dikhao', 'list all employees'
+
+   ANALYZE_BUDGET / BUDGET_ANALYSIS:
+     - 'which department is over budget?', 'show me departments exceeding budget'
+     - 'budget kis department ne exceed kiya?', 'financial forecast', 'payroll costs'
+
+   CHECK_POLICY / POLICY_READ:
+     - 'show leave policy', 'what are the HR guidelines?', 'remote work terms'
+     - 'leave rules batao', 'compliance check', 'policy for travel expenses'
+
+   SECURITY_TEST / SYSTEM_HEALTH:
+     - 'security test', 'run vulnerability check', 'connection audit'
+     - 'access review', 'system health check', 'check SQL connectivity'
+
+   EXECUTE_AUTOMATION:
+     - 'trigger n8n flow', 'run Zapier webhook', 'execute stored procedure'
+     - 'automate onboarding workflow', 'run automation'
 
    CREATE_DEPARTMENT:
      - 'add finance daprtment' (handles typos like daprtment)
      - 'finance dept bana do 50k budget head sufyan'
-     - 'create Finance department with 0 employees, 50k budget'
-     - 'Finance department add karo'
-
-   BUDGET_ANALYSIS:
-     - 'which department is over budget?'
-     - 'show me departments exceeding budget'
-     - 'who has crossed their allocated budget?'
-     - 'which teams are spending more than they were allocated?'
-     - 'budget kis department ne exceed kiya?'
 
 3. NUMBER NORMALIZATION:
    - '50k', '50,000', '50000', '50 thousand', '50 hazar' → 50000
    - '80k', '80,000', '80000', '80 thousand' → 80000
 
+4. INTENT → INTERNAL CANONICAL NAMES (use EXACTLY these strings):
+   ONBOARD_EMPLOYEE  → ""EMPLOYEE_ONBOARDING""
+   UPDATE_SALARY     → ""UPDATE_SALARY""
+   ANALYZE_BUDGET    → ""BUDGET_ANALYSIS""
+   CHECK_POLICY      → ""POLICY_READ""
+   SECURITY_TEST     → ""SECURITY_TEST""
+   EXECUTE_AUTOMATION→ ""EXECUTE_AUTOMATION""
+   GENERAL_QUERY     → ""GENERAL_CONVERSATION""
+   (All other CRUD intents keep their existing format: CREATE_EMPLOYEE, EMPLOYEE_READ, CREATE_DEPARTMENT, etc.)
+
+5. TARGET SYSTEM CLASSIFICATION:
+   Determine which backend system the action targets:
+   - ""SQL_SERVER"" — any employee, department, budget, policy, expense, or audit data query/mutation
+   - ""N8N_WORKFLOW"" — when user mentions n8n, workflow automation, or scheduling
+   - ""ZAPIER"" — when user mentions Zapier or webhook triggers
+   - ""UNKNOWN"" — security tests, health checks, or ambiguous automation
+
 OUTPUT CONTRACT:
-Return ONLY a valid raw JSON object matching this exact structure:
+Return ONLY a valid raw JSON object matching this EXACT structure (no markdown, no extra fields):
 
 {
   ""intent"": ""INTENT_NAME"",
-  ""targetEntity"": ""EMPLOYEE|DEPARTMENT|DEPARTMENT_BUDGET|POLICY|EXPENSE|ONBOARDING|APPROVAL|AUDIT_LOG"",
-  ""operation"": ""CREATE|READ|LIST|SEARCH|UPDATE|DELETE|ANALYZE|ALLOCATE|APPROVE|REJECT"",
+  ""targetEntity"": ""EMPLOYEE|DEPARTMENT|DEPARTMENT_BUDGET|POLICY|EXPENSE|ONBOARDING|APPROVAL|AUDIT_LOG|SYSTEM"",
+  ""operation"": ""CREATE|READ|LIST|SEARCH|UPDATE|DELETE|ANALYZE|ALLOCATE|APPROVE|REJECT|EXECUTE"",
   ""scope"": ""SINGLE|ALL|FILTERED|NONE"",
-  ""parameters"": {},
+  ""parameters"": {
+    ""target_system"": ""SQL_SERVER|N8N_WORKFLOW|ZAPIER|UNKNOWN"",
+    ""employee_name"": null,
+    ""department"": null,
+    ""new_salary"": null,
+    ""effective_date"": null,
+    ""amount"": null,
+    ""policy_topic"": null
+  },
   ""filters"": {},
   ""missingFields"": [],
   ""requiresPolicyLookup"": false,
   ""requiresApproval"": false,
-  ""confidence"": 0.95
+  ""confidence"": 0.95,
+  ""requiresClarification"": false,
+  ""clarificationPrompt"": null,
+  ""conversationalResponse"": null,
+  ""state"": ""CONFIRMATION_REQUIRED|CLARIFICATION_REQUIRED|READY_TO_EXECUTE|ANSWER_DIRECT"",
+  ""userMessage"": ""<Clear message to display directly on the UI>"",
+  ""confirmationDetails"": {
+    ""proposedAction"": ""<Brief description of what will be done>"",
+    ""actionSummary"": ""<Pipe-separated key-value summary>"",
+    ""requiresUserAction"": true
+  }
+}
+
+STATE RULES (MANDATORY):
+- CONFIRMATION_REQUIRED: Intent is clear, all required params extracted, but action mutates data → require user to confirm
+- CLARIFICATION_REQUIRED: Intent is ambiguous OR required params are missing → ask user for missing info
+- READY_TO_EXECUTE: Action is purely read-only that can be executed immediately without confirmation
+- ANSWER_DIRECT: Informational question, general query, greeting, system status — no data mutation
+
+MUTATION intents ALWAYS use CONFIRMATION_REQUIRED or CLARIFICATION_REQUIRED (never ANSWER_DIRECT):
+  CREATE_EMPLOYEE, EMPLOYEE_ONBOARDING, UPDATE_SALARY, EMPLOYEE_UPDATE, EMPLOYEE_DELETE,
+  DEPARTMENT_CREATE, DEPARTMENT_UPDATE, BUDGET_UPDATE, POLICY_CREATE, POLICY_UPDATE, POLICY_DELETE,
+  EXECUTE_AUTOMATION, EXPENSE_CREATE
+
+READ-ONLY intents use READY_TO_EXECUTE or ANSWER_DIRECT:
+  EMPLOYEE_READ, BUDGET_ANALYSIS, POLICY_READ, EXPENSE_COMPLIANCE, SQL_AGENT,
+  DEPARTMENT_READ, APPROVAL_READ, AUDIT_READ, SECURITY_TEST, GENERAL_CONVERSATION
+
+FEW-SHOT EXAMPLES:
+
+Example 1 — Salary Update (CONFIRMATION_REQUIRED):
+User: ""Can we bump up Muhammad's monthly compensation to 150k starting next month?""
+{
+  ""intent"": ""UPDATE_SALARY"",
+  ""targetEntity"": ""EMPLOYEE"",
+  ""operation"": ""UPDATE"",
+  ""scope"": ""SINGLE"",
+  ""parameters"": { ""target_system"": ""SQL_SERVER"", ""employee_name"": ""Muhammad"", ""new_salary"": 150000, ""effective_date"": ""Next Month"" },
+  ""filters"": {}, ""missingFields"": [], ""requiresPolicyLookup"": false, ""requiresApproval"": true,
+  ""confidence"": 0.98, ""requiresClarification"": false, ""clarificationPrompt"": null,
+  ""conversationalResponse"": null,
+  ""state"": ""CONFIRMATION_REQUIRED"",
+  ""userMessage"": ""I have drafted a salary adjustment request. Please review the details below before I submit it to the system:"",
+  ""confirmationDetails"": {
+    ""proposedAction"": ""Update employee compensation record in SQL Server database"",
+    ""actionSummary"": ""Employee: Muhammad | New Amount: 150,000/mo | Effective Date: Next Month"",
+    ""requiresUserAction"": true
+  }
+}
+
+Example 2 — Onboard Employee (CLARIFICATION_REQUIRED — missing fields):
+User: ""add ali""
+{
+  ""intent"": ""EMPLOYEE_ONBOARDING"",
+  ""targetEntity"": ""EMPLOYEE"",
+  ""operation"": ""CREATE"",
+  ""scope"": ""SINGLE"",
+  ""parameters"": { ""target_system"": ""SQL_SERVER"", ""employee_name"": ""Ali"" },
+  ""filters"": {}, ""missingFields"": [""department"", ""designation"", ""salary""], ""requiresPolicyLookup"": false, ""requiresApproval"": true,
+  ""confidence"": 0.92, ""requiresClarification"": true,
+  ""clarificationPrompt"": ""I can help onboard Ali. Could you please specify their department, role, and starting salary?"",
+  ""conversationalResponse"": null,
+  ""state"": ""CLARIFICATION_REQUIRED"",
+  ""userMessage"": ""I can help onboard Ali. Could you please specify their department, role, and starting date?"",
+  ""confirmationDetails"": {
+    ""proposedAction"": ""Insert new employee record into SQL Server database"",
+    ""actionSummary"": ""Employee: Ali | Department: [Pending] | Role: [Pending] | Salary: [Pending]"",
+    ""requiresUserAction"": true
+  }
+}
+
+Example 3 — Policy Check (READY_TO_EXECUTE):
+User: ""Show me the current leave policy""
+{
+  ""intent"": ""POLICY_READ"",
+  ""targetEntity"": ""POLICY"",
+  ""operation"": ""READ"",
+  ""scope"": ""FILTERED"",
+  ""parameters"": { ""target_system"": ""SQL_SERVER"", ""policy_topic"": ""leave"" },
+  ""filters"": { ""category"": ""Leave"" }, ""missingFields"": [], ""requiresPolicyLookup"": true, ""requiresApproval"": false,
+  ""confidence"": 0.99, ""requiresClarification"": false, ""clarificationPrompt"": null,
+  ""conversationalResponse"": null,
+  ""state"": ""READY_TO_EXECUTE"",
+  ""userMessage"": ""Retrieving the current leave policy from the HR knowledge base..."",
+  ""confirmationDetails"": {
+    ""proposedAction"": ""Fetch policy documents matching 'leave' from SQL Server"",
+    ""actionSummary"": ""Policy Topic: Leave | Scope: All matching records"",
+    ""requiresUserAction"": false
+  }
+}
+
+Example 4 — Security Test (READY_TO_EXECUTE):
+User: ""security test""
+{
+  ""intent"": ""SECURITY_TEST"",
+  ""targetEntity"": ""SYSTEM"",
+  ""operation"": ""EXECUTE"",
+  ""scope"": ""NONE"",
+  ""parameters"": { ""target_system"": ""UNKNOWN"" },
+  ""filters"": {}, ""missingFields"": [], ""requiresPolicyLookup"": false, ""requiresApproval"": false,
+  ""confidence"": 0.97, ""requiresClarification"": false, ""clarificationPrompt"": null,
+  ""conversationalResponse"": null,
+  ""state"": ""READY_TO_EXECUTE"",
+  ""userMessage"": ""Running security diagnostic and connection audit..."",
+  ""confirmationDetails"": {
+    ""proposedAction"": ""Execute system vulnerability and connection health check"",
+    ""actionSummary"": ""Target: SQL Server Connection | Mode: Read-Only Audit"",
+    ""requiresUserAction"": false
+  }
+}
+
+Example 5 — General Greeting (ANSWER_DIRECT):
+User: ""hello"" or ""what can you do?""
+{
+  ""intent"": ""GENERAL_CONVERSATION"",
+  ""targetEntity"": ""NONE"",
+  ""operation"": ""NONE"",
+  ""scope"": ""NONE"",
+  ""parameters"": { ""target_system"": ""UNKNOWN"" },
+  ""filters"": {}, ""missingFields"": [], ""requiresPolicyLookup"": false, ""requiresApproval"": false,
+  ""confidence"": 1.0, ""requiresClarification"": false, ""clarificationPrompt"": null,
+  ""conversationalResponse"": ""Hello! I am Nexus AI, your enterprise workforce intelligence assistant. I can help you onboard employees, analyze budgets, review HR policies, update compensation, run security audits, and trigger automation workflows. How can I assist you today?"",
+  ""state"": ""ANSWER_DIRECT"",
+  ""userMessage"": ""Hello! I am Nexus AI, your enterprise workforce intelligence assistant."",
+  ""confirmationDetails"": { ""proposedAction"": """", ""actionSummary"": """", ""requiresUserAction"": false }
 }";
     }
 
@@ -333,6 +488,16 @@ Return ONLY a valid raw JSON object matching this exact structure:
                 {
                     result.RequiresClarification = true;
                     result.ClarificationPrompt = "Please specify which department's budget to update and the new amount or increase.";
+                }
+                break;
+
+            case IntentType.DEPARTMENT_CREATE:
+            case IntentType.DEPARTMENT_UPDATE:
+            case IntentType.DEPARTMENT_DELETE:
+                if (!entities.ContainsKey("name") && !entities.ContainsKey("department"))
+                {
+                    result.RequiresClarification = true;
+                    result.ClarificationPrompt = "Please specify the department name.";
                 }
                 break;
 
@@ -583,20 +748,75 @@ Return ONLY a valid raw JSON object matching this exact structure:
         var parameters = result.Parameters ?? new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
         result.Parameters = parameters;
 
-        // 1. Scope
+        // 1. FIRST: Bidirectional sync of LLM-extracted parameters & entities
+        foreach (var kv in parameters)
+        {
+            if (kv.Value != null && (!entities.ContainsKey(kv.Key) || string.IsNullOrWhiteSpace(entities[kv.Key])))
+            {
+                entities[kv.Key] = kv.Value.ToString() ?? "";
+            }
+        }
+        foreach (var kv in entities)
+        {
+            if (!parameters.ContainsKey(kv.Key))
+            {
+                parameters[kv.Key] = kv.Value;
+            }
+        }
+
+        // 2. Department entity aliasing (department <-> name)
+        bool isDeptIntent = result.TargetEntity.Equals("DEPARTMENT", StringComparison.OrdinalIgnoreCase) ||
+                            result.ParsedIntentType == IntentType.DEPARTMENT_CREATE ||
+                            result.ParsedIntentType == IntentType.DEPARTMENT_UPDATE ||
+                            result.ParsedIntentType == IntentType.DEPARTMENT_DELETE;
+
+        if (isDeptIntent)
+        {
+            string? deptVal = entities.GetValueOrDefault("department") ?? parameters.GetValueOrDefault("department")?.ToString();
+            string? nameVal = entities.GetValueOrDefault("name") ?? parameters.GetValueOrDefault("name")?.ToString();
+
+            if (!string.IsNullOrWhiteSpace(deptVal) && string.IsNullOrWhiteSpace(nameVal))
+            {
+                entities["name"] = deptVal;
+                parameters["name"] = deptVal;
+            }
+            else if (!string.IsNullOrWhiteSpace(nameVal) && string.IsNullOrWhiteSpace(deptVal))
+            {
+                entities["department"] = nameVal;
+                parameters["department"] = nameVal;
+            }
+
+            var headMatch = Regex.Match(prompt, @"\b(?:head\s+(?:is|of)?|new\s+head\s+(?:is)?|manager\s+(?:is)?)\s+([A-Za-z]+(?:\s+[A-Za-z]+)?)\b", RegexOptions.IgnoreCase);
+            if (headMatch.Success)
+            {
+                var headName = headMatch.Groups[1].Value.Trim();
+                if (!headName.Equals("department", StringComparison.OrdinalIgnoreCase) && !headName.Equals("finance", StringComparison.OrdinalIgnoreCase) && !headName.Equals("it", StringComparison.OrdinalIgnoreCase))
+                {
+                    entities["head"] = CultureInfo.CurrentCulture.TextInfo.ToTitleCase(headName.ToLower());
+                    parameters["head"] = entities["head"];
+                }
+            }
+        }
+
+        // 3. Employee entity aliasing (employee_name -> name)
+        string? empNameVal = entities.GetValueOrDefault("employee_name") ?? parameters.GetValueOrDefault("employee_name")?.ToString();
+        if (!string.IsNullOrWhiteSpace(empNameVal) && (!entities.ContainsKey("name") || string.IsNullOrWhiteSpace(entities["name"])))
+        {
+            entities["name"] = empNameVal;
+            parameters["name"] = empNameVal;
+        }
+
+        // 4. Scope determination
         bool isAll = p.Contains("all") || p.Contains("every") || p.Contains("each") || p.Contains("entire") ||
                      p.Contains("everyone") || p.Contains("from the list") || p.Contains("all employees");
         bool isFiltered = p.Contains("in it") || p.Contains("in hr") || p.Contains("inactive") || p.Contains("active") ||
                           p.Contains("developers") || p.Contains("managers") || p.Contains("earning") ||
-                          p.Contains("above") || p.Contains("greater than") || p.Contains("less than") ||
-                          p.Contains("in finance") || p.Contains("in marketing") || p.Contains("in operations");
+                          p.Contains("above") || p.Contains("greater than") || p.Contains("less than");
 
         if (isAll && !isFiltered)
         {
             result.Scope = "ALL";
             entities["scope"] = "ALL";
-            entities.Remove("name");
-            parameters.Remove("name");
         }
         else if (isFiltered)
         {
@@ -609,42 +829,45 @@ Return ONLY a valid raw JSON object matching this exact structure:
             entities["scope"] = "SINGLE";
         }
 
-        // 2. Extract Percentage (10%, 15 percent)
-        var pctMatch = Regex.Match(prompt, @"([0-9]+(?:\.[0-9]+)?)\s*%|\b([0-9]+)\s*percent\b", RegexOptions.IgnoreCase);
-        if (pctMatch.Success)
+        // 5. Dynamic Percentage Extraction (e.g. 10%, 15 percent)
+        if (!entities.ContainsKey("percentage") && !parameters.ContainsKey("percentage"))
         {
-            var rawPct = pctMatch.Groups[1].Value;
-            if (string.IsNullOrWhiteSpace(rawPct)) rawPct = pctMatch.Groups[2].Value;
-            if (decimal.TryParse(rawPct, NumberStyles.Any, CultureInfo.InvariantCulture, out var pctVal))
+            var pctMatch = Regex.Match(prompt, @"([0-9]+(?:\.[0-9]+)?)\s*%|\b([0-9]+)\s*percent\b", RegexOptions.IgnoreCase);
+            if (pctMatch.Success)
             {
-                entities["percentage"] = pctVal.ToString(CultureInfo.InvariantCulture);
-                parameters["percentage"] = pctVal;
+                var rawPct = pctMatch.Groups[1].Value;
+                if (string.IsNullOrWhiteSpace(rawPct)) rawPct = pctMatch.Groups[2].Value;
+                if (decimal.TryParse(rawPct, NumberStyles.Any, CultureInfo.InvariantCulture, out var pctVal))
+                {
+                    entities["percentage"] = pctVal.ToString(CultureInfo.InvariantCulture);
+                    parameters["percentage"] = pctVal;
+                }
             }
         }
 
-        // 3. Extract Salary / Budget Amount — handles: 80k, 50k, 50,000, $80000, 80000, 1.5m
-        if (!entities.ContainsKey("salary") && !entities.ContainsKey("budgetAmount") && !parameters.ContainsKey("salary"))
+        // 6. Dynamic Amount / Budget / Salary Extraction (e.g. 50k, 80000, 50,000, $150k)
+        if (!entities.ContainsKey("salary") && !entities.ContainsKey("budgetAmount") && !parameters.ContainsKey("salary") && !parameters.ContainsKey("budgetAmount"))
         {
             var shortMatch = Regex.Match(prompt, @"\b([0-9]+(?:\.[0-9]+)?)\s*(k|m)\b", RegexOptions.IgnoreCase);
             if (shortMatch.Success && decimal.TryParse(shortMatch.Groups[1].Value, NumberStyles.Any, CultureInfo.InvariantCulture, out var shortVal))
             {
                 var mult = shortMatch.Groups[2].Value.ToLower() == "k" ? 1000m : 1000000m;
                 var amount = shortVal * mult;
-                var isBudgetIntent = result.TargetEntity.Equals("DEPARTMENT_BUDGET", StringComparison.OrdinalIgnoreCase) || result.Intent.Contains("BUDGET");
-                string key = isBudgetIntent ? "budgetAmount" : "salary";
+                var isBudget = isDeptIntent || result.TargetEntity.Equals("DEPARTMENT_BUDGET", StringComparison.OrdinalIgnoreCase) || result.Intent.Contains("BUDGET");
+                string key = isBudget ? "budgetAmount" : "salary";
                 entities[key] = amount.ToString(CultureInfo.InvariantCulture);
                 parameters[key] = amount;
             }
             else
             {
-                var salMatch = Regex.Match(prompt, @"(?:\bsalary\s+(?:is\s+)?|\bsalary\s*=\s*|\bof\s+|\bis\s+|\bto\s+)?\$?\s*([0-9]{1,3}(?:,[0-9]{3})+|[0-9]{4,8})\b", RegexOptions.IgnoreCase);
+                var salMatch = Regex.Match(prompt, @"(?:\bsalary\s+(?:is\s+)?|\bbudget\s+(?:is\s+)?|\bof\s+|\bis\s+|\bto\s+)?\$?\s*([0-9]{1,3}(?:,[0-9]{3})+|[0-9]{4,8})\b", RegexOptions.IgnoreCase);
                 if (salMatch.Success)
                 {
                     var rawSal = salMatch.Groups[1].Value.Replace(",", "");
                     if (decimal.TryParse(rawSal, NumberStyles.Any, CultureInfo.InvariantCulture, out var salVal) && salVal >= 100)
                     {
-                        var isBudgetIntent = result.TargetEntity.Equals("DEPARTMENT_BUDGET", StringComparison.OrdinalIgnoreCase) || result.Intent.Contains("BUDGET");
-                        string key = isBudgetIntent ? "budgetAmount" : "salary";
+                        var isBudget = isDeptIntent || result.TargetEntity.Equals("DEPARTMENT_BUDGET", StringComparison.OrdinalIgnoreCase) || result.Intent.Contains("BUDGET");
+                        string key = isBudget ? "budgetAmount" : "salary";
                         entities[key] = salVal.ToString(CultureInfo.InvariantCulture);
                         parameters[key] = salVal;
                     }
@@ -652,131 +875,70 @@ Return ONLY a valid raw JSON object matching this exact structure:
             }
         }
 
-        // 4. Extract Department
-        if (!entities.ContainsKey("department") && !parameters.ContainsKey("department"))
+        // 7. Dynamic Email Extraction (e.g. 4t195es@gmail.com)
+        var emailMatch = Regex.Match(prompt, @"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b");
+        if (emailMatch.Success)
         {
-            var deptMatch = Regex.Match(prompt, @"\b(?:department|dept|daprtment|depatment|deptment)\s+(?:is\s+)?([a-zA-Z]+)\b|\b([a-zA-Z]+)\s+(?:department|dept|daprtment|depatment|deptment)\b", RegexOptions.IgnoreCase);
-            if (deptMatch.Success)
-            {
-                var dRaw = !string.IsNullOrWhiteSpace(deptMatch.Groups[1].Value) ? deptMatch.Groups[1].Value : deptMatch.Groups[2].Value;
-                if (!string.IsNullOrWhiteSpace(dRaw) && !dRaw.Equals("the", StringComparison.OrdinalIgnoreCase) && !dRaw.Equals("his", StringComparison.OrdinalIgnoreCase))
-                {
-                    var cleanDept = CultureInfo.CurrentCulture.TextInfo.ToTitleCase(dRaw.ToLower());
-                    if (cleanDept.Equals("It", StringComparison.OrdinalIgnoreCase)) cleanDept = "IT";
-                    if (cleanDept.Equals("Hr", StringComparison.OrdinalIgnoreCase)) cleanDept = "HR";
-                    entities["department"] = cleanDept;
-                    parameters["department"] = cleanDept;
-                }
-            }
-
-            if (!entities.ContainsKey("department"))
-            {
-                if (Regex.IsMatch(p, @"\bit\b|\bsoftware\b|\bfrontend\b")) { entities["department"] = "IT"; parameters["department"] = "IT"; }
-                else if (Regex.IsMatch(p, @"\bhr\b|\bhuman resources\b")) { entities["department"] = "HR"; parameters["department"] = "HR"; }
-                else if (p.Contains("finance")) { entities["department"] = "Finance"; parameters["department"] = "Finance"; }
-                else if (p.Contains("marketing")) { entities["department"] = "Marketing"; parameters["department"] = "Marketing"; }
-                else if (p.Contains("operations")) { entities["department"] = "Operations"; parameters["department"] = "Operations"; }
-                else if (p.Contains("legal")) { entities["department"] = "Legal"; parameters["department"] = "Legal"; }
-            }
+            entities["email"] = emailMatch.Value;
+            parameters["email"] = emailMatch.Value;
         }
 
-        // 5. Extract Designation
+        // 8. Dynamic Designation Extraction (e.g. "junior SQA", "software engineer")
         if (!entities.ContainsKey("designation") && !parameters.ContainsKey("designation"))
         {
-            var desigMatch = Regex.Match(prompt, @"\bdesignation\s+(?:is\s+)?([a-zA-Z0-9\.\s\-\#\+]+?)(?:\s+and\s+|\s*$|[,.])|\bas\s+(?:an?\s+)?([a-zA-Z0-9\.\s\-\#\+]+?)(?:\s+in\s+|\s+with\s+|\s+at\s+|$)", RegexOptions.IgnoreCase);
+            var desigMatch = Regex.Match(prompt, @"\b(?:is\s+(?:a|an)?|role\s+(?:is)?|designation\s+(?:is)?|position\s+(?:is)?|as\s+(?:a|an)?)\s+([A-Za-z0-9\.\s\-\#\+]+?)(?:\s*\.|\s*\,|\s+with|\s+his|\s+her|\s+salary|\s+starting|\s+on|\s+and|\s+send|\s+joining|\s*email|\s*$)", RegexOptions.IgnoreCase);
             if (desigMatch.Success)
             {
-                var rawDesig = !string.IsNullOrWhiteSpace(desigMatch.Groups[1].Value) ? desigMatch.Groups[1].Value : desigMatch.Groups[2].Value;
-                rawDesig = rawDesig.Trim();
-                if (!string.IsNullOrWhiteSpace(rawDesig) && rawDesig.Length < 40)
+                var candidateDesig = desigMatch.Groups[1].Value.Trim();
+                var lowerDesig = candidateDesig.ToLowerInvariant();
+                if (!string.IsNullOrWhiteSpace(candidateDesig) && lowerDesig != "coming" && lowerDesig != "new" && lowerDesig != "employee" && lowerDesig != "him" && lowerDesig != "her" && candidateDesig.Length < 40)
                 {
-                    entities["designation"] = rawDesig;
-                    parameters["designation"] = rawDesig;
+                    var cleanDesig = CultureInfo.CurrentCulture.TextInfo.ToTitleCase(candidateDesig.ToLower());
+                    cleanDesig = Regex.Replace(cleanDesig, @"\bSqa\b", "SQA", RegexOptions.IgnoreCase);
+                    cleanDesig = Regex.Replace(cleanDesig, @"\bQa\b", "QA", RegexOptions.IgnoreCase);
+                    cleanDesig = Regex.Replace(cleanDesig, @"\bNet\b", ".NET", RegexOptions.IgnoreCase);
+                    entities["designation"] = cleanDesig;
+                    parameters["designation"] = cleanDesig;
                 }
             }
         }
 
-        // 6. Extract Status
-        if (!entities.ContainsKey("status") && !parameters.ContainsKey("status"))
+        // 9. Dynamic Employee Name Extraction (Fallback when LLM parameters didn't capture it)
+        if (!isDeptIntent && (!entities.ContainsKey("name") || string.IsNullOrWhiteSpace(entities.GetValueOrDefault("name"))))
         {
-            if (p.Contains("inactive")) { entities["status"] = "Inactive"; parameters["status"] = "Inactive"; }
-            else if (p.Contains("active") && !p.Contains("inactive")) { entities["status"] = "Active"; parameters["status"] = "Active"; }
-        }
-
-        // 7. Extract Quarter
-        var quarterMatch = Regex.Match(prompt, @"\b(Q[1-4])\b", RegexOptions.IgnoreCase);
-        if (quarterMatch.Success && !entities.ContainsKey("quarter"))
-        {
-            entities["quarter"] = quarterMatch.Groups[1].Value.ToUpper();
-            parameters["quarter"] = quarterMatch.Groups[1].Value.ToUpper();
-        }
-
-        // 8. Extract Name
-        if (!entities.ContainsKey("name") || string.IsNullOrWhiteSpace(entities.GetValueOrDefault("name")))
-        {
-            var knownNames = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            var stopWords = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
             {
-                { "ahmed khan", "Ahmed Khan" },
-                { "sufyan khan", "Sufyan Khan" },
-                { "tariq mahmood", "Tariq Mahmood" },
-                { "sarah jenkins", "Sarah Jenkins" },
-                { "maria garcia", "Maria Garcia" },
-                { "ali", "Ali" },
-                { "sara", "Sara" },
-                { "ahmed", "Ahmed Khan" }
+                "him", "him and", "her", "her and", "them", "them and", "it", "he", "she", "his", "their",
+                "candidate", "person", "user", "employee", "new employee", "staff", "coming", "joining", "the", "a", "an"
             };
 
-            foreach (var kv in knownNames)
+            var namePatterns = new[]
             {
-                if (Regex.IsMatch(p, $@"\b{kv.Key}\b"))
-                {
-                    entities["name"] = kv.Value;
-                    parameters["name"] = kv.Value;
-                    break;
-                }
-            }
+                @"\b(?:names?\s+(?:as|is)?|named?)\s+([A-Za-z]+(?:\s+[A-Za-z]+)?)\b",
+                @"\b(?:add\s+employee|create\s+employee|onboard\s+employee|onboard|hire|update\s+salary\s+for|salary\s+for)\s+(?:named\s+|name\s+)?([A-Za-z]+(?:\s+[A-Za-z]+)?)\b",
+                @"\b([A-Za-z]+)\s+is\s+coming\b",
+                @"\b([A-Za-z]+)\s+ko\s+(?:employee|staff|onboard)\b"
+            };
 
-            if (!entities.ContainsKey("name") || string.IsNullOrWhiteSpace(entities.GetValueOrDefault("name")))
+            foreach (var pattern in namePatterns)
             {
-                var namePatterns = new[]
+                var match = Regex.Match(prompt, pattern, RegexOptions.IgnoreCase);
+                if (match.Success)
                 {
-                    @"\b(?:add\s+employee|create\s+employee|onboard\s+employee|onboard|hire)\s+(?:named\s+|name\s+)?([A-Za-z]+(?:\s+[A-Za-z]+)?)\b",
-                    @"\b([A-Za-z]+)\s+ko\s+(?:employee|staff)\b",
-                    @"\b([A-Za-z]+)\s+ko\s+onboard\b",
-                    @"\b([A-Za-z]+)\s+ki\s+details\b",
-                    @"\bemployee\s+([A-Za-z]+(?:\s+[A-Za-z]+)?)\b",
-                    @"\bname\s+(?:is\s+)?([A-Za-z]+(?:\s+[A-Za-z]+)?)\b",
-                    @"\bnamed\s+([A-Za-z]+(?:\s+[A-Za-z]+)?)\b"
-                };
-
-                var fillerWords = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-                {
-                    "employee", "candidate", "person", "user", "staff", "list", "item", "record",
-                    "salaries", "salary", "an", "a", "the", "all", "new", "department", "it", "hr",
-                    "whose", "his", "her", "their", "is", "in", "with", "and", "as"
-                };
-
-                foreach (var pattern in namePatterns)
-                {
-                    var match = Regex.Match(prompt, pattern, RegexOptions.IgnoreCase);
-                    if (match.Success)
+                    var candidate = match.Groups[1].Value.Trim();
+                    if (!stopWords.Contains(candidate) && candidate.Length >= 2)
                     {
-                        var candidate = match.Groups[1].Value.Trim();
-                        var firstWord = candidate.Split(' ')[0];
-                        if (!fillerWords.Contains(candidate) && !fillerWords.Contains(firstWord) && candidate.Length >= 2)
-                        {
-                            var cleanName = CultureInfo.CurrentCulture.TextInfo.ToTitleCase(candidate.ToLower());
-                            entities["name"] = cleanName;
-                            parameters["name"] = cleanName;
-                            break;
-                        }
+                        var cleanName = CultureInfo.CurrentCulture.TextInfo.ToTitleCase(candidate.ToLower());
+                        entities["name"] = cleanName;
+                        parameters["name"] = cleanName;
+                        break;
                     }
                 }
             }
         }
 
-        // 9. Auto-generate email from name
-        if (entities.TryGetValue("name", out var empName) && !string.IsNullOrWhiteSpace(empName)
+        // 10. Auto-generate email from name if email not explicitly provided
+        if (entities.TryGetValue("name", out var empName) && !string.IsNullOrWhiteSpace(empName) && !isDeptIntent
             && (!entities.ContainsKey("email") || string.IsNullOrWhiteSpace(entities.GetValueOrDefault("email"))))
         {
             var email = $"{empName.ToLower().Replace(" ", ".")}@nexus.local";
@@ -784,7 +946,7 @@ Return ONLY a valid raw JSON object matching this exact structure:
             parameters["email"] = email;
         }
 
-        // 10. Copy all Entities to Parameters for downstream tools
+        // 10. Final Parameter/Entity Alignment
         foreach (var kv in entities)
         {
             if (!parameters.ContainsKey(kv.Key))
@@ -796,8 +958,8 @@ Return ONLY a valid raw JSON object matching this exact structure:
         // 11. Populate StructuredEntities
         result.StructuredEntities = new StructuredEntities
         {
-            EmployeeName = entities.GetValueOrDefault("name"),
-            Department = entities.GetValueOrDefault("department"),
+            EmployeeName = isDeptIntent ? null : entities.GetValueOrDefault("name"),
+            Department = entities.GetValueOrDefault("department") ?? (isDeptIntent ? entities.GetValueOrDefault("name") : null),
             Designation = entities.GetValueOrDefault("designation"),
             Status = entities.GetValueOrDefault("status"),
             Salary = entities.TryGetValue("salary", out var sStr) && decimal.TryParse(sStr, NumberStyles.Any, CultureInfo.InvariantCulture, out var sDec) ? sDec : null,

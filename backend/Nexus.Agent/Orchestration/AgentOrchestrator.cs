@@ -101,7 +101,17 @@ public class AgentOrchestrator : IAgentOrchestrator
                 IsSuccess = true,
                 ResultData = new { message = reply, isConversational = true },
                 ExecutionFeed = feed,
-                ExecutionTimeMs = sw.ElapsedMilliseconds
+                ExecutionTimeMs = sw.ElapsedMilliseconds,
+                // ── Spec state machine fields ────────────────────────────────────────
+                State = WorkflowState.ANSWER_DIRECT.ToString(),
+                UserMessage = reply,
+                TargetSystem = ExtractTargetSystem(parsedIntent),
+                ConfirmationDetails = new ConfirmationDetails
+                {
+                    ProposedAction = string.Empty,
+                    ActionSummary = string.Empty,
+                    RequiresUserAction = false
+                }
             };
         }
 
@@ -124,7 +134,12 @@ public class AgentOrchestrator : IAgentOrchestrator
                 ExecutionFeed = feed,
                 ErrorMessage = parsedIntent.ClarificationPrompt,
                 LlmError = parsedIntent.LlmError,
-                ExecutionTimeMs = sw.ElapsedMilliseconds
+                ExecutionTimeMs = sw.ElapsedMilliseconds,
+                // ── Spec state machine fields ────────────────────────────────────────
+                State = WorkflowState.CLARIFICATION_REQUIRED.ToString(),
+                UserMessage = parsedIntent.ClarificationPrompt ?? "Could you please clarify your request?",
+                TargetSystem = ExtractTargetSystem(parsedIntent),
+                ConfirmationDetails = BuildClarificationDetails(parsedIntent)
             };
         }
 
@@ -166,9 +181,13 @@ public class AgentOrchestrator : IAgentOrchestrator
         var isReadOnly = parsedIntent.ParsedIntentType == IntentType.BUDGET_ANALYSIS
             || parsedIntent.ParsedIntentType == IntentType.EXPENSE_COMPLIANCE
             || parsedIntent.ParsedIntentType == IntentType.EMPLOYEE_READ
-            || parsedIntent.ParsedIntentType == IntentType.SQL_AGENT; // SQL_AGENT handles its own risk internally
+            || parsedIntent.ParsedIntentType == IntentType.SECURITY_TEST   // SECURITY_TEST is diagnostic-only, never mutates
+            || parsedIntent.ParsedIntentType == IntentType.SQL_AGENT;       // SQL_AGENT handles its own risk internally
 
-        if (!isReadOnly && (plan.TotalRiskLevel >= RiskLevel.High || promptLower.Contains("increase") || promptLower.Contains("10%") || promptLower.Contains("bulk") || promptLower.Contains("onboard") || promptLower.Contains("delete") || promptLower.Contains("remove")))
+        // UPDATE_SALARY always triggers approval even if not flagged as high-risk by the plan, because it is a financial mutation
+        var isSalaryUpdate = parsedIntent.ParsedIntentType == IntentType.UPDATE_SALARY;
+
+        if (!isReadOnly && (isSalaryUpdate || plan.TotalRiskLevel >= RiskLevel.High || promptLower.Contains("increase") || promptLower.Contains("10%") || promptLower.Contains("bulk") || promptLower.Contains("onboard") || promptLower.Contains("delete") || promptLower.Contains("remove")))
         {
             var actionPlan = await BuildActionPlanAsync(agentRun.Id, userPrompt, parsedIntent, cancellationToken);
 
@@ -192,6 +211,7 @@ public class AgentOrchestrator : IAgentOrchestrator
             await _broadcaster.BroadcastEventAsync(Nexus.Data.Events.AgentActivityEvent.Create(agentRun.Id, 0, "APPROVAL_REQUIRED", "High-risk action requires human confirmation."), cancellationToken);
             sw.Stop();
 
+            var confirmMsg = BuildConfirmationUserMessage(parsedIntent);
             return new AgentResult
             {
                 RunId = agentRun.Id,
@@ -202,7 +222,12 @@ public class AgentOrchestrator : IAgentOrchestrator
                 ActionPlan = actionPlan,
                 Plan = plan,
                 ExecutionFeed = feed,
-                ExecutionTimeMs = sw.ElapsedMilliseconds
+                ExecutionTimeMs = sw.ElapsedMilliseconds,
+                // ── Spec state machine fields ────────────────────────────────────────
+                State = WorkflowState.CONFIRMATION_REQUIRED.ToString(),
+                UserMessage = confirmMsg.Message,
+                TargetSystem = ExtractTargetSystem(parsedIntent),
+                ConfirmationDetails = confirmMsg.Details
             };
         }
 
@@ -276,8 +301,42 @@ public class AgentOrchestrator : IAgentOrchestrator
             _db.AgentActions.Add(agentAction);
             await _db.SaveChangesAsync(cancellationToken);
 
-            // Execute Tool with serialized entity parameters & user prompt
-            var entitiesDict = new Dictionary<string, object>(parsedIntent.Entities.ToDictionary(k => k.Key, v => (object)v), StringComparer.OrdinalIgnoreCase);
+            // Execute Tool with merged entity & parameter dictionary + user prompt
+            var entitiesDict = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+            if (parsedIntent.Parameters != null)
+            {
+                foreach (var kv in parsedIntent.Parameters)
+                {
+                    if (kv.Value != null) entitiesDict[kv.Key] = kv.Value;
+                }
+            }
+            if (parsedIntent.Entities != null)
+            {
+                foreach (var kv in parsedIntent.Entities)
+                {
+                    if (!string.IsNullOrWhiteSpace(kv.Value)) entitiesDict[kv.Key] = kv.Value;
+                }
+            }
+
+            if (!entitiesDict.ContainsKey("operation") && !string.IsNullOrWhiteSpace(parsedIntent.Operation))
+            {
+                entitiesDict["operation"] = parsedIntent.Operation;
+            }
+
+            // Entity Aliasing for downstream tool parameters
+            if (entitiesDict.TryGetValue("department", out var deptVal) && (!entitiesDict.ContainsKey("name") || string.IsNullOrWhiteSpace(entitiesDict["name"]?.ToString())))
+            {
+                entitiesDict["name"] = deptVal;
+            }
+            if (entitiesDict.TryGetValue("name", out var nameVal) && (!entitiesDict.ContainsKey("department") || string.IsNullOrWhiteSpace(entitiesDict["department"]?.ToString())))
+            {
+                entitiesDict["department"] = nameVal;
+            }
+            if (entitiesDict.TryGetValue("employee_name", out var empNameVal) && (!entitiesDict.ContainsKey("name") || string.IsNullOrWhiteSpace(entitiesDict["name"]?.ToString())))
+            {
+                entitiesDict["name"] = empNameVal;
+            }
+
             if (!entitiesDict.ContainsKey("question"))
             {
                 entitiesDict["question"] = userPrompt;
@@ -335,6 +394,7 @@ public class AgentOrchestrator : IAgentOrchestrator
                 await _db.SaveChangesAsync(cancellationToken);
 
                 sw.Stop();
+                var errMsg = toolResult.ErrorMessage ?? "Tool execution failed.";
                 return new AgentResult
                 {
                     RunId = agentRun.Id,
@@ -344,8 +404,13 @@ public class AgentOrchestrator : IAgentOrchestrator
                     Plan = plan,
                     ExecutedSteps = executedSteps,
                     ExecutionFeed = feed,
-                    ErrorMessage = toolResult.ErrorMessage,
-                    ExecutionTimeMs = sw.ElapsedMilliseconds
+                    ErrorMessage = errMsg,
+                    ExecutionTimeMs = sw.ElapsedMilliseconds,
+                    // ── Spec state machine fields ────────────────────────────────────────
+                    State = WorkflowState.CLARIFICATION_REQUIRED.ToString(),
+                    UserMessage = errMsg,
+                    TargetSystem = ExtractTargetSystem(parsedIntent),
+                    ConfirmationDetails = BuildClarificationDetails(parsedIntent)
                 };
             }
 
@@ -361,6 +426,10 @@ public class AgentOrchestrator : IAgentOrchestrator
         await _broadcaster.BroadcastEventAsync(Nexus.Data.Events.AgentActivityEvent.Create(agentRun.Id, plan.Steps.Count, "EXECUTION_COMPLETED", "Agent run completed successfully."), cancellationToken);
 
         sw.Stop();
+
+        // Build execution payload for READY_TO_EXECUTE state
+        var execPayload = BuildExecutionPayload(parsedIntent, lastResultData);
+
         return new AgentResult
         {
             RunId = agentRun.Id,
@@ -371,7 +440,18 @@ public class AgentOrchestrator : IAgentOrchestrator
             ExecutedSteps = executedSteps,
             ResultData = lastResultData,
             ExecutionFeed = feed,
-            ExecutionTimeMs = sw.ElapsedMilliseconds
+            ExecutionTimeMs = sw.ElapsedMilliseconds,
+            // ── Spec state machine fields ────────────────────────────────────────
+            State = WorkflowState.READY_TO_EXECUTE.ToString(),
+            UserMessage = $"Request completed successfully. Intent: {parsedIntent.Intent}.",
+            TargetSystem = ExtractTargetSystem(parsedIntent),
+            ConfirmationDetails = new ConfirmationDetails
+            {
+                ProposedAction = $"Executed {string.Join(", ", executedSteps.Select(s => s.ToolName))}",
+                ActionSummary = "Confirmed by system. Execution completed.",
+                RequiresUserAction = false
+            },
+            ExecutionPayload = execPayload
         };
     }
 
@@ -568,10 +648,14 @@ public class AgentOrchestrator : IAgentOrchestrator
             feed.Add(AgentEvent.Create(AgentEventType.TOOL_STARTED, $"EMPLOYEE_CREATION_STARTED: Inserting employee '{empName}' into SQL Server database..."));
             await _broadcaster.BroadcastEventAsync(Nexus.Data.Events.AgentActivityEvent.Create(runId, 2, "EMPLOYEE_CREATION_STARTED", $"Creating SQL record for {empName}..."), cancellationToken);
 
+            string empEmail = parsedIntent?.Entities?.GetValueOrDefault("email")
+                ?? parsedIntent?.Parameters?.GetValueOrDefault("email")?.ToString()
+                ?? $"{empName.ToLower().Replace(" ", ".")}@nexus.local";
+
             var newEmp = new Employee
             {
                 Name = empName,
-                Email = $"{empName.ToLower().Replace(" ", ".")}@nexus.local",
+                Email = empEmail,
                 DepartmentId = deptId,
                 Designation = parsedIntent?.Entities?.GetValueOrDefault("designation") ?? "Developer",
                 Salary = empSalary,
@@ -646,6 +730,7 @@ public class AgentOrchestrator : IAgentOrchestrator
                 var toolArgs = new Dictionary<string, object>
                 {
                     { "name", empName },
+                    { "email", newEmp.Email },
                     { "designation", newEmp.Designation },
                     { "department", dept?.Name ?? "IT" }
                 };
@@ -696,34 +781,71 @@ public class AgentOrchestrator : IAgentOrchestrator
             feed.Add(AgentEvent.Create(AgentEventType.TOOL_COMPLETED, $"EMPLOYEE_DELETED: {resultMessage}"));
             await _broadcaster.BroadcastEventAsync(Nexus.Data.Events.AgentActivityEvent.Create(runId, 2, "EMPLOYEE_DELETED", resultMessage), cancellationToken);
         }
-        // ── 5. EMPLOYEE SALARY UPDATE (ONLY for explicit EMPLOYEE_UPDATE intent) ──
-        else if (intentType == IntentType.EMPLOYEE_UPDATE)
+        // ── 5. EMPLOYEE SALARY UPDATE (UPDATE_SALARY & EMPLOYEE_UPDATE) ──
+        else if (intentType == IntentType.UPDATE_SALARY || intentType == IntentType.EMPLOYEE_UPDATE)
         {
-            List<Employee> toUpdate;
+            var empName = parsedIntent?.Entities?.GetValueOrDefault("name")
+                ?? parsedIntent?.Entities?.GetValueOrDefault("employee_name")
+                ?? parsedIntent?.Parameters?.GetValueOrDefault("name")?.ToString()
+                ?? parsedIntent?.Parameters?.GetValueOrDefault("employee_name")?.ToString();
+
+            List<Employee> toUpdate = new();
             if (targetRecordIds.Count > 0)
             {
                 toUpdate = await _db.Employees.Where(e => targetRecordIds.Contains(e.Id)).ToListAsync(cancellationToken);
             }
+            else if (!string.IsNullOrWhiteSpace(empName))
+            {
+                toUpdate = await _db.Employees.Where(e => e.Name.ToLower().Contains(empName.ToLower())).ToListAsync(cancellationToken);
+            }
             else
             {
+                var deptFilter = parsedIntent?.Entities?.GetValueOrDefault("department") ?? "IT";
                 toUpdate = await _db.Employees.Include(e => e.Department)
-                    .Where(e => e.DepartmentId == 1 || (e.Department != null && e.Department.Name == "IT"))
+                    .Where(e => e.Department != null && e.Department.Name.ToLower().Contains(deptFilter.ToLower()))
                     .ToListAsync(cancellationToken);
             }
 
-            decimal pct = 10m;
-            if (parsedIntent?.Entities?.TryGetValue("percentage", out var pStr) == true && decimal.TryParse(pStr, out var pDec))
-                pct = pDec;
+            // Extract absolute salary parameter if provided (e.g. 700k, 700000)
+            decimal? newSalary = null;
+            if (parsedIntent?.Entities?.TryGetValue("new_salary", out var sStr) == true && decimal.TryParse(sStr, NumberStyles.Any, CultureInfo.InvariantCulture, out var sVal))
+                newSalary = sVal;
+            else if (parsedIntent?.Entities?.TryGetValue("salary", out sStr) == true && decimal.TryParse(sStr, NumberStyles.Any, CultureInfo.InvariantCulture, out sVal))
+                newSalary = sVal;
+            else if (parsedIntent?.Entities?.TryGetValue("amount", out sStr) == true && decimal.TryParse(sStr, NumberStyles.Any, CultureInfo.InvariantCulture, out sVal))
+                newSalary = sVal;
+            else if (parsedIntent?.Parameters?.TryGetValue("new_salary", out var sObj) == true && decimal.TryParse(sObj?.ToString(), NumberStyles.Any, CultureInfo.InvariantCulture, out sVal))
+                newSalary = sVal;
+            else if (parsedIntent?.Parameters?.TryGetValue("salary", out sObj) == true && decimal.TryParse(sObj?.ToString(), NumberStyles.Any, CultureInfo.InvariantCulture, out sVal))
+                newSalary = sVal;
 
-            foreach (var emp in toUpdate)
+            if (newSalary.HasValue && newSalary.Value > 0)
             {
-                emp.Salary = Math.Round(emp.Salary * (1m + (pct / 100m)), 2);
-                emp.UpdatedAt = DateTime.UtcNow;
+                foreach (var emp in toUpdate)
+                {
+                    emp.Salary = newSalary.Value;
+                    emp.UpdatedAt = DateTime.UtcNow;
+                }
+                await _db.SaveChangesAsync(cancellationToken);
+                affectedCount = toUpdate.Count;
+                resultMessage = $"Updated compensation to ${newSalary.Value:N2}/yr for {toUpdate.Count} employee(s) in SQL Server database.";
             }
+            else
+            {
+                decimal pct = 10m;
+                if (parsedIntent?.Entities?.TryGetValue("percentage", out var pStr) == true && decimal.TryParse(pStr, out var pDec))
+                    pct = pDec;
 
-            await _db.SaveChangesAsync(cancellationToken);
-            affectedCount = toUpdate.Count;
-            resultMessage = $"Updated compensation (+{pct}%) for {toUpdate.Count} employee(s) in SQL Server database.";
+                foreach (var emp in toUpdate)
+                {
+                    emp.Salary = Math.Round(emp.Salary * (1m + (pct / 100m)), 2);
+                    emp.UpdatedAt = DateTime.UtcNow;
+                }
+
+                await _db.SaveChangesAsync(cancellationToken);
+                affectedCount = toUpdate.Count;
+                resultMessage = $"Updated compensation (+{pct}%) for {toUpdate.Count} employee(s) in SQL Server database.";
+            }
 
             feed.Add(AgentEvent.Create(AgentEventType.TOOL_COMPLETED, $"SALARY_UPDATED: {resultMessage}"));
             await _broadcaster.BroadcastEventAsync(Nexus.Data.Events.AgentActivityEvent.Create(runId, 2, "SALARY_UPDATED", resultMessage), cancellationToken);
@@ -750,8 +872,8 @@ public class AgentOrchestrator : IAgentOrchestrator
         return new AgentResult
         {
             RunId = runId,
-            OriginalPrompt = agentRun.OriginalPrompt,
-            Intent = agentRun.Intent,
+            OriginalPrompt = agentRun.OriginalPrompt ?? string.Empty,
+            Intent = agentRun.Intent ?? string.Empty,
             IsSuccess = true,
             ResultData = new { message = resultMessage, affectedCount },
             ExecutionFeed = feed,
@@ -862,7 +984,23 @@ public class AgentOrchestrator : IAgentOrchestrator
                 plan.Steps.Add(new AgentStep { StepNumber = 1, ToolName = "sql.analytics", Description = "Query enterprise records for summary", RiskLevel = RiskLevel.Low });
                 break;
 
-            // ── SQL Agent passthrough ────────────────────────────────────────
+            // Spec: UPDATE_SALARY — financial mutation, always approval-gated
+            case IntentType.UPDATE_SALARY:
+                plan.Steps.Add(new AgentStep { StepNumber = 1, ToolName = "policy.evaluate", Description = "Validate new salary against HR compensation band policy", RiskLevel = RiskLevel.Low });
+                plan.Steps.Add(new AgentStep { StepNumber = 2, ToolName = "employee.update", Description = "Apply salary change to employee record in SQL Server", RiskLevel = RiskLevel.High });
+                break;
+
+            // Spec: SECURITY_TEST — diagnostic/read-only, never mutates data
+            case IntentType.SECURITY_TEST:
+                plan.Steps.Add(new AgentStep { StepNumber = 1, ToolName = "sql.analytics", Description = "Execute read-only connection audit and system health check", RiskLevel = RiskLevel.Low });
+                break;
+
+            // Spec: EXECUTE_AUTOMATION — routes to browser automation / Playwright
+            case IntentType.EXECUTE_AUTOMATION:
+                plan.Steps.Add(new AgentStep { StepNumber = 1, ToolName = "browser.automation", Description = "Trigger external workflow automation (n8n / Zapier / Playwright)", RiskLevel = RiskLevel.Medium });
+                break;
+
+            // SQL Agent passthrough
             case IntentType.SQL_AGENT:
                 plan.Steps.Add(new AgentStep { StepNumber = 1, ToolName = "sql.analytics", Description = "Execute Production SQL Agent query", RiskLevel = RiskLevel.Low });
                 break;
@@ -875,6 +1013,122 @@ public class AgentOrchestrator : IAgentOrchestrator
         plan.TotalRiskLevel = plan.Steps.Count > 0 ? plan.Steps.Max(s => s.RiskLevel) : RiskLevel.Low;
         return plan;
     }
+
+    // ---- Spec-aligned helper methods (State Machine) -----------------------------------------------
+
+    /// <summary>
+    /// Extracts the target_system field from the LLM-parsed parameters.
+    /// Falls back to SQL_SERVER for most intents; N8N_WORKFLOW / ZAPIER / UNKNOWN for automation.
+    /// </summary>
+    private static string ExtractTargetSystem(ParsedIntentResult intent)
+    {
+        // Try to read from the LLM-supplied parameters.target_system first
+        if (intent.Parameters.TryGetValue("target_system", out var tsObj) && tsObj is string ts && !string.IsNullOrWhiteSpace(ts))
+            return ts.ToUpperInvariant();
+
+        // Rule-based fallback by intent type
+        return intent.ParsedIntentType switch
+        {
+            IntentType.EXECUTE_AUTOMATION => "N8N_WORKFLOW",
+            IntentType.SECURITY_TEST      => "UNKNOWN",
+            IntentType.GENERAL_CONVERSATION => "UNKNOWN",
+            _                             => "SQL_SERVER"
+        };
+    }
+
+    /// <summary>
+    /// Builds the user-facing confirmation message and ConfirmationDetails block for
+    /// CONFIRMATION_REQUIRED states.
+    /// </summary>
+    private static (string Message, ConfirmationDetails Details) BuildConfirmationUserMessage(ParsedIntentResult intent)
+    {
+        var e = intent.Entities;
+        string name = e.GetValueOrDefault("name") ?? e.GetValueOrDefault("employee_name") ?? "the employee";
+
+        string message;
+        string proposed;
+        string summary;
+
+        switch (intent.ParsedIntentType)
+        {
+            case IntentType.UPDATE_SALARY:
+                var salary = e.GetValueOrDefault("salary") ?? e.GetValueOrDefault("new_salary") ?? "[pending]";
+                var effectiveDate = intent.StructuredEntities?.EffectiveDate ?? "immediately";
+                message = "I have drafted a salary adjustment request. Please review the details below before I submit it to the system:";
+                proposed = "Update employee compensation record in SQL Server database";
+                summary = $"Employee: {name} | New Amount: {salary}/mo | Effective Date: {effectiveDate}";
+                break;
+
+            case IntentType.EMPLOYEE_ONBOARDING:
+            case IntentType.EMPLOYEE_CREATE:
+                var dept = e.GetValueOrDefault("department") ?? "[Pending]";
+                var desig = e.GetValueOrDefault("designation") ?? "[Pending]";
+                var sal = e.GetValueOrDefault("salary") ?? "[Pending]";
+                message = $"I am ready to onboard {name}. Please confirm the details below before I create the record:";
+                proposed = "Insert new employee record into SQL Server database";
+                summary = $"Employee: {name} | Department: {dept} | Role: {desig} | Salary: {sal}";
+                break;
+
+            case IntentType.EXECUTE_AUTOMATION:
+                var target = intent.StructuredEntities?.AutomationTarget ?? "the configured workflow";
+                message = "I am ready to trigger the automation workflow. Please confirm:";
+                proposed = "Execute external automation (n8n / Zapier / Playwright)";
+                summary = $"Target: {target} | Action: EXECUTE";
+                break;
+
+            default:
+                message = "I have prepared the following action for your review. Please confirm before execution:";
+                proposed = $"Execute {intent.Intent} operation in SQL Server";
+                summary = $"Intent: {intent.Intent} | Scope: {intent.Scope}";
+                break;
+        }
+
+        return (message, new ConfirmationDetails
+        {
+            ProposedAction = proposed,
+            ActionSummary = summary,
+            RequiresUserAction = true
+        });
+    }
+
+    /// <summary>
+    /// Builds the ConfirmationDetails block for CLARIFICATION_REQUIRED states,
+    /// showing which fields are still missing.
+    /// </summary>
+    private static ConfirmationDetails BuildClarificationDetails(ParsedIntentResult intent)
+    {
+        var missing = intent.MissingFields.Count > 0
+            ? string.Join(", ", intent.MissingFields.Select(f => $"[{f}]"))
+            : "[additional details]";
+
+        return new ConfirmationDetails
+        {
+            ProposedAction = $"Awaiting clarification for: {intent.Intent}",
+            ActionSummary = $"Missing required fields: {missing}",
+            RequiresUserAction = true
+        };
+    }
+
+    /// <summary>
+    /// Builds the execution_payload object for READY_TO_EXECUTE results.
+    /// This is a structured summary of what was executed, ready for frontend display or
+    /// downstream API consumption.
+    /// </summary>
+    private static object? BuildExecutionPayload(ParsedIntentResult intent, object? resultData)
+    {
+        if (resultData == null) return null;
+
+        return new
+        {
+            intent = intent.Intent,
+            operation = intent.Operation,
+            targetEntity = intent.TargetEntity,
+            targetSystem = ExtractTargetSystem(intent),
+            timestamp = DateTime.UtcNow.ToString("o"),
+            result = resultData
+        };
+    }
+
 
     private async Task<Nexus.Data.ActionPlan.ActionPlan> BuildActionPlanAsync(Guid runId, string prompt, ParsedIntentResult intent, CancellationToken ct)
     {
@@ -968,12 +1222,12 @@ public class AgentOrchestrator : IAgentOrchestrator
         // ── 3. EMPLOYEE ONBOARDING ──────────────────────────────────────────────
         if (intentType == IntentType.EMPLOYEE_ONBOARDING || pLower.Contains("onboard"))
         {
-            var name = intent.Entities.GetValueOrDefault("name", "Candidate");
-            var dept = intent.Entities.GetValueOrDefault("department", "IT");
-            var desig = intent.Entities.GetValueOrDefault("designation", ".NET Developer");
+            var name = intent.Entities.GetValueOrDefault("name") ?? intent.Parameters.GetValueOrDefault("name")?.ToString() ?? "Candidate";
+            var dept = intent.Entities.GetValueOrDefault("department") ?? intent.Parameters.GetValueOrDefault("department")?.ToString() ?? "IT";
+            var desig = intent.Entities.GetValueOrDefault("designation") ?? intent.Parameters.GetValueOrDefault("designation")?.ToString() ?? "Team Member";
             
             decimal proposedSalary = 68000.00m;
-            if (intent.Entities.TryGetValue("salary", out var salStr) && decimal.TryParse(salStr, NumberStyles.Any, CultureInfo.InvariantCulture, out var salVal))
+            if ((intent.Entities.TryGetValue("salary", out var salStr) || intent.Entities.TryGetValue("budgetAmount", out salStr)) && decimal.TryParse(salStr, NumberStyles.Any, CultureInfo.InvariantCulture, out var salVal))
                 proposedSalary = salVal;
 
             var actionPlan = new Nexus.Data.ActionPlan.ActionPlan

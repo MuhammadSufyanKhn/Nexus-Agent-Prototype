@@ -62,7 +62,12 @@ public class DepartmentCrudTool : IAgentTool
             if (!validation.IsValid)
                 return ToolExecutionResult.Failure(string.Join("; ", validation.Errors), Definition.RiskLevel);
 
-            var operation = context.GetArgument<string>("operation")?.ToUpperInvariant() ?? "CREATE";
+            var promptLower = (context.GetArgument<string>("prompt") ?? string.Empty).ToLowerInvariant();
+            var rawOp = context.GetArgument<string>("operation") ?? context.GetArgument<string>("action");
+            var operation = !string.IsNullOrWhiteSpace(rawOp)
+                ? rawOp.ToUpperInvariant()
+                : (promptLower.Contains("update") || promptLower.Contains("head") || promptLower.Contains("change head") || promptLower.Contains("manager") ? "UPDATE" : "CREATE");
+
             var name = context.GetArgument<string>("name")
                 ?? context.GetArgument<string>("department")
                 ?? string.Empty;
@@ -116,16 +121,24 @@ public class DepartmentCrudTool : IAgentTool
 
         var newName = ctx.GetArgument<string>("newName");
         var newDesc = ctx.GetArgument<string>("description");
+        var head = ctx.GetArgument<string>("head") ?? ctx.GetArgument<string>("departmentHead") ?? ctx.GetArgument<string>("manager");
 
         if (!string.IsNullOrWhiteSpace(newName)) dept.Name = newName;
-        if (!string.IsNullOrWhiteSpace(newDesc)) dept.Description = newDesc;
+        if (!string.IsNullOrWhiteSpace(head))
+        {
+            dept.Description = $"Head of Department: {head}";
+        }
+        else if (!string.IsNullOrWhiteSpace(newDesc))
+        {
+            dept.Description = newDesc;
+        }
 
         await _db.SaveChangesAsync();
         sw.Stop();
 
         return ToolExecutionResult.Success(new
         {
-            message = $"Department updated successfully.",
+            message = $"Department '{dept.Name}' updated successfully (Head: {head ?? "Updated"}).",
             dept.Id, dept.Name, dept.Description
         }, RiskLevel.Medium, sw.ElapsedMilliseconds);
     }

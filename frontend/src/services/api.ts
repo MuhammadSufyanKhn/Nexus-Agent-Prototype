@@ -1,3 +1,9 @@
+export interface ConfirmationDetails {
+  proposedAction: string;
+  actionSummary: string;
+  requiresUserAction: boolean;
+}
+
 export interface AgentResult {
   runId: string;
   originalPrompt: string;
@@ -11,7 +17,20 @@ export interface AgentResult {
   /** Set when the Gemini API itself failed — distinct from a business error */
   llmError?: string;
   executionTimeMs: number;
+
+  // ── Spec-aligned Workflow State Machine fields ────────────────────────────
+  /** One of: CONFIRMATION_REQUIRED | CLARIFICATION_REQUIRED | READY_TO_EXECUTE | ANSWER_DIRECT */
+  state?: string;
+  /** The clear, concise message displayed directly on the UI to the user */
+  userMessage?: string;
+  /** Summary of the proposed action shown to the user before execution */
+  confirmationDetails?: ConfirmationDetails;
+  /** Target backend system: SQL_SERVER | N8N_WORKFLOW | ZAPIER | UNKNOWN */
+  targetSystem?: string;
+  /** Populated when state is READY_TO_EXECUTE. Contains the structured execution payload. */
+  executionPayload?: any;
 }
+
 
 export interface AgentEvent {
   eventType: string;

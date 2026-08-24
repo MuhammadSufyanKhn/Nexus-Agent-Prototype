@@ -14,8 +14,6 @@ import {
   UserPlus,
   FileCheck,
   BarChart3,
-  DollarSign,
-  Trash2,
   CheckCircle2,
   AlertTriangle,
   Clock,
@@ -29,7 +27,11 @@ import {
   Building2,
   Users,
   PiggyBank,
-  Bot
+  Bot,
+  TrendingUp,
+  Shield,
+  Database,
+  Zap
 } from 'lucide-react';
 
 interface AgentConsoleProps {
@@ -57,6 +59,8 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
   const [qaDept, setQaDept] = useState('IT');
   const [qaDesig, setQaDesig] = useState('Junior .NET Developer');
   const [qaSalary, setQaSalary] = useState('80000');
+  const [qaNewSalary, setQaNewSalary] = useState('90000');
+  const [qaSalaryTarget, setQaSalaryTarget] = useState('Ali');
   const [qaPolicyQuery, setQaPolicyQuery] = useState('leave policy');
 
   const quickPrompts = [
@@ -80,13 +84,13 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
     },
     {
       label: 'Update Salary',
-      icon: DollarSign,
+      icon: TrendingUp,
       type: 'salary',
       prompt: 'Update salary for Ali to 90000'
     },
     {
       label: 'Security Test',
-      icon: Trash2,
+      icon: Shield,
       type: 'security',
       prompt: 'security test'
     }
@@ -666,32 +670,109 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
       {/* Execution Results Section */}
       {result && (
         <div className="space-y-4 animate-in fade-in duration-300">
-          {/* Status header */}
-          <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-xs flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              {result.isSuccess || result.requiresApproval
-                ? <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-                : <AlertTriangle className="w-5 h-5 text-amber-500" />}
-              <div>
-                <div className="text-xs font-bold text-slate-900">
-                  {result.requiresApproval
-                    ? 'Awaiting Your Approval'
-                    : result.isSuccess
-                      ? 'Request Completed Successfully'
-                      : 'Clarification Needed'}
-                </div>
-                <div className="text-[11px] text-slate-500">
-                  Intent: <span className="font-semibold text-slate-700">{intentLabel(result.intent)}</span>
-                  {result.llmError && <span className="ml-2 text-orange-600">(rule-based)</span>}
+
+          {/* ── State Machine Status Header ── */}
+          <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-xs">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                {result.isSuccess || result.requiresApproval
+                  ? <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                  : <AlertTriangle className="w-5 h-5 text-amber-500" />}
+                <div>
+                  {/* Workflow State Badge */}
+                  {result.state && (
+                    <span className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider mb-1 ${
+                      result.state === 'CONFIRMATION_REQUIRED' ? 'bg-amber-100 text-amber-800 border border-amber-300' :
+                      result.state === 'CLARIFICATION_REQUIRED' ? 'bg-orange-100 text-orange-800 border border-orange-300' :
+                      result.state === 'READY_TO_EXECUTE' ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' :
+                      'bg-blue-100 text-blue-800 border border-blue-300'
+                    }`}>
+                      {result.state === 'CONFIRMATION_REQUIRED' && <ShieldAlert className="w-2.5 h-2.5" />}
+                      {result.state === 'CLARIFICATION_REQUIRED' && <AlertCircle className="w-2.5 h-2.5" />}
+                      {result.state === 'READY_TO_EXECUTE' && <CheckCircle2 className="w-2.5 h-2.5" />}
+                      {result.state === 'ANSWER_DIRECT' && <Bot className="w-2.5 h-2.5" />}
+                      {result.state?.replace(/_/g, ' ')}
+                    </span>
+                  )}
+                  <div className="text-xs font-bold text-slate-900">
+                    {result.requiresApproval
+                      ? 'Awaiting Your Approval'
+                      : result.isSuccess
+                        ? 'Request Completed Successfully'
+                        : 'Clarification Needed'}
+                  </div>
+                  <div className="text-[11px] text-slate-500 flex items-center gap-2 flex-wrap mt-0.5">
+                    <span>Intent: <span className="font-semibold text-slate-700">{intentLabel(result.intent)}</span></span>
+                    {result.targetSystem && result.targetSystem !== 'UNKNOWN' && (
+                      <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                        result.targetSystem === 'SQL_SERVER' ? 'bg-slate-100 text-slate-600 border border-slate-200' :
+                        result.targetSystem === 'N8N_WORKFLOW' ? 'bg-purple-100 text-purple-700 border border-purple-200' :
+                        'bg-pink-100 text-pink-700 border border-pink-200'
+                      }`}>
+                        <Database className="w-2.5 h-2.5" />
+                        {result.targetSystem === 'SQL_SERVER' ? 'SQL Server' :
+                         result.targetSystem === 'N8N_WORKFLOW' ? 'n8n Workflow' :
+                         result.targetSystem === 'ZAPIER' ? 'Zapier' : result.targetSystem}
+                      </span>
+                    )}
+                    {result.llmError && <span className="text-orange-600">(rule-based)</span>}
+                  </div>
                 </div>
               </div>
+              {result.executionTimeMs && (
+                <span className="text-[11px] text-slate-400 font-medium flex items-center gap-1 shrink-0">
+                  <Clock className="w-3.5 h-3.5" /> {result.executionTimeMs}ms
+                </span>
+              )}
             </div>
-            {result.executionTimeMs && (
-              <span className="text-[11px] text-slate-400 font-medium flex items-center gap-1">
-                <Clock className="w-3.5 h-3.5" /> {result.executionTimeMs}ms
-              </span>
+
+            {/* User Message from spec */}
+            {result.userMessage && result.state !== 'ANSWER_DIRECT' && (
+              <div className="mt-3 pt-3 border-t border-slate-100 text-xs text-slate-700 font-medium leading-relaxed">
+                {result.userMessage}
+              </div>
             )}
           </div>
+
+          {/* ── ConfirmationDetails Banner (spec output field) ── */}
+          {result.confirmationDetails && result.confirmationDetails.requiresUserAction && !result.requiresApproval && (
+            <div className="bg-amber-50/80 border border-amber-200 rounded-xl p-4 space-y-2 shadow-xs">
+              <div className="flex items-center gap-2 text-amber-800 font-bold text-xs">
+                <ShieldAlert className="w-4 h-4 text-amber-600" />
+                <span>Proposed Action</span>
+              </div>
+              <div className="text-xs font-semibold text-slate-800 bg-white rounded-lg border border-amber-100 px-3 py-2">
+                {result.confirmationDetails.proposedAction}
+              </div>
+              <div className="grid grid-cols-1 gap-1">
+                {result.confirmationDetails.actionSummary.split('|').map((part, i) => {
+                  const [key, val] = part.trim().split(':');
+                  return (
+                    <div key={i} className="flex items-center justify-between text-[11px] px-2">
+                      <span className="text-slate-500 font-semibold">{key?.trim()}</span>
+                      <span className="text-slate-800 font-bold">{val?.trim() ?? '—'}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* ── ExecutionPayload Panel (spec output field: READY_TO_EXECUTE) ── */}
+          {result.executionPayload && result.state === 'READY_TO_EXECUTE' && (
+            <div className="bg-emerald-50/60 border border-emerald-200 rounded-xl p-4 shadow-xs space-y-2">
+              <div className="flex items-center gap-2 text-emerald-800 font-bold text-xs">
+                <Zap className="w-4 h-4 text-emerald-600" />
+                <span>Execution Payload</span>
+                <span className="ml-auto text-[10px] bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full border border-emerald-200 font-semibold">
+                  {(result.executionPayload as any)?.targetSystem ?? 'SQL_SERVER'}
+                </span>
+              </div>
+              <pre className="text-[10px] text-slate-700 bg-white rounded-lg border border-emerald-100 p-2.5 overflow-x-auto font-mono leading-relaxed">
+                {JSON.stringify(result.executionPayload, null, 2)}
+              </pre>
+            </div>
+          )}
 
           {/* Action Plan (approval required) */}
           {result.requiresApproval && result.actionPlan && renderActionPlan(result.actionPlan)}
@@ -711,6 +792,7 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
           {result.executionFeed && result.executionFeed.length > 0 && renderFeed(result.executionFeed)}
         </div>
       )}
+
       {/* Quick Action Interactive Dialog Modals */}
       {activeModal === 'onboard' && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
@@ -796,38 +878,43 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 border border-slate-200">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div className="flex items-center gap-2 text-blue-600 font-bold text-sm">
-                <DollarSign className="w-5 h-5" />
+              <div className="flex items-center gap-2 text-emerald-600 font-bold text-sm">
+                <TrendingUp className="w-5 h-5" />
                 <span>Quick Action: Update Salary</span>
               </div>
               <button onClick={() => setActiveModal(null)} className="text-slate-400 hover:text-slate-600 font-bold text-sm">✕</button>
             </div>
+            <div className="p-3 bg-amber-50/70 border border-amber-200 rounded-lg text-xs text-amber-800 font-medium">
+              ⚠️ Salary updates are financial mutations — Nexus will show a <strong>CONFIRMATION_REQUIRED</strong> plan before any data is modified.
+            </div>
             <div className="space-y-3 text-xs">
               <div>
                 <label className="font-bold text-slate-700 block mb-1">Employee Name</label>
-                <input type="text" value={qaName} onChange={(e) => setQaName(e.target.value)} className="w-full p-2.5 border border-slate-300 rounded-lg text-xs font-semibold focus:border-blue-500" placeholder="e.g. Ali" />
+                <input type="text" value={qaSalaryTarget} onChange={(e) => setQaSalaryTarget(e.target.value)} className="w-full p-2.5 border border-slate-300 rounded-lg text-xs font-semibold focus:border-blue-500" placeholder="e.g. Muhammad, Ali..." />
               </div>
               <div>
-                <label className="font-bold text-slate-700 block mb-1">New Salary ($)</label>
-                <input type="text" value={qaSalary} onChange={(e) => setQaSalary(e.target.value)} className="w-full p-2.5 border border-slate-300 rounded-lg text-xs font-semibold focus:border-blue-500" placeholder="e.g. 90000" />
+                <label className="font-bold text-slate-700 block mb-1">New Monthly Salary ($)</label>
+                <input type="text" value={qaNewSalary} onChange={(e) => setQaNewSalary(e.target.value)} className="w-full p-2.5 border border-slate-300 rounded-lg text-xs font-semibold focus:border-blue-500" placeholder="e.g. 90000, 150k..." />
               </div>
             </div>
             <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
               <button onClick={() => setActiveModal(null)} className="px-3.5 py-2 border border-slate-300 rounded-lg text-xs font-bold text-slate-600 hover:bg-slate-50">Cancel</button>
               <button
                 onClick={() => {
-                  const cmd = `update salary for ${qaName} to ${qaSalary}`;
+                  const cmd = `Bump up ${qaSalaryTarget}'s monthly compensation to ${qaNewSalary} starting next month`;
                   setPrompt(cmd);
                   handleExecute(cmd);
                 }}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold shadow-xs"
+                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shadow-xs flex items-center gap-1.5"
               >
-                Prepare Salary Update Plan
+                <TrendingUp className="w-3.5 h-3.5" />
+                Draft Salary Update Plan
               </button>
             </div>
           </div>
         </div>
       )}
+
     </div>
   );
 };
