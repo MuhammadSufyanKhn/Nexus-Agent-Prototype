@@ -55,7 +55,7 @@ public class NexusDbContext : DbContext
             entity.HasOne(e => e.Department)
                   .WithMany(d => d.Employees)
                   .HasForeignKey(e => e.DepartmentId)
-                  .OnDelete(DeleteBehavior.Restrict);
+                  .OnDelete(DeleteBehavior.SetNull);
             entity.HasIndex(e => e.DepartmentId);
         });
 

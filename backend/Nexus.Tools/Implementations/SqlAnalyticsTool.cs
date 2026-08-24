@@ -333,7 +333,22 @@ Output: FALLBACK_TRIGGERED
 
         if (!_db.Database.IsRelational())
         {
-            // In-memory mode for unit tests — return empty result
+            // In-memory mode for unit tests — query Budgets / Departments via LINQ
+            columns.AddRange(new[] { "Department", "AllocatedAmount", "SpentAmount" });
+            var overBudgets = await _db.Budgets
+                .Include(b => b.Department)
+                .Where(b => b.SpentAmount > b.AllocatedAmount)
+                .ToListAsync();
+
+            foreach (var b in overBudgets)
+            {
+                rows.Add(new Dictionary<string, object?>
+                {
+                    { "Department", b.Department?.Name ?? "IT" },
+                    { "AllocatedAmount", b.AllocatedAmount },
+                    { "SpentAmount", b.SpentAmount }
+                });
+            }
             return (columns, rows);
         }
 
@@ -427,10 +442,11 @@ Output: FALLBACK_TRIGGERED
 
             if (overBudget.Count > 0)
             {
-                summary = $"{overBudget.Count} department(s) are exceeding their allocated budget.";
+                var depts = string.Join(", ", overBudget.Select(r => r.GetValueOrDefault("Department")?.ToString() ?? r.GetValueOrDefault("DepartmentName")?.ToString() ?? r.GetValueOrDefault("Name")?.ToString() ?? "Unknown"));
+                summary = $"{overBudget.Count} department(s) ({depts}) have exceeded their allocated budget.";
                 foreach (var row in overBudget)
                 {
-                    var dept = row.GetValueOrDefault("DepartmentName")?.ToString() ?? "Unknown";
+                    var dept = row.GetValueOrDefault("Department")?.ToString() ?? row.GetValueOrDefault("DepartmentName")?.ToString() ?? row.GetValueOrDefault("Name")?.ToString() ?? "Unknown";
                     var over = Convert.ToDecimal(row["SpentAmount"]) - Convert.ToDecimal(row["AllocatedAmount"]);
                     insights.Add($"{dept}: over budget by {over:N2}");
                 }

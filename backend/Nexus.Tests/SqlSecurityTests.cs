@@ -7,6 +7,7 @@ using Nexus.Data;
 using Nexus.Security.Sql;
 using Nexus.Tools.Core;
 using Nexus.Tools.Implementations;
+using Nexus.Data.Entities;
 using Xunit;
 
 namespace Nexus.Tests;
@@ -86,6 +87,16 @@ public class SqlSecurityTests
     public async Task SqlAnalyticsTool_Executes_Q3_Budget_Overflow_Query_Successfully()
     {
         using var db = GetInMemoryDbContext("SqlAnalyticsToolDb");
+        var dept = db.Departments.FirstOrDefault(d => d.Name == "IT");
+        if (dept == null)
+        {
+            dept = new Department { Name = "IT", Description = "IT Department" };
+            db.Departments.Add(dept);
+            db.SaveChanges();
+        }
+        db.Budgets.Add(new Budget { DepartmentId = dept.Id, Year = 2026, Quarter = "Q3", AllocatedAmount = 50000m, SpentAmount = 60000m });
+        db.SaveChanges();
+
         var validator = new SqlValidator();
         var mockLlm = new MockLLMService(null);
 

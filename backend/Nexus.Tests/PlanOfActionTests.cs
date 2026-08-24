@@ -15,6 +15,7 @@ using Nexus.Data.Policies;
 using Nexus.Data.Services;
 using Nexus.Tools.Core;
 using Nexus.Tools.Implementations;
+using System.Text.Json;
 using Xunit;
 
 namespace Nexus.Tests;
@@ -31,6 +32,8 @@ public class PlanOfActionTests
         context.Database.EnsureDeleted();
         context.Database.EnsureCreated();
 
+        context.Departments.RemoveRange(context.Departments);
+        context.Departments.Add(new Department { Id = 1, Name = "IT", Description = "IT Department" });
         context.Employees.RemoveRange(context.Employees);
         context.Employees.AddRange(new[]
         {
@@ -105,6 +108,20 @@ public class PlanOfActionTests
         var runId = Guid.NewGuid();
         db.AgentRuns.Add(new AgentRun { Id = runId, OriginalPrompt = "Increase salary", Status = AgentRunStatus.WaitingForApproval });
         
+        var intent = new ParsedIntentResult
+        {
+            Intent = "UPDATE_SALARY",
+            Entities = new Dictionary<string, string> { { "name", "Tariq Mahmood" }, { "percentage", "10" } },
+            Confidence = 0.95
+        };
+
+        var actionPlan = new Nexus.Data.ActionPlan.ActionPlan
+        {
+            Title = "Plan of Action: Salary Adjustment (+10%)",
+            Status = "AWAITING_APPROVAL",
+            Metadata = JsonSerializer.Serialize(intent)
+        };
+
         var approvalId = Guid.NewGuid();
         db.Approvals.Add(new Approval
         {
@@ -113,7 +130,7 @@ public class PlanOfActionTests
             RiskLevel = RiskLevel.High,
             RequestedBy = "System",
             Status = ApprovalStatus.Pending,
-            Reason = "Plan of Action bulk salary increase"
+            Reason = JsonSerializer.Serialize(actionPlan)
         });
         db.SaveChanges();
 

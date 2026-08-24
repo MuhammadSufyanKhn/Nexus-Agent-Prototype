@@ -493,7 +493,6 @@ User: ""hello"" or ""what can you do?""
 
             case IntentType.DEPARTMENT_CREATE:
             case IntentType.DEPARTMENT_UPDATE:
-            case IntentType.DEPARTMENT_DELETE:
                 if (!entities.ContainsKey("name") && !entities.ContainsKey("department"))
                 {
                     result.RequiresClarification = true;
@@ -501,13 +500,38 @@ User: ""hello"" or ""what can you do?""
                 }
                 break;
 
+            case IntentType.DEPARTMENT_DELETE:
+                if (scope != "ALL" && !entities.ContainsKey("name") && !entities.ContainsKey("department"))
+                {
+                    result.RequiresClarification = true;
+                    result.ClarificationPrompt = "Please specify the department name or say 'delete all departments'.";
+                }
+                else
+                {
+                    result.RequiresClarification = false;
+                    result.ClarificationPrompt = null;
+                }
+                break;
+
             case IntentType.POLICY_CREATE:
             case IntentType.POLICY_UPDATE:
-            case IntentType.POLICY_DELETE:
                 if (!entities.ContainsKey("policyTitle") && !entities.ContainsKey("policyCode"))
                 {
                     result.RequiresClarification = true;
                     result.ClarificationPrompt = "Please specify the policy name or code (e.g. 'leave policy', 'POL-HR-001').";
+                }
+                break;
+
+            case IntentType.POLICY_DELETE:
+                if (scope != "ALL" && !entities.ContainsKey("policyTitle") && !entities.ContainsKey("policyCode"))
+                {
+                    result.RequiresClarification = true;
+                    result.ClarificationPrompt = "Please specify the policy name or code, or say 'delete all policies'.";
+                }
+                else
+                {
+                    result.RequiresClarification = false;
+                    result.ClarificationPrompt = null;
                 }
                 break;
         }
@@ -804,6 +828,21 @@ User: ""hello"" or ""what can you do?""
         {
             entities["name"] = empNameVal;
             parameters["name"] = empNameVal;
+        }
+
+        if (!entities.ContainsKey("department") || string.IsNullOrWhiteSpace(entities.GetValueOrDefault("department")))
+        {
+            var deptMatch = Regex.Match(prompt, @"\bin\s+([A-Za-z0-9]+)\b", RegexOptions.IgnoreCase);
+            if (deptMatch.Success)
+            {
+                var dCandidate = deptMatch.Groups[1].Value;
+                if (!dCandidate.Equals("the", StringComparison.OrdinalIgnoreCase) && !dCandidate.Equals("a", StringComparison.OrdinalIgnoreCase) && !dCandidate.Equals("an", StringComparison.OrdinalIgnoreCase))
+                {
+                    var dClean = dCandidate.ToUpperInvariant() == "IT" || dCandidate.ToUpperInvariant() == "HR" ? dCandidate.ToUpperInvariant() : CultureInfo.CurrentCulture.TextInfo.ToTitleCase(dCandidate.ToLower());
+                    entities["department"] = dClean;
+                    parameters["department"] = dClean;
+                }
+            }
         }
 
         // 4. Scope determination

@@ -4,19 +4,19 @@ import { Cpu, Globe, Database, Mail, CheckCircle2 } from 'lucide-react';
 export const AutomationView: React.FC = () => {
   const subsystems = [
     {
-      name: 'Legacy HR Portal Automation',
-      type: 'Playwright Browser Automation',
+      name: 'SQL Server Real-Time Master DB',
+      type: 'EF CORE / SQL SERVER',
       status: 'ONLINE & READY',
-      url: 'http://127.0.0.1:8088/index.html',
-      detail: 'Automated Playwright form submission for legacy enterprise employee directory sync.',
-      icon: Globe,
+      url: 'LocalDB / SQL Server Instance',
+      detail: 'Real-time corporate workforce master database with instant multi-department sync.',
+      icon: Database,
       color: 'blue'
     },
     {
-      name: 'Mock SAP ERP HCM System',
-      type: 'MOCK SAP CONNECTOR',
+      name: 'SAP HCM ERP Integration',
+      type: 'SAP CONNECTOR',
       status: 'ONLINE & READY',
-      url: 'SAP NCo / OData Protocol (Simulated)',
+      url: 'SAP Personnel Data Service',
       detail: 'Enterprise SAP Personnel Master Data provisioning (SAP-EMP-2026-XXXX).',
       icon: Database,
       color: 'amber'

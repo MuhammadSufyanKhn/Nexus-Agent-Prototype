@@ -47,8 +47,16 @@ public class DepartmentCrudTool : IAgentTool
 
     public Task<ValidationResult> ValidateInputAsync(ToolExecutionContext context)
     {
+        var scope = context.GetArgument<string>("scope") ?? string.Empty;
         var name = context.GetArgument<string>("name") ?? context.GetArgument<string>("department");
-        if (string.IsNullOrWhiteSpace(name))
+        var operation = (context.GetArgument<string>("operation") ?? context.GetArgument<string>("action") ?? string.Empty).ToUpperInvariant();
+
+        if (operation == "DELETE" && (scope.Equals("ALL", StringComparison.OrdinalIgnoreCase) || name?.Equals("ALL", StringComparison.OrdinalIgnoreCase) == true))
+        {
+            return Task.FromResult(ValidationResult.Success());
+        }
+
+        if (string.IsNullOrWhiteSpace(name) && !scope.Equals("ALL", StringComparison.OrdinalIgnoreCase))
             return Task.FromResult(ValidationResult.Failure("Department name is required."));
         return Task.FromResult(ValidationResult.Success());
     }
@@ -66,7 +74,7 @@ public class DepartmentCrudTool : IAgentTool
             var rawOp = context.GetArgument<string>("operation") ?? context.GetArgument<string>("action");
             var operation = !string.IsNullOrWhiteSpace(rawOp)
                 ? rawOp.ToUpperInvariant()
-                : (promptLower.Contains("update") || promptLower.Contains("head") || promptLower.Contains("change head") || promptLower.Contains("manager") ? "UPDATE" : "CREATE");
+                : (promptLower.Contains("delete") || promptLower.Contains("remove") ? "DELETE" : (promptLower.Contains("update") || promptLower.Contains("head") || promptLower.Contains("change head") || promptLower.Contains("manager") ? "UPDATE" : "CREATE"));
 
             var name = context.GetArgument<string>("name")
                 ?? context.GetArgument<string>("department")
@@ -145,26 +153,60 @@ public class DepartmentCrudTool : IAgentTool
 
     private async Task<ToolExecutionResult> DeleteDeptAsync(ToolExecutionContext ctx, string name, Stopwatch sw)
     {
-        var dept = await _db.Departments
-            .Include(d => d.Employees)
-            .FirstOrDefaultAsync(d => d.Name.ToLower().Contains(name.ToLower()));
+        var scope = ctx.GetArgument<string>("scope") ?? string.Empty;
+        var promptLower = (ctx.GetArgument<string>("prompt") ?? string.Empty).ToLowerInvariant();
+        bool isBulk = scope.Equals("ALL", StringComparison.OrdinalIgnoreCase) ||
+                      name.Equals("ALL", StringComparison.OrdinalIgnoreCase) ||
+                      promptLower.Contains("delete all") || promptLower.Contains("remove all");
 
-        if (dept == null)
-            return ToolExecutionResult.Failure($"Department '{name}' not found.", RiskLevel.Low);
-
-        if (dept.Employees.Count > 0)
-            return ToolExecutionResult.Failure(
-                $"Cannot delete '{dept.Name}' — it has {dept.Employees.Count} active employee(s). Reassign employees first.",
-                RiskLevel.High);
-
-        _db.Departments.Remove(dept);
-        await _db.SaveChangesAsync();
-        sw.Stop();
-
-        return ToolExecutionResult.Success(new
+        if (isBulk)
         {
-            message = $"Department '{dept.Name}' has been permanently deleted.",
-            dept.Id, dept.Name
-        }, RiskLevel.High, sw.ElapsedMilliseconds);
+            var allDepts = await _db.Departments.Include(d => d.Employees).ToListAsync();
+            int count = allDepts.Count;
+
+            // Unassign employees from departments before removal
+            foreach (var d in allDepts)
+            {
+                foreach (var emp in d.Employees)
+                {
+                    emp.DepartmentId = null;
+                }
+            }
+
+            _db.Departments.RemoveRange(allDepts);
+            await _db.SaveChangesAsync();
+            sw.Stop();
+
+            return ToolExecutionResult.Success(new
+            {
+                message = $"All {count} department(s) have been permanently deleted.",
+                affectedCount = count
+            }, RiskLevel.High, sw.ElapsedMilliseconds);
+        }
+        else
+        {
+            var dept = await _db.Departments
+                .Include(d => d.Employees)
+                .FirstOrDefaultAsync(d => d.Name.ToLower().Contains(name.ToLower()));
+
+            if (dept == null)
+                return ToolExecutionResult.Failure($"Department '{name}' not found.", RiskLevel.Low);
+
+            // Unassign employees if any exist
+            foreach (var emp in dept.Employees)
+            {
+                emp.DepartmentId = null;
+            }
+
+            _db.Departments.Remove(dept);
+            await _db.SaveChangesAsync();
+            sw.Stop();
+
+            return ToolExecutionResult.Success(new
+            {
+                message = $"Department '{dept.Name}' has been permanently deleted.",
+                dept.Id, dept.Name
+            }, RiskLevel.High, sw.ElapsedMilliseconds);
+        }
     }
 }
