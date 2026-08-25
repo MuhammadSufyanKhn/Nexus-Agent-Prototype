@@ -87,6 +87,37 @@ public class IntentParserTests
         Assert.Equal("IT", result.Entities["department"]);
     }
 
+    [Fact]
+    public async Task IntentParser_Extracts_Department_When_Joining_Phrasing_Is_Used()
+    {
+        var mockLlm = new MockLLMService(null);
+        var parser = new IntentParser(mockLlm, NullLogger<IntentParser>.Instance);
+
+        var prompt = "onboard new employee whose name is Sufyan Khan. his designation is junior .NET. His salary is set to 80k per month. he will be joining IT department.";
+        var result = await parser.ParseIntentAsync(prompt);
+
+        Assert.NotNull(result);
+        Assert.Equal(IntentType.EMPLOYEE_ONBOARDING, result.ParsedIntentType);
+        Assert.Equal("Sufyan Khan", result.Entities["name"]);
+        Assert.Equal("IT", result.Entities["department"]);
+        Assert.Equal("Junior .NET", result.Entities["designation"]);
+    }
+
+    [Fact]
+    public async Task IntentParser_Extracts_Target_Department_For_Department_Deletion()
+    {
+        var mockLlm = new MockLLMService(null);
+        var parser = new IntentParser(mockLlm, NullLogger<IntentParser>.Instance);
+
+        var prompt = "remove the marketing department and transfer its budget to IT department";
+        var result = await parser.ParseIntentAsync(prompt);
+
+        Assert.NotNull(result);
+        Assert.Equal(IntentType.DEPARTMENT_DELETE, result.ParsedIntentType);
+        Assert.Equal("Marketing", result.Entities["name"]);
+        Assert.Equal("Marketing", result.Entities["department"]);
+    }
+
     private class MockLLMService : ILLMService
     {
         private readonly object? _responseObject;

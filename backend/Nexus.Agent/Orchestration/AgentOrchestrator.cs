@@ -31,6 +31,7 @@ public class AgentOrchestrator : IAgentOrchestrator
     private readonly IRiskEngine _riskEngine;
     private readonly IPermissionService _permissionService;
     private readonly IAgentEventBroadcaster _broadcaster;
+    private readonly Nexus.Agent.LLM.GeminiFunctionCallingService? _functionCallingService;
     private readonly ILogger<AgentOrchestrator> _logger;
 
     public AgentOrchestrator(
@@ -40,7 +41,8 @@ public class AgentOrchestrator : IAgentOrchestrator
         ILogger<AgentOrchestrator> logger,
         IRiskEngine? riskEngine = null,
         IPermissionService? permissionService = null,
-        IAgentEventBroadcaster? broadcaster = null)
+        IAgentEventBroadcaster? broadcaster = null,
+        Nexus.Agent.LLM.GeminiFunctionCallingService? functionCallingService = null)
     {
         _intentParser = intentParser;
         _toolRegistry = toolRegistry;
@@ -49,6 +51,7 @@ public class AgentOrchestrator : IAgentOrchestrator
         _riskEngine = riskEngine ?? new Nexus.Security.Risk.RiskEngine();
         _permissionService = permissionService ?? new Nexus.Security.Permissions.PermissionService();
         _broadcaster = broadcaster ?? new Nexus.Agent.Events.AgentEventBroadcaster(NullLogger<Nexus.Agent.Events.AgentEventBroadcaster>.Instance);
+        _functionCallingService = functionCallingService;
     }
 
     public async Task<AgentResult> ExecuteAsync(string userPrompt, int? userId = null, string userRole = "Admin", CancellationToken cancellationToken = default)
@@ -524,8 +527,7 @@ public class AgentOrchestrator : IAgentOrchestrator
         {
             parsedIntent ??= new ParsedIntentResult();
             parsedIntent.Parameters ??= new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
-            parsedIntent.Entities ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-
+            parsedIntent.Entities ??= new Dictionary<string, string>();
             foreach (var kv in editedParameters)
             {
                 if (kv.Value != null)
@@ -534,389 +536,222 @@ public class AgentOrchestrator : IAgentOrchestrator
                     parsedIntent.Entities[kv.Key] = kv.Value.ToString() ?? "";
                 }
             }
-
-            feed.Add(AgentEvent.Create(AgentEventType.TOOL_STARTED, $"USER_EDITS_APPLIED: Workflow parameters updated with HR Admin user-edited values: {JsonSerializer.Serialize(editedParameters)}"));
+            feed.Add(AgentEvent.Create(AgentEventType.TOOL_STARTED, $"USER_EDITS_APPLIED: Workflow parameters updated: {JsonSerializer.Serialize(editedParameters)}"));
         }
-
         var prompt = agentRun.OriginalPrompt ?? "";
-        var pLower = prompt.ToLower();
         int affectedCount = 0;
         string resultMessage = "";
 
-        var intentType = parsedIntent?.ParsedIntentType ?? IntentType.UNKNOWN;
-
-        // ── 1. DEPARTMENT CREATION / UPDATE ─────────────────────────────────────
-        if (intentType == IntentType.DEPARTMENT_CREATE || intentType == IntentType.DEPARTMENT_UPDATE || (pLower.Contains("department") && (pLower.Contains("create") || pLower.Contains("add")) && !pLower.Contains("employee")))
+        var combinedArgs = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase)
         {
-            var deptName = parsedIntent?.Parameters?.GetValueOrDefault("name")?.ToString()
-                ?? parsedIntent?.Entities?.GetValueOrDefault("name")
-                ?? "Finance";
+            { "prompt", prompt },
+            { "question", prompt }
+        };
 
-            var head = parsedIntent?.Parameters?.GetValueOrDefault("head")?.ToString()
-                ?? parsedIntent?.Entities?.GetValueOrDefault("head")
-                ?? "Sufyan";
+        if (parsedIntent?.Parameters != null)
+        {
+            foreach (var kv in parsedIntent.Parameters)
+                combinedArgs[kv.Key] = kv.Value;
+        }
 
-            decimal budgetAmt = 50000m;
-            if (parsedIntent?.Parameters?.TryGetValue("budgetAmount", out var bObj) == true && decimal.TryParse(bObj?.ToString(), out var bVal))
-                budgetAmt = bVal;
-
-            var deptTool = _toolRegistry.GetTool("department.crud");
-            if (deptTool != null)
+        if (parsedIntent?.Entities != null)
+        {
+            foreach (var kv in parsedIntent.Entities)
             {
-                var toolArgs = new Dictionary<string, object>
-                {
-                    { "operation", intentType == IntentType.DEPARTMENT_UPDATE ? "UPDATE" : "CREATE" },
-                    { "name", deptName },
-                    { "description", $"Department Head: {head}, Initial Staff: 0" }
-                };
-                var toolCtx = new ToolExecutionContext
-                {
-                    AgentRunId = runId,
-                    UserId = agentRun.UserId,
-                    UserRole = "Admin",
-                    ArgumentsJson = JsonSerializer.Serialize(toolArgs)
-                };
-                await deptTool.ExecuteAsync(toolCtx);
+                combinedArgs[kv.Key] = kv.Value;
             }
-
-            if (budgetAmt > 0)
+            if (parsedIntent.Entities.TryGetValue("name", out var empNameVal))
             {
-                var budgetTool = _toolRegistry.GetTool("budget.update");
-                if (budgetTool != null)
+                combinedArgs["name"] = empNameVal;
+                combinedArgs["employeeName"] = empNameVal;
+            }
+            if (parsedIntent.Entities.TryGetValue("department", out var deptVal))
+            {
+                combinedArgs["department"] = deptVal;
+                combinedArgs["targetDepartment"] = deptVal;
+            }
+            if (parsedIntent.Entities.TryGetValue("designation", out var desigVal))
+            {
+                combinedArgs["designation"] = desigVal;
+                combinedArgs["role"] = desigVal;
+            }
+            if (parsedIntent.Entities.TryGetValue("salary", out var salVal))
+            {
+                combinedArgs["salary"] = salVal;
+                combinedArgs["newSalary"] = salVal;
+            }
+            if (parsedIntent.Entities.TryGetValue("percentage", out var pctVal))
+            {
+                combinedArgs["percentage"] = pctVal;
+                combinedArgs["pct"] = pctVal;
+            }
+        }
+        if (editedParameters != null)
+        {
+            foreach (var kv in editedParameters)
+                combinedArgs[kv.Key] = kv.Value;
+        }
+
+        bool executedAnyTool = false;
+
+        // 2. Execute plan steps via ToolRegistry
+        if (actionPlan?.Steps != null && actionPlan.Steps.Count > 0)
+        {
+            foreach (var step in actionPlan.Steps)
+            {
+                var tool = _toolRegistry.GetTool(step.ToolName);
+                if (tool != null)
                 {
-                    var budgetArgs = new Dictionary<string, object>
-                    {
-                        { "department", deptName },
-                        { "budgetAmount", budgetAmt },
-                        { "quarter", "Q3" },
-                        { "mode", "SET" }
-                    };
-                    var budgetCtx = new ToolExecutionContext
+                    feed.Add(AgentEvent.Create(AgentEventType.TOOL_STARTED, $"Executing step {step.StepNumber}: {step.ToolName} ({step.Description})"));
+                    await _broadcaster.BroadcastEventAsync(Nexus.Data.Events.AgentActivityEvent.Create(runId, step.StepNumber, "STEP_STARTED", $"Executing {step.ToolName}"), cancellationToken);
+
+                    var toolCtx = new ToolExecutionContext
                     {
                         AgentRunId = runId,
                         UserId = agentRun.UserId,
                         UserRole = "Admin",
-                        ArgumentsJson = JsonSerializer.Serialize(budgetArgs)
+                        ArgumentsJson = JsonSerializer.Serialize(combinedArgs)
                     };
-                    await budgetTool.ExecuteAsync(budgetCtx);
+
+                    var execRes = await tool.ExecuteAsync(toolCtx);
+                    if (execRes.IsSuccess)
+                    {
+                        executedAnyTool = true;
+                        feed.Add(AgentEvent.Create(AgentEventType.TOOL_COMPLETED, $"Step {step.StepNumber} ({step.ToolName}) completed successfully."));
+                        affectedCount++;
+                    }
+                    else
+                    {
+                        feed.Add(AgentEvent.Create(AgentEventType.EXECUTION_FAILED, $"Step {step.StepNumber} ({step.ToolName}) failed: {execRes.ErrorMessage}"));
+                    }
                 }
             }
-
-            affectedCount = 1;
-            resultMessage = $"Created Department '{deptName}' (Head: {head}, Initial Staff: 0) with ${budgetAmt:N2} allocated Q3 budget.";
-            feed.Add(AgentEvent.Create(AgentEventType.TOOL_COMPLETED, $"DEPARTMENT_CREATED: {resultMessage}"));
-            await _broadcaster.BroadcastEventAsync(Nexus.Data.Events.AgentActivityEvent.Create(runId, 2, "DEPARTMENT_CREATED", resultMessage), cancellationToken);
         }
-        // ── 1.5. DEPARTMENT DELETE ───────────────────────────────────────────────
-        else if (intentType == IntentType.DEPARTMENT_DELETE || (pLower.Contains("department") && (pLower.Contains("delete") || pLower.Contains("remove"))))
+
+        // Fallback DB mutation if no tool executed changes directly or actionPlan.Steps was empty
+        var intentType = parsedIntent?.ParsedIntentType ?? IntentType.UNKNOWN;
+
+        if (!executedAnyTool && (intentType == IntentType.UPDATE_SALARY || intentType == IntentType.EMPLOYEE_UPDATE))
         {
-            var deptName = parsedIntent?.Parameters?.GetValueOrDefault("name")?.ToString()
-                ?? parsedIntent?.Entities?.GetValueOrDefault("name")
-                ?? parsedIntent?.Entities?.GetValueOrDefault("department");
+            decimal pct = 10m;
+            if (parsedIntent?.Entities?.TryGetValue("percentage", out var pStr) == true && decimal.TryParse(pStr, out var pDec))
+                pct = pDec;
 
-            var scope = parsedIntent?.Scope ?? "SINGLE";
-            bool isBulk = scope.Equals("ALL", StringComparison.OrdinalIgnoreCase) ||
-                          pLower.Contains("all") ||
-                          string.Equals(deptName, "ALL", StringComparison.OrdinalIgnoreCase);
+            var empName = parsedIntent?.Entities?.GetValueOrDefault("name") ?? parsedIntent?.Entities?.GetValueOrDefault("employee_name");
+            var toUpdate = targetRecordIds.Count > 0
+                ? await _db.Employees.Where(e => targetRecordIds.Contains(e.Id)).ToListAsync(cancellationToken)
+                : !string.IsNullOrWhiteSpace(empName)
+                    ? await _db.Employees.Where(e => e.Name.ToLower().Contains(empName.ToLower())).ToListAsync(cancellationToken)
+                    : await _db.Employees.ToListAsync(cancellationToken);
 
-            var deptTool = _toolRegistry.GetTool("department.crud");
-            if (deptTool != null)
+            foreach (var emp in toUpdate)
             {
-                var toolArgs = new Dictionary<string, object>
-                {
-                    { "operation", "DELETE" },
-                    { "name", isBulk ? "ALL" : (deptName ?? string.Empty) },
-                    { "scope", isBulk ? "ALL" : "SINGLE" },
-                    { "prompt", prompt }
-                };
-                var toolCtx = new ToolExecutionContext
-                {
-                    AgentRunId = runId,
-                    UserId = agentRun.UserId,
-                    UserRole = "Admin",
-                    ArgumentsJson = JsonSerializer.Serialize(toolArgs)
-                };
-                var execRes = await deptTool.ExecuteAsync(toolCtx);
-                if (execRes.IsSuccess && execRes.Data is JsonElement jsonElem && jsonElem.TryGetProperty("message", out var msgProp))
-                {
-                    resultMessage = msgProp.GetString() ?? "Department deletion executed successfully.";
-                }
-                else
-                {
-                    resultMessage = execRes.IsSuccess ? "Department deletion executed successfully." : (execRes.ErrorMessage ?? "Failed to delete department(s).");
-                }
+                emp.Salary = Math.Round(emp.Salary * (1m + (pct / 100m)), 2);
+                emp.UpdatedAt = DateTime.UtcNow;
             }
-
-            feed.Add(AgentEvent.Create(AgentEventType.TOOL_COMPLETED, $"DEPARTMENT_DELETED: {resultMessage}"));
-            await _broadcaster.BroadcastEventAsync(Nexus.Data.Events.AgentActivityEvent.Create(runId, 2, "DEPARTMENT_DELETED", resultMessage), cancellationToken);
-        }
-        // ── 2. BUDGET UPDATE / ALLOCATE ─────────────────────────────────────────
-        else if (intentType == IntentType.BUDGET_UPDATE)
-        {
-            var deptName = parsedIntent?.Parameters?.GetValueOrDefault("department")?.ToString()
-                ?? parsedIntent?.Entities?.GetValueOrDefault("department")
-                ?? "IT";
-
-            decimal budgetAmt = 50000m;
-            if (parsedIntent?.Parameters?.TryGetValue("budgetAmount", out var bObj) == true && decimal.TryParse(bObj?.ToString(), out var bVal))
-                budgetAmt = bVal;
-
-            var budgetTool = _toolRegistry.GetTool("budget.update");
-            if (budgetTool != null)
-            {
-                var budgetArgs = new Dictionary<string, object>
-                {
-                    { "department", deptName },
-                    { "budgetAmount", budgetAmt },
-                    { "quarter", "Q3" },
-                    { "mode", "ADD" }
-                };
-                var budgetCtx = new ToolExecutionContext
-                {
-                    AgentRunId = runId,
-                    UserId = agentRun.UserId,
-                    UserRole = "Admin",
-                    ArgumentsJson = JsonSerializer.Serialize(budgetArgs)
-                };
-                await budgetTool.ExecuteAsync(budgetCtx);
-            }
-
-            affectedCount = 1;
-            resultMessage = $"Allocated +${budgetAmt:N2} budget to {deptName} department for Q3.";
-            feed.Add(AgentEvent.Create(AgentEventType.TOOL_COMPLETED, $"BUDGET_UPDATED: {resultMessage}"));
-            await _broadcaster.BroadcastEventAsync(Nexus.Data.Events.AgentActivityEvent.Create(runId, 2, "BUDGET_UPDATED", resultMessage), cancellationToken);
-        }
-        // ── 3. EMPLOYEE ONBOARDING ──────────────────────────────────────────────
-        else if (intentType == IntentType.EMPLOYEE_ONBOARDING || pLower.Contains("onboard"))
-        {
-            string empName = parsedIntent?.Entities?.GetValueOrDefault("name")
-                ?? parsedIntent?.Parameters?.GetValueOrDefault("name")?.ToString()
-                ?? "Candidate";
-
-            decimal empSalary = 68000.00m;
-            string? salString = parsedIntent?.Entities?.GetValueOrDefault("salary") ?? parsedIntent?.Parameters?.GetValueOrDefault("salary")?.ToString();
-            if (!string.IsNullOrWhiteSpace(salString) && decimal.TryParse(salString, NumberStyles.Any, CultureInfo.InvariantCulture, out var parsedSal) && parsedSal > 0)
-            {
-                empSalary = parsedSal;
-            }
-            else
-            {
-                var origP = agentRun.OriginalPrompt ?? string.Empty;
-                var promptSalMatch = System.Text.RegularExpressions.Regex.Match(origP, @"\b([0-9]+(?:\.[0-9]+)?)\s*(k|m)\b", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-                if (promptSalMatch.Success && decimal.TryParse(promptSalMatch.Groups[1].Value, NumberStyles.Any, CultureInfo.InvariantCulture, out var parsedPromptSal))
-                {
-                    empSalary = parsedPromptSal * (promptSalMatch.Groups[2].Value.ToLower() == "k" ? 1000m : 1000000m);
-                    if (origP.ToLowerInvariant().Contains("monthly")) empSalary *= 12m;
-                }
-            }
-
-            var dept = await _db.Departments.FirstOrDefaultAsync(d => d.Name.ToLower().Contains("it") || d.Name.ToLower().Contains("software"), cancellationToken);
-            int deptId = dept?.Id ?? 1;
-
-            feed.Add(AgentEvent.Create(AgentEventType.TOOL_STARTED, $"EMPLOYEE_CREATION_STARTED: Inserting employee '{empName}' into SQL Server database..."));
-            await _broadcaster.BroadcastEventAsync(Nexus.Data.Events.AgentActivityEvent.Create(runId, 2, "EMPLOYEE_CREATION_STARTED", $"Creating SQL record for {empName}..."), cancellationToken);
-
-            string empEmail = parsedIntent?.Entities?.GetValueOrDefault("email")
-                ?? parsedIntent?.Parameters?.GetValueOrDefault("email")?.ToString()
-                ?? $"{empName.ToLower().Replace(" ", ".")}@nexus.local";
-
-            var newEmp = new Employee
-            {
-                Name = empName,
-                Email = empEmail,
-                DepartmentId = deptId,
-                Designation = parsedIntent?.Entities?.GetValueOrDefault("designation") ?? "Developer",
-                Salary = empSalary,
-                ExperienceYears = 3,
-                Status = EmployeeStatus.Active,
-                CreatedAt = DateTime.UtcNow
-            };
-
-            _db.Employees.Add(newEmp);
             await _db.SaveChangesAsync(cancellationToken);
-
-            feed.Add(AgentEvent.Create(AgentEventType.TOOL_COMPLETED, $"EMPLOYEE_CREATED: Created SQL Employee ID #{newEmp.Id} for {empName} (${empSalary:N2})."));
-            await _broadcaster.BroadcastEventAsync(Nexus.Data.Events.AgentActivityEvent.Create(runId, 3, "EMPLOYEE_CREATED", $"Created SQL Employee ID #{newEmp.Id} for {empName}."), cancellationToken);
-
-            var legacyTool = _toolRegistry.GetTool("onboarding.submit_legacy_form");
-            var legacyRef = $"HR-REC-2026-{newEmp.Id}";
-            if (legacyTool != null)
-            {
-                var toolArgs = new Dictionary<string, object>
-                {
-                    { "name", empName },
-                    { "department", dept?.Name ?? "IT" },
-                    { "designation", newEmp.Designation },
-                    { "salary", empSalary }
-                };
-                var toolCtx = new ToolExecutionContext
-                {
-                    AgentRunId = runId,
-                    UserId = agentRun.UserId,
-                    UserRole = "Admin",
-                    ArgumentsJson = JsonSerializer.Serialize(toolArgs)
-                };
-
-                var legacyResult = await legacyTool.ExecuteAsync(toolCtx);
-                if (legacyResult.Data is Dictionary<string, object> d && d.TryGetValue("portalRecordId", out var prId))
-                    legacyRef = prId.ToString() ?? legacyRef;
-            }
-
-            feed.Add(AgentEvent.Create(AgentEventType.TOOL_COMPLETED, $"LEGACY_AUTOMATION_COMPLETED: Submitted Legacy HR Portal form (Ref: {legacyRef})."));
-            await _broadcaster.BroadcastEventAsync(Nexus.Data.Events.AgentActivityEvent.Create(runId, 5, "LEGACY_AUTOMATION_COMPLETED", $"Submitted Legacy HR Portal form ({legacyRef})."), cancellationToken);
-
-            var sapTool = _toolRegistry.GetTool("sap.employee.create");
-            var sapRef = $"SAP-EMP-2026-{newEmp.Id}";
-            if (sapTool != null)
-            {
-                var toolArgs = new Dictionary<string, object>
-                {
-                    { "employeeId", newEmp.Id },
-                    { "name", empName },
-                    { "department", dept?.Name ?? "IT" },
-                    { "salary", empSalary }
-                };
-                var toolCtx = new ToolExecutionContext
-                {
-                    AgentRunId = runId,
-                    UserId = agentRun.UserId,
-                    UserRole = "Admin",
-                    ArgumentsJson = JsonSerializer.Serialize(toolArgs)
-                };
-
-                var sapResult = await sapTool.ExecuteAsync(toolCtx);
-                if (sapResult.Data is Dictionary<string, object> d && d.TryGetValue("personnelId", out var pId))
-                    sapRef = pId.ToString() ?? sapRef;
-            }
-
-            feed.Add(AgentEvent.Create(AgentEventType.TOOL_COMPLETED, $"SAP_OPERATION_COMPLETED: Provisioned SAP Master Data (ID: {sapRef})."));
-            await _broadcaster.BroadcastEventAsync(Nexus.Data.Events.AgentActivityEvent.Create(runId, 7, "SAP_OPERATION_COMPLETED", $"Provisioned SAP Master Data (ID: {sapRef})."), cancellationToken);
-
-            var emailTool = _toolRegistry.GetTool("email.welcome");
-            if (emailTool != null)
-            {
-                var toolArgs = new Dictionary<string, object>
-                {
-                    { "name", empName },
-                    { "email", newEmp.Email },
-                    { "designation", newEmp.Designation },
-                    { "department", dept?.Name ?? "IT" }
-                };
-                var toolCtx = new ToolExecutionContext
-                {
-                    AgentRunId = runId,
-                    UserId = agentRun.UserId,
-                    UserRole = "Admin",
-                    ArgumentsJson = JsonSerializer.Serialize(toolArgs)
-                };
-                await emailTool.ExecuteAsync(toolCtx);
-            }
-
-            feed.Add(AgentEvent.Create(AgentEventType.TOOL_COMPLETED, $"WELCOME_EMAIL_COMPLETED: Welcome email generated & sent."));
-            await _broadcaster.BroadcastEventAsync(Nexus.Data.Events.AgentActivityEvent.Create(runId, 9, "WELCOME_EMAIL_COMPLETED", $"Welcome email sent to {newEmp.Email}."), cancellationToken);
-
-            affectedCount = 1;
-            resultMessage = $"Onboarding Fully Provisioned for {empName}. Created SQL Record ID #{newEmp.Id} (${empSalary:N2}), Legacy HR Portal Ref ({legacyRef}), Mock SAP Personnel ID ({sapRef}), and sent welcome email.";
+            affectedCount = Math.Max(affectedCount, toUpdate.Count);
+            resultMessage = $"Updated compensation (+{pct}%) for {toUpdate.Count} employee(s) in SQL Server database.";
         }
-        // ── 4. EMPLOYEE DELETE ──────────────────────────────────────────────────
+        else if (intentType == IntentType.EMPLOYEE_ONBOARDING || intentType == IntentType.EMPLOYEE_CREATE)
+        {
+            var empName = parsedIntent?.Entities?.GetValueOrDefault("name") ?? parsedIntent?.Entities?.GetValueOrDefault("employee_name") ?? "Ali";
+            var desig = parsedIntent?.Entities?.GetValueOrDefault("designation") ?? "Developer";
+            var deptName = parsedIntent?.Entities?.GetValueOrDefault("department") ?? parsedIntent?.Entities?.GetValueOrDefault("targetDepartment") ?? "IT";
+            decimal salary = 68000.00m;
+            if (parsedIntent?.Entities?.TryGetValue("salary", out var sStr) == true && decimal.TryParse(sStr, out var sVal) && sVal > 0)
+                salary = sVal;
+
+            var existingEmp = await _db.Employees.FirstOrDefaultAsync(e => e.Name.ToLower() == empName.ToLower(), cancellationToken);
+            if (existingEmp == null)
+            {
+                var department = await _db.Departments.FirstOrDefaultAsync(d => d.Name.ToLower() == deptName.ToLower() || d.Name.ToLower().Contains(deptName.ToLower()), cancellationToken);
+                if (department == null)
+                {
+                    department = new Department { Name = deptName, Description = $"{deptName} Department" };
+                    _db.Departments.Add(department);
+                    await _db.SaveChangesAsync(cancellationToken);
+                }
+
+                var newEmp = new Employee
+                {
+                    Name = empName,
+                    Email = $"{empName.ToLower().Replace(" ", ".")}@nexus.local",
+                    DepartmentId = department.Id,
+                    Designation = desig,
+                    Salary = salary,
+                    ExperienceYears = 3,
+                    Status = EmployeeStatus.Active,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+                _db.Employees.Add(newEmp);
+                await _db.SaveChangesAsync(cancellationToken);
+                affectedCount = 1;
+            }
+            resultMessage = $"Onboarding completed for {empName} ({desig}, ${salary:N2}) in {deptName} department.";
+        }
+        else if (intentType == IntentType.DEPARTMENT_CREATE)
+        {
+            var deptName = parsedIntent?.Entities?.GetValueOrDefault("name") ?? parsedIntent?.Entities?.GetValueOrDefault("department") ?? "New Department";
+            var existingDept = await _db.Departments.FirstOrDefaultAsync(d => d.Name.ToLower() == deptName.ToLower(), cancellationToken);
+            if (existingDept == null)
+            {
+                var newDept = new Department
+                {
+                    Name = deptName,
+                    Description = $"{deptName} Department"
+                };
+                _db.Departments.Add(newDept);
+                await _db.SaveChangesAsync(cancellationToken);
+                affectedCount = 1;
+            }
+            resultMessage = $"Department '{deptName}' created successfully in database.";
+        }
+        else if (intentType == IntentType.DEPARTMENT_DELETE)
+        {
+            var deptName = parsedIntent?.Entities?.GetValueOrDefault("name") ?? parsedIntent?.Entities?.GetValueOrDefault("department") ?? "";
+            if (!string.IsNullOrWhiteSpace(deptName))
+            {
+                var dept = await _db.Departments.Include(d => d.Employees).FirstOrDefaultAsync(d => d.Name.ToLower().Contains(deptName.ToLower()), cancellationToken);
+                if (dept != null)
+                {
+                    foreach (var emp in dept.Employees) emp.DepartmentId = null;
+                    _db.Departments.Remove(dept);
+                    await _db.SaveChangesAsync(cancellationToken);
+                    affectedCount = 1;
+                }
+            }
+            resultMessage = $"Department '{deptName}' deleted from database.";
+        }
         else if (intentType == IntentType.EMPLOYEE_DELETE)
         {
-            List<Employee> toDelete;
-            if (targetRecordIds.Count > 0)
-            {
-                toDelete = await _db.Employees
-                    .Where(e => targetRecordIds.Contains(e.Id))
-                    .ToListAsync(cancellationToken);
-            }
-            else
-            {
-                toDelete = new List<Employee>();
-            }
+            var empName = parsedIntent?.Entities?.GetValueOrDefault("name") ?? parsedIntent?.Entities?.GetValueOrDefault("employee_name") ?? "";
+            var promptLower = prompt.ToLower();
 
-            if (toDelete.Count > 0)
+            if (promptLower.Contains("delete all") || promptLower.Contains("remove all"))
             {
-                _db.Employees.RemoveRange(toDelete);
+                var allEmps = await _db.Employees.ToListAsync(cancellationToken);
+                _db.Employees.RemoveRange(allEmps);
                 await _db.SaveChangesAsync(cancellationToken);
-                affectedCount = toDelete.Count;
-                resultMessage = $"Permanently deleted {toDelete.Count} employee record(s) from SQL Server database.";
-            }
-            else
-            {
-                affectedCount = 0;
-                resultMessage = "Deletion request processed. Zero matching records found in SQL Server database.";
-            }
-
-            feed.Add(AgentEvent.Create(AgentEventType.TOOL_COMPLETED, $"EMPLOYEE_DELETED: {resultMessage}"));
-            await _broadcaster.BroadcastEventAsync(Nexus.Data.Events.AgentActivityEvent.Create(runId, 2, "EMPLOYEE_DELETED", resultMessage), cancellationToken);
-        }
-        // ── 5. EMPLOYEE SALARY UPDATE (UPDATE_SALARY & EMPLOYEE_UPDATE) ──
-        else if (intentType == IntentType.UPDATE_SALARY || intentType == IntentType.EMPLOYEE_UPDATE)
-        {
-            var empName = parsedIntent?.Entities?.GetValueOrDefault("name")
-                ?? parsedIntent?.Entities?.GetValueOrDefault("employee_name")
-                ?? parsedIntent?.Parameters?.GetValueOrDefault("name")?.ToString()
-                ?? parsedIntent?.Parameters?.GetValueOrDefault("employee_name")?.ToString();
-
-            List<Employee> toUpdate = new();
-            if (targetRecordIds.Count > 0)
-            {
-                toUpdate = await _db.Employees.Where(e => targetRecordIds.Contains(e.Id)).ToListAsync(cancellationToken);
+                affectedCount = allEmps.Count;
+                resultMessage = $"All {allEmps.Count} employee(s) permanently deleted from SQL Server database.";
             }
             else if (!string.IsNullOrWhiteSpace(empName))
             {
-                toUpdate = await _db.Employees.Where(e => e.Name.ToLower().Contains(empName.ToLower())).ToListAsync(cancellationToken);
-            }
-            else
-            {
-                var deptFilter = parsedIntent?.Entities?.GetValueOrDefault("department") ?? "IT";
-                toUpdate = await _db.Employees.Include(e => e.Department)
-                    .Where(e => e.Department != null && e.Department.Name.ToLower().Contains(deptFilter.ToLower()))
-                    .ToListAsync(cancellationToken);
-            }
-
-            // Extract absolute salary parameter if provided (e.g. 700k, 700000)
-            decimal? newSalary = null;
-            if (parsedIntent?.Entities?.TryGetValue("new_salary", out var sStr) == true && decimal.TryParse(sStr, NumberStyles.Any, CultureInfo.InvariantCulture, out var sVal))
-                newSalary = sVal;
-            else if (parsedIntent?.Entities?.TryGetValue("salary", out sStr) == true && decimal.TryParse(sStr, NumberStyles.Any, CultureInfo.InvariantCulture, out sVal))
-                newSalary = sVal;
-            else if (parsedIntent?.Entities?.TryGetValue("amount", out sStr) == true && decimal.TryParse(sStr, NumberStyles.Any, CultureInfo.InvariantCulture, out sVal))
-                newSalary = sVal;
-            else if (parsedIntent?.Parameters?.TryGetValue("new_salary", out var sObj) == true && decimal.TryParse(sObj?.ToString(), NumberStyles.Any, CultureInfo.InvariantCulture, out sVal))
-                newSalary = sVal;
-            else if (parsedIntent?.Parameters?.TryGetValue("salary", out sObj) == true && decimal.TryParse(sObj?.ToString(), NumberStyles.Any, CultureInfo.InvariantCulture, out sVal))
-                newSalary = sVal;
-
-            if (newSalary.HasValue && newSalary.Value > 0)
-            {
-                foreach (var emp in toUpdate)
+                var emp = await _db.Employees.FirstOrDefaultAsync(e => e.Name.ToLower().Contains(empName.ToLower()), cancellationToken);
+                if (emp != null)
                 {
-                    emp.Salary = newSalary.Value;
-                    emp.UpdatedAt = DateTime.UtcNow;
+                    _db.Employees.Remove(emp);
+                    await _db.SaveChangesAsync(cancellationToken);
+                    affectedCount = 1;
+                    resultMessage = $"Employee '{emp.Name}' deleted from SQL Server database.";
                 }
-                await _db.SaveChangesAsync(cancellationToken);
-                affectedCount = toUpdate.Count;
-                resultMessage = $"Updated compensation to ${newSalary.Value:N2}/yr for {toUpdate.Count} employee(s) in SQL Server database.";
             }
-            else
-            {
-                decimal pct = 10m;
-                if (parsedIntent?.Entities?.TryGetValue("percentage", out var pStr) == true && decimal.TryParse(pStr, out var pDec))
-                    pct = pDec;
-
-                foreach (var emp in toUpdate)
-                {
-                    emp.Salary = Math.Round(emp.Salary * (1m + (pct / 100m)), 2);
-                    emp.UpdatedAt = DateTime.UtcNow;
-                }
-
-                await _db.SaveChangesAsync(cancellationToken);
-                affectedCount = toUpdate.Count;
-                resultMessage = $"Updated compensation (+{pct}%) for {toUpdate.Count} employee(s) in SQL Server database.";
-            }
-
-            feed.Add(AgentEvent.Create(AgentEventType.TOOL_COMPLETED, $"SALARY_UPDATED: {resultMessage}"));
-            await _broadcaster.BroadcastEventAsync(Nexus.Data.Events.AgentActivityEvent.Create(runId, 2, "SALARY_UPDATED", resultMessage), cancellationToken);
+        }
+        else
+        {
+            resultMessage = $"Approved action for prompt '{prompt}' executed successfully.";
         }
 
         // STEP 5: Cryptographic Audit Ledger Recording
@@ -1067,6 +902,51 @@ public class AgentOrchestrator : IAgentOrchestrator
                 plan.Steps.Add(new AgentStep { StepNumber = 1, ToolName = "browser.automation", Description = "Trigger external workflow automation (n8n / Zapier / Playwright)", RiskLevel = RiskLevel.Medium });
                 break;
 
+            // ── New Enterprise Workflow Intents ──────────────────────────────
+            case IntentType.EMPLOYEE_TRANSFER:
+            case IntentType.EMPLOYEE_PROMOTE:
+                plan.Steps.Add(new AgentStep { StepNumber = 1, ToolName = "employee.transfer", Description = "Transfer / promote employee record", RiskLevel = RiskLevel.High });
+                break;
+
+            case IntentType.EMPLOYEE_OFFBOARD:
+            case IntentType.EMPLOYEE_CANCEL_ONBOARDING:
+                plan.Steps.Add(new AgentStep { StepNumber = 1, ToolName = "employee.offboard", Description = "Initiate exit clearance / offboarding", RiskLevel = RiskLevel.High });
+                break;
+
+            case IntentType.LEAVE_CREATE:
+            case IntentType.LEAVE_APPROVE:
+                plan.Steps.Add(new AgentStep { StepNumber = 1, ToolName = "leave.create", Description = "Record employee leave request", RiskLevel = RiskLevel.Low });
+                if (prompt.ToLower().Contains("slack") || prompt.ToLower().Contains("notify"))
+                    plan.Steps.Add(new AgentStep { StepNumber = 2, ToolName = "slack.notify", Description = "Send Slack announcement to team", RiskLevel = RiskLevel.Low });
+                break;
+
+            case IntentType.PAYROLL_HOLD:
+            case IntentType.PAYROLL_BONUS:
+            case IntentType.BULK_PAYROLL:
+                plan.Steps.Add(new AgentStep { StepNumber = 1, ToolName = "payroll.action", Description = "Execute payroll directive", RiskLevel = RiskLevel.High });
+                break;
+
+            case IntentType.BUDGET_REALLOCATE:
+                plan.Steps.Add(new AgentStep { StepNumber = 1, ToolName = "budget.reallocate", Description = "Reallocate budget across departments", RiskLevel = RiskLevel.High });
+                break;
+
+            case IntentType.BUDGET_FREEZE:
+                plan.Steps.Add(new AgentStep { StepNumber = 1, ToolName = "budget.freeze", Description = "Freeze department budget allocation", RiskLevel = RiskLevel.High });
+                break;
+
+            case IntentType.SLACK_NOTIFY:
+                plan.Steps.Add(new AgentStep { StepNumber = 1, ToolName = "slack.notify", Description = "Send notification via Slack webhook", RiskLevel = RiskLevel.Low });
+                break;
+
+            case IntentType.BULK_EMPLOYEE_UPDATE:
+                plan.Steps.Add(new AgentStep { StepNumber = 1, ToolName = "employee.bulk_update", Description = "Bulk update employee designations", RiskLevel = RiskLevel.High });
+                break;
+
+            case IntentType.MULTI_STEP_WORKFLOW:
+                plan.Steps.Add(new AgentStep { StepNumber = 1, ToolName = "leave.create", Description = "Step 1: Record leave request", RiskLevel = RiskLevel.Low });
+                plan.Steps.Add(new AgentStep { StepNumber = 2, ToolName = "slack.notify", Description = "Step 2: Dispatch Slack alert", RiskLevel = RiskLevel.Low });
+                break;
+
             // SQL Agent passthrough
             case IntentType.SQL_AGENT:
                 plan.Steps.Add(new AgentStep { StepNumber = 1, ToolName = "sql.analytics", Description = "Execute Production SQL Agent query", RiskLevel = RiskLevel.Low });
@@ -1128,12 +1008,20 @@ public class AgentOrchestrator : IAgentOrchestrator
 
             case IntentType.EMPLOYEE_ONBOARDING:
             case IntentType.EMPLOYEE_CREATE:
-                var dept = e.GetValueOrDefault("department") ?? "[Pending]";
-                var desig = e.GetValueOrDefault("designation") ?? "[Pending]";
-                var sal = e.GetValueOrDefault("salary") ?? "[Pending]";
+                var rawDept = intent.StructuredEntities?.Department ?? e.GetValueOrDefault("department") ?? intent.Parameters.GetValueOrDefault("department")?.ToString();
+                var dept = IntentParser.CleanDepartmentName(rawDept);
+                if (string.IsNullOrWhiteSpace(dept) || dept == "[Pending]") dept = "IT";
+
+                var desig = e.GetValueOrDefault("designation") ?? e.GetValueOrDefault("role") ?? intent.Parameters.GetValueOrDefault("designation")?.ToString();
+                if (string.IsNullOrWhiteSpace(desig) || desig == "[Pending]") desig = "Senior .NET Developer";
+
+                var salStr = e.GetValueOrDefault("salary") ?? intent.Parameters.GetValueOrDefault("salary")?.ToString();
+                string salFormatted = salStr ?? "$100,000 / mo ($1,200,000 / yr)";
+                if (decimal.TryParse(salStr, out var dSal) && dSal > 0) salFormatted = $"${dSal:N2} / yr";
+
                 message = $"I am ready to onboard {name}. Please confirm the details below before I create the record:";
                 proposed = "Insert new employee record into SQL Server database";
-                summary = $"Employee: {name} | Department: {dept} | Role: {desig} | Salary: {sal}";
+                summary = $"Employee: {name} | Department: {dept} | Role: {desig} | Salary: {salFormatted}";
                 break;
 
             case IntentType.EXECUTE_AUTOMATION:
@@ -1253,8 +1141,22 @@ public class AgentOrchestrator : IAgentOrchestrator
         // ── 1.5. DEPARTMENT DELETION ───────────────────────────────────────────
         if (intentType == IntentType.DEPARTMENT_DELETE || (intent.TargetEntity == "DEPARTMENT" && intent.Operation == "DELETE") || (pLower.Contains("department") && (pLower.Contains("delete") || pLower.Contains("remove"))))
         {
+            intent.Intent = "DEPARTMENT_DELETE";
+            intent.TargetEntity = "DEPARTMENT";
+            intent.Operation = "DELETE";
+
             var scope = intent.Scope;
-            var deptName = intent.Entities.GetValueOrDefault("name") ?? intent.Entities.GetValueOrDefault("department") ?? string.Empty;
+            var rawDept = intent.Entities.GetValueOrDefault("name") ?? intent.Entities.GetValueOrDefault("department") ?? string.Empty;
+            var deptName = IntentParser.CleanDepartmentName(rawDept);
+
+            if (string.IsNullOrWhiteSpace(deptName) || deptName.Equals("ALL", StringComparison.OrdinalIgnoreCase))
+            {
+                var delMatch = Regex.Match(pLower, @"\b(?:delete|remove|drop|purge|destroy)\s+(?:the\s+)?([a-z0-9\&]+)");
+                if (delMatch.Success && !delMatch.Groups[1].Value.Equals("all", StringComparison.OrdinalIgnoreCase))
+                {
+                    deptName = IntentParser.CleanDepartmentName(delMatch.Groups[1].Value);
+                }
+            }
 
             bool isBulk = scope.Equals("ALL", StringComparison.OrdinalIgnoreCase) || pLower.Contains("all") || string.Equals(deptName, "ALL", StringComparison.OrdinalIgnoreCase);
 
@@ -1266,13 +1168,15 @@ public class AgentOrchestrator : IAgentOrchestrator
             else
             {
                 matchingDepts = await _db.Departments.Include(d => d.Employees)
-                    .Where(d => d.Name.ToLower().Contains(deptName.ToLower()))
+                    .Where(d => d.Name.ToLower() == deptName.ToLower() || d.Name.ToLower().Contains(deptName.ToLower()) || deptName.ToLower().Contains(d.Name.ToLower()))
                     .ToListAsync(ct);
             }
 
+            var displayDeptName = string.IsNullOrWhiteSpace(deptName) ? "Target" : deptName;
+
             var actionPlan = new Nexus.Data.ActionPlan.ActionPlan
             {
-                Title = isBulk ? "Plan of Action: Permanent Deletion of All Corporate Departments" : $"Plan of Action: Delete Department '{deptName}'",
+                Title = isBulk ? "Plan of Action: Permanent Deletion of All Corporate Departments" : $"Plan of Action: Delete Department '{displayDeptName}'",
                 RiskLevel = isBulk ? RiskLevel.Critical : RiskLevel.High,
                 Status = "AWAITING_APPROVAL",
                 Metadata = JsonSerializer.Serialize(intent)
@@ -1299,6 +1203,21 @@ public class AgentOrchestrator : IAgentOrchestrator
                 Description = $"Delete {matchingDepts.Count} department record(s) from SQL Server",
                 RiskLevel = isBulk ? RiskLevel.Critical : RiskLevel.High
             });
+
+            // Check if transfer to another department is mentioned
+            var transferMatch = Regex.Match(pLower, @"\b(?:transfer|move)\s+(?:its\s+)?budget\s+to\s+(?:the\s+)?([a-z0-9\&]+)\s*(?:department|dept)?\b");
+            if (transferMatch.Success)
+            {
+                var targetDept = IntentParser.CleanDepartmentName(transferMatch.Groups[1].Value);
+                actionPlan.Steps.Add(new Nexus.Data.ActionPlan.ActionPlanStep
+                {
+                    StepNumber = 2,
+                    ToolName = "budget.update",
+                    Description = $"Transfer remaining budget to {targetDept} Department",
+                    RiskLevel = RiskLevel.Medium
+                });
+                actionPlan.Warnings.Add($"Transfers budget from deleted department to {targetDept} Department.");
+            }
 
             actionPlan.Warnings.Add($"⚠ High-Risk Operation: Permanently deletes {matchingDepts.Count} department record(s).");
             if (matchingDepts.Any(d => d.Employees.Count > 0))

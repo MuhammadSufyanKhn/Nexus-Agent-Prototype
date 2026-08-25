@@ -87,7 +87,17 @@ public class EmployeeService : IEmployeeService
 
     public async Task<EmployeeDto> CreateAsync(CreateEmployeeDto dto)
     {
-        var department = await _db.Departments.FindAsync(dto.DepartmentId);
+        Department? department = null;
+        if (!string.IsNullOrWhiteSpace(dto.DepartmentName))
+        {
+            department = await _db.Departments.FirstOrDefaultAsync(d => d.Name.ToLower() == dto.DepartmentName.ToLower() || d.Name.ToLower().Contains(dto.DepartmentName.ToLower()));
+        }
+
+        if (department == null && dto.DepartmentId > 0)
+        {
+            department = await _db.Departments.FindAsync(dto.DepartmentId);
+        }
+
         if (department == null)
         {
             var targetDeptName = string.IsNullOrWhiteSpace(dto.DepartmentName) ? "IT" : dto.DepartmentName;
@@ -98,8 +108,8 @@ public class EmployeeService : IEmployeeService
                 _db.Departments.Add(department);
                 await _db.SaveChangesAsync();
             }
-            dto.DepartmentId = department.Id;
         }
+        dto.DepartmentId = department.Id;
 
         var employee = new Employee
         {

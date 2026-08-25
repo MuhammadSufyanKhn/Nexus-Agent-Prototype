@@ -119,11 +119,23 @@ public class ApprovalController : ControllerBase
     private static IAgentOrchestrator CreateDefaultOrchestrator(NexusDbContext db)
     {
         var empService = new EmployeeService(db);
+
         var registry = new ToolRegistry();
         registry.RegisterTool(new EmployeeCreateTool(empService));
         registry.RegisterTool(new EmployeeReadTool(empService));
         registry.RegisterTool(new EmployeeUpdateTool(empService));
         registry.RegisterTool(new EmployeeDeleteTool(empService));
+        registry.RegisterTool(new DepartmentCrudTool(db, NullLogger<DepartmentCrudTool>.Instance));
+        registry.RegisterTool(new BudgetUpdateTool(db, NullLogger<BudgetUpdateTool>.Instance));
+        registry.RegisterTool(new PolicyCrudTool(db, NullLogger<PolicyCrudTool>.Instance));
+        registry.RegisterTool(new EmployeeTransferTool(db, NullLogger<EmployeeTransferTool>.Instance));
+        registry.RegisterTool(new EmployeeOffboardTool(db, NullLogger<EmployeeOffboardTool>.Instance));
+        registry.RegisterTool(new LeaveTool(db, NullLogger<LeaveTool>.Instance));
+        registry.RegisterTool(new SlackNotifyTool(new HttpClient(), new Microsoft.Extensions.Configuration.ConfigurationBuilder().Build(), NullLogger<SlackNotifyTool>.Instance));
+        registry.RegisterTool(new BudgetReallocateTool(db, NullLogger<BudgetReallocateTool>.Instance));
+        registry.RegisterTool(new BudgetFreezeTool(db, NullLogger<BudgetFreezeTool>.Instance));
+        registry.RegisterTool(new PayrollActionTool(db, NullLogger<PayrollActionTool>.Instance));
+        registry.RegisterTool(new BulkEmployeeUpdateTool(db, NullLogger<BulkEmployeeUpdateTool>.Instance));
 
         var llm = new LocalLLMService(new HttpClient(), Options.Create(new LLMOptions()), NullLogger<LocalLLMService>.Instance);
         var intentParser = new IntentParser(llm, NullLogger<IntentParser>.Instance);

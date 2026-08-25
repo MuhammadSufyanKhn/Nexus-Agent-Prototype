@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("Nexus.Tools")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+1bb51da95ace2afbe55584e6ca58efa2154bd0c1")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+399ca8f0b10159c0935b8f23dc05f0272f06a575")]
 [assembly: System.Reflection.AssemblyProductAttribute("Nexus.Tools")]
 [assembly: System.Reflection.AssemblyTitleAttribute("Nexus.Tools")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

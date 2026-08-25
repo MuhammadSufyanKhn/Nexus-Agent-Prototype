@@ -185,9 +185,15 @@ public class DepartmentCrudTool : IAgentTool
         }
         else
         {
+            var cleanName = name.Replace(" department", "", StringComparison.OrdinalIgnoreCase)
+                                .Replace(" dept", "", StringComparison.OrdinalIgnoreCase)
+                                .Trim();
+
             var dept = await _db.Departments
                 .Include(d => d.Employees)
-                .FirstOrDefaultAsync(d => d.Name.ToLower().Contains(name.ToLower()));
+                .FirstOrDefaultAsync(d => d.Name.ToLower() == cleanName.ToLower() ||
+                                          d.Name.ToLower().Contains(cleanName.ToLower()) ||
+                                          cleanName.ToLower().Contains(d.Name.ToLower()));
 
             if (dept == null)
                 return ToolExecutionResult.Failure($"Department '{name}' not found.", RiskLevel.Low);

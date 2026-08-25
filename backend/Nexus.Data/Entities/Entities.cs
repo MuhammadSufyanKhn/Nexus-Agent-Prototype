@@ -36,12 +36,19 @@ public class Employee
     public decimal Salary { get; set; }
     public int ExperienceYears { get; set; }
     public EmployeeStatus Status { get; set; } = EmployeeStatus.Active;
+    /// <summary>Employee's direct manager name (or ID reference)</summary>
+    public string? ManagerName { get; set; }
+    /// <summary>Physical office location or remote designation</summary>
+    public string? Location { get; set; }
+    /// <summary>Start date of employment</summary>
+    public DateTime? StartDate { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
     public Department? Department { get; set; }
     public ICollection<Expense> Expenses { get; set; } = new List<Expense>();
     public ICollection<OnboardingTask> OnboardingTasks { get; set; } = new List<OnboardingTask>();
+    public ICollection<Leave> Leaves { get; set; } = new List<Leave>();
 }
 
 public class Budget
@@ -52,6 +59,10 @@ public class Budget
     public string Quarter { get; set; } = "Q3";
     public decimal AllocatedAmount { get; set; }
     public decimal SpentAmount { get; set; }
+    /// <summary>Whether this budget allocation is frozen (no spending/changes)</summary>
+    public bool IsFrozen { get; set; } = false;
+    public string? FreezeReason { get; set; }
+    public DateTime? FrozenAt { get; set; }
 
     public Department? Department { get; set; }
 }
@@ -163,4 +174,25 @@ public class OnboardingTask
 
     public Employee? Employee { get; set; }
     public AgentRun? AgentRun { get; set; }
+}
+
+/// <summary>
+/// Tracks employee leave requests: sick leave, PTO, vacation, etc.
+/// </summary>
+public class Leave
+{
+    public int Id { get; set; }
+    public int EmployeeId { get; set; }
+    public LeaveType LeaveType { get; set; } = LeaveType.Other;
+    public DateTime StartDate { get; set; }
+    public DateTime EndDate { get; set; }
+    public LeaveStatus Status { get; set; } = LeaveStatus.Pending;
+    public string? ApprovedBy { get; set; }
+    public string? Notes { get; set; }
+    /// <summary>Reference to the agent run that created this leave</summary>
+    public Guid? AgentRunId { get; set; }
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime? ProcessedAt { get; set; }
+
+    public Employee? Employee { get; set; }
 }

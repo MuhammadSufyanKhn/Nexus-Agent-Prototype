@@ -343,3 +343,31 @@ export async function checkLLMHealth(): Promise<LLMHealthStatus> {
     };
   }
 }
+
+export async function fetchLeaves(employeeId?: number): Promise<any[]> {
+  const url = employeeId ? `${API_BASE}/leave?employeeId=${employeeId}` : `${API_BASE}/leave`;
+  const res = await fetch(url);
+  if (!res.ok) return [];
+  return res.json();
+}
+
+export async function createLeave(data: { employeeId: number; leaveType: string; startDate: string; endDate: string; notes?: string }): Promise<any> {
+  const res = await fetch(`${API_BASE}/leave`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  });
+  if (!res.ok) throw new Error('Failed to create leave record');
+  return res.json();
+}
+
+export async function holdPayroll(division?: string, reason?: string): Promise<any> {
+  const res = await fetch(`${API_BASE}/payroll/hold`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ division, reason })
+  });
+  if (!res.ok) throw new Error('Failed to apply payroll hold');
+  return res.json();
+}
+

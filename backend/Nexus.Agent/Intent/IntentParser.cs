@@ -91,6 +91,9 @@ YOUR PRINCIPLE RESPONSIBILITY:
 Determine the PRIMARY TARGET ENTITY being acted upon, the OPERATION, and extract all ATTRIBUTES and VALUES.
 Understand the user's semantic meaning regardless of grammar, typos, sentence structure, Roman Urdu, or informal language.
 
+SYSTEM CONTEXT:
+TODAY'S DATE: {DateTime.UtcNow:yyyy-MM-dd (dddd)} (Use this to resolve natural date expressions like 'today', 'tomorrow', 'next Monday', 'end of August').
+
 CRITICAL DISAMBIGUATION RULES:
 1. TARGET ENTITY vs ATTRIBUTE:
    - Field references must NEVER automatically become an action on that entity.
@@ -110,40 +113,37 @@ CRITICAL DISAMBIGUATION RULES:
      * Intent = ALLOCATE_DEPARTMENT_BUDGET / BUDGET_UPDATE
 
 2. LINGUISTIC & VARIANT PARSING EXAMPLES:
-   CREATE_EMPLOYEE / ONBOARD_EMPLOYEE:
-     - 'add employee Ali', 'hire Ali', 'onboard Ali', 'register new staff Ali'
-     - 'Ali ko employee add karo', 'employee bana do Ali ko', 'new joiner Ali'
-     - 'Ali onboarding', 'create profile for Ali'
+   EMPLOYEE_TRANSFER:
+     - 'move Alex from Engineering to Product as Senior PM', 'transfer Ali to Finance'
+     - 'reassign Sarah to Operations under Manager Bilal', 'relocate John to London office'
 
-   UPDATE_SALARY (DEDICATED INTENT — not generic employee update):
-     - 'bump up Muhammad's salary to 150k', 'give Ali a pay raise to 90k'
-     - 'salary increment for Sara to 120000 from next month'
-     - 'update compensation for Ali to 80000', 'adjust salary'
-     - 'Ali ki salary 100k kar do', 'salary badha do Ali ka'
+   EMPLOYEE_PROMOTE:
+     - 'promote Sara to Lead Architect', 'make Ali Senior Developer'
 
-   EMPLOYEE_READ:
-     - 'show Ali details', 'tell me about Ali', 'get Ali employee record'
-     - 'Ali ki details dikhao', 'list all employees'
+   EMPLOYEE_OFFBOARD:
+     - 'terminate employee John', 'offboard Marcus', 'start exit clearance for Sarah'
+     - 'cancel onboarding for new hire Ali'
 
-   ANALYZE_BUDGET / BUDGET_ANALYSIS:
-     - 'which department is over budget?', 'show me departments exceeding budget'
-     - 'budget kis department ne exceed kiya?', 'financial forecast', 'payroll costs'
+   LEAVE_CREATE:
+     - 'log Marcus sick day today and notify team on Slack', 'request PTO for Sara next Monday'
+     - 'Marcus is sick today', 'apply 3 days vacation for Ali'
 
-   CHECK_POLICY / POLICY_READ:
-     - 'show leave policy', 'what are the HR guidelines?', 'remote work terms'
-     - 'leave rules batao', 'compliance check', 'policy for travel expenses'
+   PAYROLL_HOLD / PAYROLL_BONUS:
+     - 'place payroll hold on Sales division', 'distribute 5k bonus to IT team'
+     - 'convert contractor hourly rate to annual salary'
+
+   BUDGET_REALLOCATE / BUDGET_FREEZE:
+     - 'transfer 20k budget from Marketing to IT', 'freeze all department budgets for Q3'
+     - 'reallocate 50k from HR to Operations'
+
+   SLACK_NOTIFY:
+     - 'notify team on Slack about Marcus sick day', 'send Slack alert to #engineering'
 
    SECURITY_TEST / SYSTEM_HEALTH:
      - 'security test', 'run vulnerability check', 'connection audit'
-     - 'access review', 'system health check', 'check SQL connectivity'
 
    EXECUTE_AUTOMATION:
      - 'trigger n8n flow', 'run Zapier webhook', 'execute stored procedure'
-     - 'automate onboarding workflow', 'run automation'
-
-   CREATE_DEPARTMENT:
-     - 'add finance daprtment' (handles typos like daprtment)
-     - 'finance dept bana do 50k budget head sufyan'
 
 3. NUMBER NORMALIZATION:
    - '50k', '50,000', '50000', '50 thousand', '50 hazar' → 50000
@@ -614,7 +614,67 @@ User: ""hello"" or ""what can you do?""
         bool isEmployeeDelete = (p.Contains("employee") || p.Contains("staff")) &&
                                 (p.Contains("delete") || p.Contains("remove") || p.Contains("fire") || p.Contains("terminate"));
 
-        if (isEmployeeCreation)
+        // Department deletion check (priority over general transfer)
+        bool isDeptDelete = (p.Contains("department") || p.Contains("dept")) && (p.Contains("delete") || p.Contains("remove") || p.Contains("purge"));
+
+        // Transfer / Promote intents
+        bool isTransfer = !isDeptDelete && (p.Contains("transfer") || p.Contains("reassign") || p.Contains("relocate") || (p.Contains("move") && !p.Contains("move him to inactive")));
+        bool isPromote  = p.Contains("promote") || p.Contains("promotion");
+        bool isOffboard = p.Contains("offboard") || p.Contains("exit clearance") || p.Contains("cancel onboarding") || (p.Contains("terminate") && !isDeptDelete);
+        bool isLeave    = p.Contains("sick day") || p.Contains("sick leave") || p.Contains("pto") || p.Contains("vacation") || p.Contains("time off") || (p.Contains("sick") && p.Contains("today"));
+        bool isPayroll  = p.Contains("payroll hold") || p.Contains("hold payroll") || p.Contains("bulk bonus") || p.Contains("distribute bonus");
+        bool isReallocate = p.Contains("reallocate budget") || p.Contains("transfer budget") || p.Contains("reallocate");
+        bool isFreeze     = p.Contains("freeze budget") || p.Contains("budget freeze") || p.Contains("freeze all");
+
+        if (isDeptDelete)
+        {
+            result.Intent = IntentType.DEPARTMENT_DELETE.ToString();
+            result.TargetEntity = "DEPARTMENT";
+            result.Operation = "DELETE";
+        }
+        else if (isTransfer)
+        {
+            result.Intent = IntentType.EMPLOYEE_TRANSFER.ToString();
+            result.TargetEntity = "EMPLOYEE";
+            result.Operation = "UPDATE";
+        }
+        else if (isPromote)
+        {
+            result.Intent = IntentType.EMPLOYEE_PROMOTE.ToString();
+            result.TargetEntity = "EMPLOYEE";
+            result.Operation = "UPDATE";
+        }
+        else if (isOffboard)
+        {
+            result.Intent = p.Contains("cancel") ? IntentType.EMPLOYEE_CANCEL_ONBOARDING.ToString() : IntentType.EMPLOYEE_OFFBOARD.ToString();
+            result.TargetEntity = "EMPLOYEE";
+            result.Operation = "DELETE";
+        }
+        else if (isLeave)
+        {
+            result.Intent = IntentType.LEAVE_CREATE.ToString();
+            result.TargetEntity = "EMPLOYEE";
+            result.Operation = "CREATE";
+        }
+        else if (isPayroll)
+        {
+            result.Intent = p.Contains("bonus") ? IntentType.PAYROLL_BONUS.ToString() : IntentType.PAYROLL_HOLD.ToString();
+            result.TargetEntity = "EMPLOYEE";
+            result.Operation = "UPDATE";
+        }
+        else if (isReallocate)
+        {
+            result.Intent = IntentType.BUDGET_REALLOCATE.ToString();
+            result.TargetEntity = "DEPARTMENT_BUDGET";
+            result.Operation = "ALLOCATE";
+        }
+        else if (isFreeze)
+        {
+            result.Intent = IntentType.BUDGET_FREEZE.ToString();
+            result.TargetEntity = "DEPARTMENT_BUDGET";
+            result.Operation = "UPDATE";
+        }
+        else if (isEmployeeCreation)
         {
             result.Intent = p.Contains("onboard") ? IntentType.EMPLOYEE_ONBOARDING.ToString() : IntentType.EMPLOYEE_CREATE.ToString();
             result.TargetEntity = "EMPLOYEE";
@@ -830,19 +890,108 @@ User: ""hello"" or ""what can you do?""
             parameters["name"] = empNameVal;
         }
 
-        if (!entities.ContainsKey("department") || string.IsNullOrWhiteSpace(entities.GetValueOrDefault("department")))
+        // Dedicated target extraction for DEPARTMENT_DELETE
+        if (result.ParsedIntentType == IntentType.DEPARTMENT_DELETE || (p.Contains("department") && (p.Contains("delete") || p.Contains("remove")) && !p.Contains("employee")))
         {
-            var deptMatch = Regex.Match(prompt, @"\bin\s+([A-Za-z0-9]+)\b", RegexOptions.IgnoreCase);
-            if (deptMatch.Success)
+            var delDeptMatch = Regex.Match(prompt, @"\b(?:delete|remove|drop|purge|destroy)\s+(?:the\s+)?([A-Za-z0-9\&]+)(?:\s+department|\s+dept)?\b", RegexOptions.IgnoreCase);
+            if (delDeptMatch.Success)
             {
-                var dCandidate = deptMatch.Groups[1].Value;
-                if (!dCandidate.Equals("the", StringComparison.OrdinalIgnoreCase) && !dCandidate.Equals("a", StringComparison.OrdinalIgnoreCase) && !dCandidate.Equals("an", StringComparison.OrdinalIgnoreCase))
+                var targetDept = CleanDepartmentName(delDeptMatch.Groups[1].Value);
+                if (!string.IsNullOrWhiteSpace(targetDept) && !targetDept.Equals("all", StringComparison.OrdinalIgnoreCase))
                 {
-                    var dClean = dCandidate.ToUpperInvariant() == "IT" || dCandidate.ToUpperInvariant() == "HR" ? dCandidate.ToUpperInvariant() : CultureInfo.CurrentCulture.TextInfo.ToTitleCase(dCandidate.ToLower());
-                    entities["department"] = dClean;
-                    parameters["department"] = dClean;
+                    entities["name"] = targetDept;
+                    entities["department"] = targetDept;
+                    parameters["name"] = targetDept;
+                    parameters["department"] = targetDept;
                 }
             }
+        }
+
+        // Clean existing department / name entity values if they contain "department" or "dept"
+        if (entities.TryGetValue("department", out var rawDept) && !string.IsNullOrWhiteSpace(rawDept))
+        {
+            var cleanedD = CleanDepartmentName(rawDept);
+            entities["department"] = cleanedD;
+            parameters["department"] = cleanedD;
+        }
+        if (isDeptIntent && entities.TryGetValue("name", out var rawDeptName) && !string.IsNullOrWhiteSpace(rawDeptName))
+        {
+            var cleanedN = CleanDepartmentName(rawDeptName);
+            entities["name"] = cleanedN;
+            parameters["name"] = cleanedN;
+        }
+
+        if (!entities.ContainsKey("department") || string.IsNullOrWhiteSpace(entities.GetValueOrDefault("department")) || entities["department"] == "[Pending]")
+        {
+            var deptPatterns = new[]
+            {
+                @"\b(?:joining|join|in|to|for|at)\s+(?:the\s+)?([A-Za-z0-9\&\s]+?)\s+(?:department|dept)\b",
+                @"\b([A-Za-z0-9\&]+)\s+(?:department|dept)\b",
+                @"\b(?:department|dept)\s*(?:is|:|=)?\s*([A-Za-z0-9\&]+)\b",
+                @"\b(?:joining|join|in|for|to|at)\s+(?:the\s+)?([A-Za-z0-9\&]+)\b"
+            };
+
+            var stopWords = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            {
+                "the", "a", "an", "his", "her", "their", "new", "this", "our", "my", "your", "employee", "staff", "company", "office", "team", "first", "second", "third", "which", "whose", "name"
+            };
+
+            foreach (var pattern in deptPatterns)
+            {
+                var match = Regex.Match(prompt, pattern, RegexOptions.IgnoreCase);
+                if (match.Success)
+                {
+                    var dCandidate = match.Groups[1].Value.Trim();
+                    if (!stopWords.Contains(dCandidate) && dCandidate.Length >= 2 && dCandidate.Length <= 30)
+                    {
+                        var dClean = CleanDepartmentName(dCandidate);
+                        if (!string.IsNullOrWhiteSpace(dClean))
+                        {
+                            dClean = dClean.ToUpperInvariant() == "IT" || dClean.ToUpperInvariant() == "HR" || dClean.ToUpperInvariant() == "QA" || dClean.ToUpperInvariant() == "SQA" 
+                                ? dClean.ToUpperInvariant() 
+                                : CultureInfo.CurrentCulture.TextInfo.ToTitleCase(dClean.ToLower());
+                            entities["department"] = dClean;
+                            parameters["department"] = dClean;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        // 3.1 Dynamic Designation / Role Extraction (e.g. "as a Senior .NET Developer")
+        string? existingDesig = entities.GetValueOrDefault("designation") ?? entities.GetValueOrDefault("role") ?? parameters.GetValueOrDefault("designation")?.ToString();
+        if (string.IsNullOrWhiteSpace(existingDesig) || existingDesig == "[Pending]")
+        {
+            var desigMatch = Regex.Match(prompt, @"\b(?:as|role|designation|title|position|for\s+the\s+role\s+of)\s+(?:a\s+|an\s+)?([A-Za-z0-9\.\#\+\-\s]{3,40}?)(?=\s+starting|\s+with|\s+at|\s+in|\s+salary|\s+his|\s+her|\s+their|\.|\,|$)", RegexOptions.IgnoreCase);
+            if (desigMatch.Success)
+            {
+                var dVal = desigMatch.Groups[1].Value.Trim();
+                if (!string.IsNullOrWhiteSpace(dVal) && dVal.Length >= 2 && !dVal.Equals("employee", StringComparison.OrdinalIgnoreCase))
+                {
+                    dVal = CultureInfo.CurrentCulture.TextInfo.ToTitleCase(dVal.ToLower());
+                    entities["designation"] = dVal;
+                    entities["role"] = dVal;
+                    parameters["designation"] = dVal;
+                    parameters["role"] = dVal;
+                }
+            }
+        }
+
+        // 3.2 Infer department from designation / prompt context if still missing or [Pending]
+        string? currentDept = entities.GetValueOrDefault("department") ?? parameters.GetValueOrDefault("department")?.ToString();
+        if (string.IsNullOrWhiteSpace(currentDept) || currentDept == "[Pending]")
+        {
+            string desigCheck = (entities.GetValueOrDefault("designation") ?? prompt).ToLowerInvariant();
+            string inferredDept = "IT";
+            if (desigCheck.Contains("hr") || desigCheck.Contains("recruiter") || desigCheck.Contains("talent")) inferredDept = "HR";
+            else if (desigCheck.Contains("marketing") || desigCheck.Contains("seo") || desigCheck.Contains("growth")) inferredDept = "Marketing";
+            else if (desigCheck.Contains("operations") || desigCheck.Contains("logistics")) inferredDept = "Operations";
+            else if (desigCheck.Contains("finance") || desigCheck.Contains("accountant")) inferredDept = "Finance";
+            else if (desigCheck.Contains("legal")) inferredDept = "Legal";
+
+            entities["department"] = inferredDept;
+            parameters["department"] = inferredDept;
         }
 
         // 4. Scope determination
@@ -938,20 +1087,20 @@ User: ""hello"" or ""what can you do?""
             parameters["email"] = emailMatch.Value;
         }
 
-        // 8. Dynamic Designation Extraction (e.g. "junior SQA", "AI automation engineer")
+        // 8. Dynamic Designation Extraction (e.g. "junior SQA", "AI automation engineer", "junior .NET")
         if (!entities.ContainsKey("designation") || string.IsNullOrWhiteSpace(entities.GetValueOrDefault("designation")))
         {
-            var desigMatch = Regex.Match(prompt, @"\b(?:is\s+(?:a|an)?|role\s+(?:is)?|designation\s+(?:is)?|position\s+(?:is)?|as\s+(?:a|an)?)\s+([A-Za-z0-9\.\s\-\#\+]+?)(?:\s*\.|\s*\,|\s+in|\s+department|\s+with|\s+his|\s+her|\s+salary|\s+starting|\s+on|\s+and|\s+send|\s+joining|\s*email|\s*$)", RegexOptions.IgnoreCase);
+            var desigMatch = Regex.Match(prompt, @"\b(?:designation|role|position)\b\s*(?:is|:|=)?\s*(?:a|an\s+)?([A-Za-z0-9\.\#\+\-]+(?:\s+[A-Za-z0-9\.\#\+\-]+)*?)(?=\s*\.\s+|\s*\,\s*|\s*\;\s*|\s+in\b|\s+department|\s+with|\s+his|\s+her|\s+salary|\s+starting|\s+on|\s+and|\s+send|\s+joining|\s*email|\s*$)", RegexOptions.IgnoreCase);
             if (desigMatch.Success)
             {
-                var candidateDesig = desigMatch.Groups[1].Value.Trim();
+                var candidateDesig = desigMatch.Groups[1].Value.Trim().TrimEnd('.', ',', ';');
                 var lowerDesig = candidateDesig.ToLowerInvariant();
                 if (!string.IsNullOrWhiteSpace(candidateDesig) && lowerDesig != "coming" && lowerDesig != "new" && lowerDesig != "employee" && lowerDesig != "him" && lowerDesig != "her" && candidateDesig.Length < 40)
                 {
                     var cleanDesig = CultureInfo.CurrentCulture.TextInfo.ToTitleCase(candidateDesig.ToLower());
                     cleanDesig = Regex.Replace(cleanDesig, @"\bSqa\b", "SQA", RegexOptions.IgnoreCase);
                     cleanDesig = Regex.Replace(cleanDesig, @"\bQa\b", "QA", RegexOptions.IgnoreCase);
-                    cleanDesig = Regex.Replace(cleanDesig, @"\bNet\b", ".NET", RegexOptions.IgnoreCase);
+                    cleanDesig = Regex.Replace(cleanDesig, @"\.?\bNet\b", ".NET", RegexOptions.IgnoreCase);
                     cleanDesig = Regex.Replace(cleanDesig, @"\bAi\b", "AI", RegexOptions.IgnoreCase);
                     entities["designation"] = cleanDesig;
                     parameters["designation"] = cleanDesig;
@@ -1025,5 +1174,34 @@ User: ""hello"" or ""what can you do?""
             Quarter = entities.GetValueOrDefault("quarter"),
             BudgetAmount = entities.TryGetValue("budgetAmount", out var bStr) && decimal.TryParse(bStr, NumberStyles.Any, CultureInfo.InvariantCulture, out var bDec) ? bDec : null
         };
+    }
+
+    public static string CleanDepartmentName(string raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return string.Empty;
+        var cleaned = raw.Trim();
+        if (cleaned.EndsWith(" department", StringComparison.OrdinalIgnoreCase))
+        {
+            cleaned = cleaned[..^11].Trim();
+        }
+        else if (cleaned.EndsWith(" dept", StringComparison.OrdinalIgnoreCase))
+        {
+            cleaned = cleaned[..^5].Trim();
+        }
+        else if (cleaned.StartsWith("department ", StringComparison.OrdinalIgnoreCase))
+        {
+            cleaned = cleaned[11..].Trim();
+        }
+        else if (cleaned.StartsWith("dept ", StringComparison.OrdinalIgnoreCase))
+        {
+            cleaned = cleaned[5..].Trim();
+        }
+
+        if (cleaned.Equals("IT", StringComparison.OrdinalIgnoreCase) || cleaned.Equals("HR", StringComparison.OrdinalIgnoreCase) || cleaned.Equals("QA", StringComparison.OrdinalIgnoreCase) || cleaned.Equals("SQA", StringComparison.OrdinalIgnoreCase))
+        {
+            return cleaned.ToUpperInvariant();
+        }
+
+        return CultureInfo.CurrentCulture.TextInfo.ToTitleCase(cleaned.ToLower());
     }
 }

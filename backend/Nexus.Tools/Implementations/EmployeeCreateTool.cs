@@ -75,23 +75,46 @@ public class EmployeeCreateTool : IAgentTool
                 }
             }
 
-            var deptId = context.GetArgument<int?>("departmentId") ?? 1;
-            if (deptId <= 0) deptId = 1;
+            var targetDeptName = context.GetArgument<string>("department")
+                ?? context.GetArgument<string>("targetDepartment");
+
+            if (string.IsNullOrWhiteSpace(targetDeptName))
+            {
+                var promptStr = context.GetArgument<string>("prompt") ?? context.GetArgument<string>("question") ?? string.Empty;
+                var deptMatch = Regex.Match(promptStr, @"\bin\s+([A-Za-z]+(?:\s+[A-Za-z]+)?)\b", RegexOptions.IgnoreCase);
+                if (deptMatch.Success)
+                {
+                    var candDept = deptMatch.Groups[1].Value.Trim();
+                    if (!candDept.Equals("as", StringComparison.OrdinalIgnoreCase) && !candDept.Equals("the", StringComparison.OrdinalIgnoreCase))
+                        targetDeptName = candDept;
+                }
+            }
+
+            var deptId = context.GetArgument<int?>("departmentId") ?? 0;
 
             var salary = context.GetArgument<decimal?>("salary");
             if (!salary.HasValue || salary.Value <= 0)
             {
-                var prompt = context.GetArgument<string>("prompt") ?? context.GetArgument<string>("question") ?? string.Empty;
-                var salMatch = Regex.Match(prompt, @"\b([0-9]+(?:\.[0-9]+)?)\s*(k|m)\b", RegexOptions.IgnoreCase);
-                if (salMatch.Success && decimal.TryParse(salMatch.Groups[1].Value, NumberStyles.Any, CultureInfo.InvariantCulture, out var salVal))
+                var salStr = context.GetArgument<string>("salary") ?? context.GetArgument<string>("newSalary");
+                if (!string.IsNullOrWhiteSpace(salStr) && decimal.TryParse(salStr, NumberStyles.Any, CultureInfo.InvariantCulture, out var parsedSal) && parsedSal > 0)
                 {
-                    var calcSalary = salVal * (salMatch.Groups[2].Value.ToLower() == "k" ? 1000m : 1000000m);
+                    salary = parsedSal;
+                }
+            }
+
+            if (!salary.HasValue || salary.Value <= 0)
+            {
+                var prompt = context.GetArgument<string>("prompt") ?? context.GetArgument<string>("question") ?? string.Empty;
+                var salMatch = Regex.Match(prompt, @"\b([0-9]+(?:\.[0-9]+)?)\s*(k|m)?\b", RegexOptions.IgnoreCase);
+                if (salMatch.Success && decimal.TryParse(salMatch.Groups[1].Value, NumberStyles.Any, CultureInfo.InvariantCulture, out var salVal) && salVal > 1000)
+                {
+                    var calcSalary = salVal * (salMatch.Groups[2].Success && salMatch.Groups[2].Value.ToLower() == "k" ? 1000m : 1m);
                     if (prompt.ToLowerInvariant().Contains("monthly")) calcSalary *= 12m;
                     salary = calcSalary;
                 }
                 else
                 {
-                    salary = 75000.00m;
+                    salary = 68000.00m;
                 }
             }
 
@@ -100,7 +123,7 @@ public class EmployeeCreateTool : IAgentTool
                 Name = name,
                 Email = email,
                 DepartmentId = deptId,
-                DepartmentName = context.GetArgument<string>("department"),
+                DepartmentName = targetDeptName,
                 Designation = context.GetArgument<string>("designation") ?? "Developer",
                 Salary = salary.Value,
                 ExperienceYears = context.GetArgument<int?>("experienceYears") ?? 3,

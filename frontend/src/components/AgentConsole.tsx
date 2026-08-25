@@ -71,6 +71,36 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
       prompt: 'Onboard employee Ali in IT as Junior .NET Developer with salary 80000'
     },
     {
+      label: 'Transfer / Promote',
+      icon: TrendingUp,
+      type: 'transfer',
+      prompt: 'Move Alex from Engineering to Product as Senior Product Manager under Manager Sarah'
+    },
+    {
+      label: 'Log Sick Day + Slack',
+      icon: Zap,
+      type: 'leave',
+      prompt: "Log Marcus's sick day today and notify his team on Slack."
+    },
+    {
+      label: 'Reallocate Budget',
+      icon: BarChart3,
+      type: 'budget_realloc',
+      prompt: 'Reallocate 20000 budget from Marketing to IT department for Q3.'
+    },
+    {
+      label: 'Freeze Budgets',
+      icon: ShieldAlert,
+      type: 'freeze',
+      prompt: 'Freeze all department budget allocations for Q3.'
+    },
+    {
+      label: 'Hold Payroll',
+      icon: Shield,
+      type: 'payroll',
+      prompt: 'Place a payroll hold on the Sales division.'
+    },
+    {
       label: 'Analyze Budget',
       icon: BarChart3,
       type: 'budget',
@@ -81,18 +111,6 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
       icon: FileCheck,
       type: 'policy',
       prompt: 'Show me the current leave policy.'
-    },
-    {
-      label: 'Update Salary',
-      icon: TrendingUp,
-      type: 'salary',
-      prompt: 'Update salary for Ali to 90000'
-    },
-    {
-      label: 'Security Test',
-      icon: Shield,
-      type: 'security',
-      prompt: 'security test'
     }
   ];
 

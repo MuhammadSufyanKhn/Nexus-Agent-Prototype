@@ -2739,11 +2739,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Tests\\Nexus.Tests.csproj",
+      "projectUniqueName": "d:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Tests\\Nexus.Tests.csproj",
       "projectName": "Nexus.Tests",
-      "projectPath": "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Tests\\Nexus.Tests.csproj",
+      "projectPath": "d:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Tests\\Nexus.Tests.csproj",
       "packagesPath": "C:\\Users\\DELL\\.nuget\\packages\\",
-      "outputPath": "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Tests\\obj\\",
+      "outputPath": "d:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Tests\\obj\\",
       "projectStyle": "PackageReference",
       "fallbackFolders": [
         "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
@@ -2765,11 +2765,11 @@
         "net10.0": {
           "targetAlias": "net10.0",
           "projectReferences": {
-            "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Api\\Nexus.Api.csproj": {
-              "projectPath": "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Api\\Nexus.Api.csproj"
+            "d:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Api\\Nexus.Api.csproj": {
+              "projectPath": "d:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Api\\Nexus.Api.csproj"
             },
-            "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Data\\Nexus.Data.csproj": {
-              "projectPath": "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Data\\Nexus.Data.csproj"
+            "d:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Data\\Nexus.Data.csproj": {
+              "projectPath": "d:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Data\\Nexus.Data.csproj"
             }
           }
         }

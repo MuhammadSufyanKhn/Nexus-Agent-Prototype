@@ -22,6 +22,7 @@ public class NexusDbContext : DbContext
     public DbSet<Approval> Approvals => Set<Approval>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<OnboardingTask> OnboardingTasks => Set<OnboardingTask>();
+    public DbSet<Leave> Leaves => Set<Leave>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -170,6 +171,20 @@ public class NexusDbContext : DbContext
                   .OnDelete(DeleteBehavior.SetNull);
         });
 
+        // Leave Configuration
+        modelBuilder.Entity<Leave>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Notes).HasMaxLength(500);
+            entity.Property(e => e.ApprovedBy).HasMaxLength(100);
+            entity.HasOne(e => e.Employee)
+                  .WithMany(emp => emp.Leaves)
+                  .HasForeignKey(e => e.EmployeeId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.HasIndex(e => e.EmployeeId);
+            entity.HasIndex(e => e.Status);
+        });
+
         // Seed Initial Data
         SeedData(modelBuilder);
     }
@@ -192,11 +207,12 @@ public class NexusDbContext : DbContext
 
         // 3. Budgets (Q3 2026) - Note: IT Allocated $50k, Spent $58.5k (EXCEEDED for Demo 2)
         modelBuilder.Entity<Budget>().HasData(
-            new Budget { Id = 1, DepartmentId = 1, Year = 2026, Quarter = "Q3", AllocatedAmount = 50000.00m, SpentAmount = 58500.00m },
-            new Budget { Id = 2, DepartmentId = 2, Year = 2026, Quarter = "Q3", AllocatedAmount = 30000.00m, SpentAmount = 22000.00m },
-            new Budget { Id = 3, DepartmentId = 3, Year = 2026, Quarter = "Q3", AllocatedAmount = 45000.00m, SpentAmount = 41200.00m },
-            new Budget { Id = 4, DepartmentId = 4, Year = 2026, Quarter = "Q3", AllocatedAmount = 60000.00m, SpentAmount = 51000.00m }
+            new Budget { Id = 1, DepartmentId = 1, Year = 2026, Quarter = "Q3", AllocatedAmount = 50000.00m, SpentAmount = 58500.00m, IsFrozen = false },
+            new Budget { Id = 2, DepartmentId = 2, Year = 2026, Quarter = "Q3", AllocatedAmount = 30000.00m, SpentAmount = 22000.00m, IsFrozen = false },
+            new Budget { Id = 3, DepartmentId = 3, Year = 2026, Quarter = "Q3", AllocatedAmount = 45000.00m, SpentAmount = 41200.00m, IsFrozen = false },
+            new Budget { Id = 4, DepartmentId = 4, Year = 2026, Quarter = "Q3", AllocatedAmount = 60000.00m, SpentAmount = 51000.00m, IsFrozen = false }
         );
+
 
         // 4. Existing Employees
         modelBuilder.Entity<Employee>().HasData(

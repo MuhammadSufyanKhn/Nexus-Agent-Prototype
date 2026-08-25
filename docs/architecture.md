@@ -1,76 +1,99 @@
-# NEXUS-AGENT LITE — System Architecture
+# NEXUS-AGENT LITE — System Architecture Specification
 
-> **Tagline:** FROM INTENT TO ACTION — SECURELY.
-
-NEXUS-AGENT LITE is an AI-powered business-process execution agent that translates natural language requests into policy-compliant, permission-validated multi-step operations.
+This document provides a technical specification of the architecture, security model, and execution lifecycle of **NEXUS-AGENT LITE**.
 
 ---
 
-## 1. High-Level Architecture Flow
+## 1. High-Level Architecture Diagram
 
 ```
-User Request (Natural Language)
-  │
-  ▼
-React 19 UI (Vite + Tailwind CSS)
-  │ (HTTP / WebSockets API)
-  ▼
-ASP.NET Core Web API (.NET 9)
-  │
-  ▼
-Nexus Agent Engine (Nexus.Agent)
-  ├─ Intent Parser (Local LLM Runtime)
-  ├─ Policy Engine (PDF RAG & Rules)
-  ├─ Permission & Risk Engine (Nexus.Security)
-  └─ Planner (Multi-step Execution Plans & POA)
-  │
-  ▼
-Human Approval Gate (Required for Medium/High/Critical operations)
-  │
-  ▼
-Tool Execution Router (Nexus.Tools)
-  ├─ Safe SQL Engine (EF Core / Read-Only & Entity Guards)
-  ├─ Policy Retriever Tool
-  ├─ Automation Engine (Python / Playwright)
-  ├─ Mock SAP Connector
-  └─ Notification & Email Automation
-  │
-  ▼
-Audit & Log Layer (Nexus.Data DbContext Audit Trail)
-  │
-  ▼
-User Activity Feed & Result Visualizer
+                               ┌──────────────────────────────────────────────┐
+                               │        React 19 Enterprise UI               │
+                               │   (Dashboard, Agent Console, Approvals)     │
+                               └──────────────────────┬───────────────────────┘
+                                                      │ HTTP / SignalR WebSockets
+                                                      ▼
+                               ┌──────────────────────────────────────────────┐
+                               │        ASP.NET Core 10 Web API               │
+                               │     (AgentController, ApprovalController)    │
+                               └──────────────────────┬───────────────────────┘
+                                                      │
+                                                      ▼
+                               ┌──────────────────────────────────────────────┐
+                               │             AgentOrchestrator                │
+                               └──────┬───────────────┬───────────────┬───────┘
+                                      │               │               │
+            ┌─────────────────────────┘               │               └─────────────────────────┐
+            ▼                                         ▼                                         ▼
+┌───────────────────────┐                 ┌───────────────────────┐                 ┌───────────────────────┐
+│     Intent Parser     │                 │   Security Sandbox    │                 │   Policy & Compliance │
+│ (Local LLM / Fallback)│                 │ (RiskEngine / RBAC)   │                 │ (Rule Engine / Audit) │
+└───────────────────────┘                 └───────────┬───────────┘                 └───────────────────────┘
+                                                      │
+                                                      ▼
+                                          ┌───────────────────────┐
+                                          │ ActionPlan Interceptor│
+                                          │ (Human-in-the-Loop)   │
+                                          └───────────┬───────────┘
+                                                      │ (Approved)
+                                                      ▼
+                                          ┌───────────────────────┐
+                                          │     ToolRegistry      │
+                                          └───────────┬───────────┘
+                                                      │
+         ┌──────────────────────┬─────────────────────┼─────────────────────┬──────────────────────┐
+         ▼                      ▼                     ▼                     ▼                      ▼
+┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐
+│  Employee Tools  │  │  SQL Analytics   │  │ Python Automation│  │    Playwright    │  │ Mock SAP ERP HCM │
+│   (SQL Server)   │  │   (Sandbox)      │  │  (Email / Ticket)│  │ (Legacy Portal)  │  │   (Connector)    │
+└──────────────────┘  └──────────────────┘  └──────────────────┘  └──────────────────┘  └──────────────────┘
+                                                      │
+                                                      ▼
+                                          ┌───────────────────────┐
+                                          │ SHA-256 Audit Ledger  │
+                                          └───────────────────────┘
 ```
 
 ---
 
-## 2. Core Components & Responsibilities
+## 2. Core Subsystems
 
-### Backend (.NET 9 Solution)
-- **`Nexus.Api`**: REST API endpoints, WebSockets streaming execution traces, authentication, and request handling.
-- **`Nexus.Agent`**: Core agent logic, Intent Parser interface, Planner engine, and execution orchestrator.
-- **`Nexus.Tools`**: Registered execution tools (SQL, Policy RAG, Playwright, SAP, Email).
-- **`Nexus.Security`**: Permission engine, risk level evaluator, SQL AST validator, read-only enforcement, and safety guardrails.
-- **`Nexus.Data`**: EF Core DbContext, SQL Server schema entities, Audit Trail models, and seeding scripts.
+### 2.1 Intent Parsing Engine (`Nexus.Agent/Intent/`)
+- **Primary Parser**: `IntentParser` invokes `ILLMService.GenerateJsonAsync<ParsedIntentResult>()` against local Ollama inference server (`llama3.2`).
+- **Structured JSON Schema**: Returns `intent`, `entities` (name, department, designation, salary), `confidence`, and `requiresClarification`.
+- **Deterministic Rule Fallback**: If LLM output is malformed or offline, `RuleBasedFallbackParse` handles intent extraction without breaking pipeline continuity.
 
-### Frontend (React + TypeScript + Vite)
-- Interactive Chat & Intent Input bar
-- Plan of Action (POA) modal with affected rows, old vs new value diffs, and risk badges
-- Safe Real-time Execution Feed (filtering private Chain-of-Thought)
-- Interactive human confirmation & audit viewer
+### 2.2 Security Sandbox & Permission Service (`Nexus.Security/`)
+- **RBAC Matrix**: Enforces permissions (`employee.create`, `employee.read`, `employee.update`, `employee.delete`, `sql.analytics`).
+- **Risk Classification**:
+  - `LOW`: Automatic execution permitted (`employee.read`, `sql.analytics`, `email.welcome`).
+  - `MEDIUM`: Controlled execution (`employee.create`, `onboarding.submit_legacy_form`, `sap.employee.create`).
+  - `HIGH`: Requires Plan of Action human confirmation (`employee.update`, `EMPLOYEE_ONBOARDING`).
+  - `CRITICAL`: Requires administrative authorization (`employee.delete`).
 
-### Automation (Python + Playwright)
-- Playwright script handlers for legacy IT onboarding portals
-- Mock SAP BAPI/OData provisioning module
+### 2.3 Human-in-the-Loop Plan of Action Interceptor (`Nexus.Data/ActionPlan/`)
+- **Pre-Execution Calculation**: Computes affected record count, old vs. new values diffs, total financial impact (`+$23,800.00`), and safety warnings.
+- **State Lock**: Sets `AgentRunStatus.WaitingForApproval` with **ZERO database mutations** occurring before human decision.
+- **Approval API**: `POST /api/approval/decide` approves (`approved: true`) or rejects (`approved: false`).
+
+### 2.4 SQL Security Sandbox (`Nexus.Security/Sql/` & `Nexus.Tools/Implementations/SqlAnalyticsTool.cs`)
+- **Read-Only Mode**: Accepts ONLY `SELECT` analytics queries.
+- **Forbidden Keyword Filter**: Rejects `INSERT`, `UPDATE`, `DELETE`, `DROP`, `ALTER`, `TRUNCATE`, `EXEC`, `xp_cmdshell`.
+- **Resource Constraints**: Enforces `TOP 100` row cap and 5s query execution timeout.
+
+### 2.5 Multi-System Automation Subsystems
+- **Legacy HR Portal Automation** (`mock-portal/` & `automation/browser/legacy_hr_portal.py`): Playwright script navigating, filling form fields `#employeeName`, `#department`, `#designation`, `#salary`, `#manager`, and submitting form.
+- **Mock SAP Connector** (`Nexus.Tools/Sap/`): `ISapConnector` interface generating simulated SAP Personnel Numbers (`SAP-EMP-2026-XXXX`).
+- **Python Email & Ticket Generators** (`automation/email_services/` & `automation/tickets/`): CLI runner generating IT onboarding welcome emails.
+
+### 2.6 Cryptographic Audit Ledger (`Nexus.Data/Entities/AuditLog.cs`)
+- **Tamper-Proof SHA-256 Hash Chain**: Every tool execution appends a cryptographic hash derived from `runId`, `userId`, `toolName`, `action`, `result`, `timestamp`, and `previousHash`.
 
 ---
 
-## 3. Security Principles & Guardrails
+## 3. Technology Stack Summary
 
-1. **LLM Execution Restriction**: The LLM NEVER directly executes SQL, shell scripts, browser JS, or file IO. It can ONLY request actions through registered tools.
-2. **Backend Authority**: Backend (.NET 9 API & `Nexus.Security`) is the single source of truth for permissions, risk, and validation.
-3. **SQL Guardrails**:
-   - Read-only enforcement for analytical queries (blocking `INSERT`, `UPDATE`, `DELETE`, `DROP`, `ALTER`, `TRUNCATE`, `EXEC`, `xp_cmdshell`).
-   - Allowed table/column whitelist filtering, strict query timeout, and maximum row limit caps.
-4. **Plan of Action (POA)**: High-risk or bulk update operations generate a pre-execution diff payload and block until explicit human confirmation is received.
-5. **Private Chain-of-Thought**: Internal reasoning remains strictly on the server; only sanitized progress steps (e.g. `1. Intent identified`, `2. Policy retrieved`, `3. Plan generated`) are emitted to the client.
+- **Backend**: C# .NET 10 Web API, Entity Framework Core 10, ASP.NET Core SignalR.
+- **Frontend**: React 19, TypeScript 5.6, Tailwind CSS v4, Lucide Icons.
+- **Automation**: Python 3.12, Playwright Chromium Headless.
+- **Local AI**: Ollama Local Inference Engine (`llama3.2`).

@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Security\\Nexus.Security.csproj": {}
+    "d:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Security\\Nexus.Security.csproj": {}
   },
   "projects": {
-    "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Data\\Nexus.Data.csproj": {
+    "d:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Data\\Nexus.Data.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Data\\Nexus.Data.csproj",
+        "projectUniqueName": "d:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Data\\Nexus.Data.csproj",
         "projectName": "Nexus.Data",
-        "projectPath": "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Data\\Nexus.Data.csproj",
+        "projectPath": "d:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Data\\Nexus.Data.csproj",
         "packagesPath": "C:\\Users\\DELL\\.nuget\\packages\\",
-        "outputPath": "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Data\\obj\\",
+        "outputPath": "d:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Data\\obj\\",
         "projectStyle": "PackageReference",
         "fallbackFolders": [
           "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
@@ -360,14 +360,14 @@
         }
       }
     },
-    "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Security\\Nexus.Security.csproj": {
+    "d:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Security\\Nexus.Security.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Security\\Nexus.Security.csproj",
+        "projectUniqueName": "d:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Security\\Nexus.Security.csproj",
         "projectName": "Nexus.Security",
-        "projectPath": "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Security\\Nexus.Security.csproj",
+        "projectPath": "d:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Security\\Nexus.Security.csproj",
         "packagesPath": "C:\\Users\\DELL\\.nuget\\packages\\",
-        "outputPath": "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Security\\obj\\",
+        "outputPath": "d:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Security\\obj\\",
         "projectStyle": "PackageReference",
         "fallbackFolders": [
           "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
@@ -389,8 +389,8 @@
           "net10.0": {
             "targetAlias": "net10.0",
             "projectReferences": {
-              "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Data\\Nexus.Data.csproj": {
-                "projectPath": "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Data\\Nexus.Data.csproj"
+              "d:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Data\\Nexus.Data.csproj": {
+                "projectPath": "d:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Data\\Nexus.Data.csproj"
               }
             }
           }

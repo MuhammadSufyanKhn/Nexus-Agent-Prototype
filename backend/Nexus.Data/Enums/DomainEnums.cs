@@ -70,3 +70,52 @@ public enum OnboardingTaskStatus
     Completed = 3,
     Failed = 4
 }
+
+// ── Leave Management ──────────────────────────────────────────────────────────
+public enum LeaveType
+{
+    Sick = 1,
+    PTO = 2,
+    Vacation = 3,
+    Maternity = 4,
+    Paternity = 5,
+    Emergency = 6,
+    Unpaid = 7,
+    Other = 8
+}
+
+public enum LeaveStatus
+{
+    Pending = 1,
+    Approved = 2,
+    Rejected = 3,
+    Cancelled = 4
+}
+
+// ── Offboarding ──────────────────────────────────────────────────────────────
+public enum OffboardType
+{
+    Offboard = 1,
+    Terminate = 2,
+    ExitClearance = 3,
+    CancelOnboarding = 4,
+    Resign = 5
+}
+
+// ── Payroll ──────────────────────────────────────────────────────────────────
+public enum PayrollActionType
+{
+    Hold = 1,
+    Resume = 2,
+    BulkBonus = 3,
+    IndividualBonus = 4,
+    BulkConvert = 5,
+    Sync = 6
+}
+
+public enum BudgetFreezeStatus
+{
+    Active = 1,
+    Frozen = 2,
+    Lifted = 3
+}

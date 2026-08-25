@@ -48,6 +48,25 @@ public enum IntentType
     SECURITY_TEST = 29,      // vulnerability check, connection audit, access review
     EXECUTE_AUTOMATION = 30, // trigger n8n flow, Zapier webhook, SQL stored procedure
 
+    // ── Enterprise Workflow Intents ──────────────────────────────────────────
+    EMPLOYEE_TRANSFER = 31,           // transfer employee to dept/manager/location
+    EMPLOYEE_PROMOTE = 32,            // promote employee to role/title
+    EMPLOYEE_OFFBOARD = 33,           // offboard/terminate employee
+    EMPLOYEE_CANCEL_ONBOARDING = 34,  // cancel onboarding
+    LEAVE_CREATE = 35,                // log sick day, PTO, vacation
+    LEAVE_APPROVE = 36,               // approve leave request
+    PAYROLL_HOLD = 37,                // hold payroll for division/dept
+    PAYROLL_BONUS = 38,               // bulk bonus distribution
+    BUDGET_REALLOCATE = 39,           // transfer budget between departments
+    BUDGET_FREEZE = 40,               // freeze budget allocations
+    SLACK_NOTIFY = 41,                // notify team on Slack
+    SAP_SYNC = 42,                    // sync with SAP HCM
+    BULK_EMPLOYEE_UPDATE = 43,        // bulk title/role change
+    BULK_PAYROLL = 44,                // bulk contractor conversion / currency update
+    EXPENSE_APPROVE = 45,             // approve expense claim
+    POLICY_DISTRIBUTE = 46,           // broadcast policy update to staff
+    MULTI_STEP_WORKFLOW = 47,         // sequential workflow (e.g. sick leave + slack)
+
     // ── SQL Agent passthrough ─────────────────────────────────────────────────
     SQL_AGENT = 8,
 
@@ -127,6 +146,21 @@ public class ParsedIntentResult
                 "UPDATE_EMPLOYEE" or "MODIFY_EMPLOYEE" or "SET_EMPLOYEE_SALARY" or "UPDATE_EMPLOYEE_SALARY" => "EMPLOYEE_UPDATE",
                 "DELETE_EMPLOYEE" or "REMOVE_EMPLOYEE" or "FIRE_EMPLOYEE" => "EMPLOYEE_DELETE",
                 "ONBOARD_EMPLOYEE" or "EMPLOYEE_JOINING" => "EMPLOYEE_ONBOARDING",
+
+                "TRANSFER_EMPLOYEE" or "EMPLOYEE_TRANSFER" or "MOVE_EMPLOYEE" => "EMPLOYEE_TRANSFER",
+                "PROMOTE_EMPLOYEE" or "EMPLOYEE_PROMOTE" or "PROMOTION" => "EMPLOYEE_PROMOTE",
+                "OFFBOARD_EMPLOYEE" or "TERMINATE_EMPLOYEE" or "EXIT_CLEARANCE" => "EMPLOYEE_OFFBOARD",
+                "CANCEL_ONBOARDING" or "CANCEL_ONBOARD" => "EMPLOYEE_CANCEL_ONBOARDING",
+                "LOG_LEAVE" or "SICK_DAY" or "SICK_LEAVE" or "PTO_REQUEST" or "LEAVE_CREATE" => "LEAVE_CREATE",
+                "APPROVE_LEAVE" or "LEAVE_APPROVE" => "LEAVE_APPROVE",
+                "HOLD_PAYROLL" or "PAYROLL_HOLD" => "PAYROLL_HOLD",
+                "BULK_BONUS" or "DISTRIBUTE_BONUS" or "PAYROLL_BONUS" => "PAYROLL_BONUS",
+                "REALLOCATE_BUDGET" or "BUDGET_REALLOCATE" or "TRANSFER_BUDGET" => "BUDGET_REALLOCATE",
+                "FREEZE_BUDGET" or "BUDGET_FREEZE" => "BUDGET_FREEZE",
+                "SLACK_NOTIFY" or "NOTIFY_SLACK" or "SEND_SLACK" => "SLACK_NOTIFY",
+                "SAP_SYNC" or "SYNC_SAP" => "SAP_SYNC",
+                "BULK_UPDATE_EMPLOYEE" or "BULK_EMPLOYEE_UPDATE" => "BULK_EMPLOYEE_UPDATE",
+                "MULTI_STEP_WORKFLOW" or "COMPOSITE_WORKFLOW" => "MULTI_STEP_WORKFLOW",
 
                 // ── Spec-aligned salary update ────────────────────────────────────
                 "UPDATE_SALARY" or "SALARY_UPDATE" or "PAY_RAISE" or "SALARY_ADJUSTMENT"

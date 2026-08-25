@@ -72,9 +72,12 @@ Launch the React Command Center at `http://localhost:3000` and use the quick pro
 
 ## 📑 Documentation Index
 
-- 📘 [**SETUP_GUIDE.md**](file:///d:/.NET%20PROJECTS/NEXUS%20AGENT%20LITE/SETUP_GUIDE.md): Complete installation, database seeding, Python Playwright setup, and local LLM configuration instructions.
-- 🎬 [**DEMO_GUIDE.md**](file:///d:/.NET%20PROJECTS/NEXUS%20AGENT%20LITE/DEMO_GUIDE.md): Step-by-step hackathon presentation guide walking through Demos 1 through 5.
-- 🏗️ [**ARCHITECTURE.md**](file:///d:/.NET%20PROJECTS/NEXUS%20AGENT%20LITE/ARCHITECTURE.md): System architecture specification, security model, risk engine matrix, and tool registry reference.
+- 📘 [**SETUP_GUIDE.md**](file:///d:/.NET%20PROJECTS/NEXUS%20AGENT%20LITE/docs/SETUP_GUIDE.md): Complete installation, database seeding, Python Playwright setup, and local LLM configuration instructions.
+- 🎬 [**DEMO_GUIDE.md**](file:///d:/.NET%20PROJECTS/NEXUS%20AGENT%20LITE/docs/DEMO_GUIDE.md): Step-by-step hackathon presentation guide walking through Demos 1 through 5.
+- 🏗️ [**ARCHITECTURE.md**](file:///d:/.NET%20PROJECTS/NEXUS%20AGENT%20LITE/docs/ARCHITECTURE.md): System architecture specification, security model, risk engine matrix, and tool registry reference.
+- ⚙️ [**AUTOMATION.md**](file:///d:/.NET%20PROJECTS/NEXUS%20AGENT%20LITE/docs/AUTOMATION.md): Multi-system Python automation service architecture and webhook integration.
+- 🤖 [**AI_INFRASTRUCTURE.md**](file:///d:/.NET%20PROJECTS/NEXUS%20AGENT%20LITE/docs/AI_INFRASTRUCTURE.md): AI models, local Ollama integration, and prompt engineering specifications.
+- 📋 [**POLICIES.md**](file:///d:/.NET%20PROJECTS/NEXUS%20AGENT%20LITE/docs/POLICIES.md): HR compliance policy rules and governance guidelines.
 
 ---
 
@@ -84,4 +87,4 @@ Launch the React Command Center at `http://localhost:3000` and use the quick pro
 cd backend
 dotnet test Nexus.Tests/Nexus.Tests.csproj
 ```
-**Test Results:** `Passed! - Failed: 0, Passed: 71, Skipped: 0, Total: 71` across all 71 unit, integration, RBAC, SQL sandbox, failure handling, and end-to-end demo tests.
+**Test Results:** `Passed! - Failed: 0, Passed: 73, Skipped: 0, Total: 73` across all 73 unit, integration, RBAC, SQL sandbox, failure handling, and end-to-end demo tests.

@@ -71,6 +71,9 @@ builder.Services.AddSingleton<Nexus.Tools.Automation.IPythonAutomationService, N
 // Register SAP Subsystem (Mock SAP Connector)
 builder.Services.AddScoped<Nexus.Tools.Sap.ISapConnector, Nexus.Tools.Sap.MockSapConnector>();
 
+// Register Gemini Function Calling Service
+builder.Services.AddHttpClient<Nexus.Agent.LLM.GeminiFunctionCallingService>();
+
 // Register Tool Subsystem
 builder.Services.AddScoped<EmployeeCreateTool>();
 builder.Services.AddScoped<EmployeeReadTool>();
@@ -86,11 +89,20 @@ builder.Services.AddScoped<WelcomeEmailTool>();
 builder.Services.AddScoped<CreateTicketTool>();
 builder.Services.AddScoped<BrowserAutomationTool>();
 builder.Services.AddScoped<MockSapTool>();
-// New CRUD Tools
+// CRUD Tools
 builder.Services.AddScoped<PolicyCrudTool>();
 builder.Services.AddScoped<DepartmentCrudTool>();
 builder.Services.AddScoped<BudgetUpdateTool>();
 builder.Services.AddScoped<CvAnalysisTool>();
+// Enterprise Workflow Tools
+builder.Services.AddScoped<EmployeeTransferTool>();
+builder.Services.AddScoped<EmployeeOffboardTool>();
+builder.Services.AddScoped<LeaveTool>();
+builder.Services.AddScoped<SlackNotifyTool>();
+builder.Services.AddScoped<BudgetReallocateTool>();
+builder.Services.AddScoped<BudgetFreezeTool>();
+builder.Services.AddScoped<PayrollActionTool>();
+builder.Services.AddScoped<BulkEmployeeUpdateTool>();
 
 builder.Services.AddScoped<IToolRegistry>(sp =>
 {
@@ -109,11 +121,19 @@ builder.Services.AddScoped<IToolRegistry>(sp =>
     registry.RegisterTool(sp.GetRequiredService<CreateTicketTool>());
     registry.RegisterTool(sp.GetRequiredService<BrowserAutomationTool>());
     registry.RegisterTool(sp.GetRequiredService<MockSapTool>());
-    // New CRUD tools
     registry.RegisterTool(sp.GetRequiredService<PolicyCrudTool>());
     registry.RegisterTool(sp.GetRequiredService<DepartmentCrudTool>());
     registry.RegisterTool(sp.GetRequiredService<BudgetUpdateTool>());
     registry.RegisterTool(sp.GetRequiredService<CvAnalysisTool>());
+    // Enterprise Workflow Tools
+    registry.RegisterTool(sp.GetRequiredService<EmployeeTransferTool>());
+    registry.RegisterTool(sp.GetRequiredService<EmployeeOffboardTool>());
+    registry.RegisterTool(sp.GetRequiredService<LeaveTool>());
+    registry.RegisterTool(sp.GetRequiredService<SlackNotifyTool>());
+    registry.RegisterTool(sp.GetRequiredService<BudgetReallocateTool>());
+    registry.RegisterTool(sp.GetRequiredService<BudgetFreezeTool>());
+    registry.RegisterTool(sp.GetRequiredService<PayrollActionTool>());
+    registry.RegisterTool(sp.GetRequiredService<BulkEmployeeUpdateTool>());
     return registry;
 });
 
@@ -153,10 +173,82 @@ using (var scope = app.Services.CreateScope())
     {
         var db = scope.ServiceProvider.GetRequiredService<NexusDbContext>();
         db.Database.EnsureCreated();
+
+        var sql = @"
+            IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Employees') AND name = 'Location')
+                ALTER TABLE Employees ADD Location NVARCHAR(255) NULL;
+            IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Employees') AND name = 'ManagerName')
+                ALTER TABLE Employees ADD ManagerName NVARCHAR(255) NULL;
+            IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Employees') AND name = 'StartDate')
+                ALTER TABLE Employees ADD StartDate DATETIME2 NULL;
+
+            IF EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Employees') AND name = 'UpdatedAt')
+            BEGIN
+                IF NOT EXISTS (SELECT * FROM sys.default_constraints WHERE parent_object_id = OBJECT_ID('Employees') AND name = 'DF_Employees_UpdatedAt')
+                    ALTER TABLE Employees ADD CONSTRAINT DF_Employees_UpdatedAt DEFAULT GETUTCDATE() FOR UpdatedAt;
+            END;
+
+            IF EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Employees') AND name = 'CreatedAt')
+            BEGIN
+                IF NOT EXISTS (SELECT * FROM sys.default_constraints WHERE parent_object_id = OBJECT_ID('Employees') AND name = 'DF_Employees_CreatedAt')
+                    ALTER TABLE Employees ADD CONSTRAINT DF_Employees_CreatedAt DEFAULT GETUTCDATE() FOR CreatedAt;
+            END;
+
+            IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Budgets') AND name = 'IsFrozen')
+                ALTER TABLE Budgets ADD IsFrozen BIT NOT NULL DEFAULT 0;
+            IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Budgets') AND name = 'FreezeReason')
+                ALTER TABLE Budgets ADD FreezeReason NVARCHAR(500) NULL;
+            IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Budgets') AND name = 'FrozenAt')
+                ALTER TABLE Budgets ADD FrozenAt DATETIME2 NULL;
+
+            IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'Leaves')
+            BEGIN
+                CREATE TABLE Leaves (
+                    Id INT IDENTITY(1,1) PRIMARY KEY,
+                    EmployeeId INT NOT NULL FOREIGN KEY REFERENCES Employees(Id) ON DELETE CASCADE,
+                    LeaveType INT NOT NULL,
+                    StartDate DATETIME2 NOT NULL,
+                    EndDate DATETIME2 NOT NULL,
+                    Status INT NOT NULL DEFAULT 1,
+                    Reason NVARCHAR(500) NULL,
+                    Notes NVARCHAR(500) NULL,
+                    ApprovedBy NVARCHAR(255) NULL,
+                    CreatedAt DATETIME2 NOT NULL DEFAULT GETUTCDATE()
+                );
+            END;
+        ";
+        db.Database.ExecuteSqlRaw(sql);
+
+        // Auto-reseed defaults if database tables were purged
+        if (!db.Departments.Any())
+        {
+            db.Departments.AddRange(
+                new Nexus.Data.Entities.Department { Name = "IT", Description = "Information Technology and Systems Software Development" },
+                new Nexus.Data.Entities.Department { Name = "HR", Description = "Human Resources & Talent Management" },
+                new Nexus.Data.Entities.Department { Name = "Marketing", Description = "Brand Strategy, Growth & Digital Marketing" },
+                new Nexus.Data.Entities.Department { Name = "Operations", Description = "Business Operations, Logistics & Maintenance" }
+            );
+            db.SaveChanges();
+        }
+
+        if (!db.Employees.Any())
+        {
+            var itDept = db.Departments.FirstOrDefault(d => d.Name == "IT") ?? db.Departments.First();
+            var hrDept = db.Departments.FirstOrDefault(d => d.Name == "HR") ?? db.Departments.First();
+            var opsDept = db.Departments.FirstOrDefault(d => d.Name == "Operations") ?? db.Departments.First();
+
+            db.Employees.AddRange(
+                new Nexus.Data.Entities.Employee { Name = "Tariq Mahmood", Email = "tariq.mahmood@nexus.local", DepartmentId = itDept.Id, Designation = "Senior .NET Developer", Salary = 75000.00m, ExperienceYears = 5, Status = Nexus.Data.Enums.EmployeeStatus.Active, CreatedAt = DateTime.UtcNow },
+                new Nexus.Data.Entities.Employee { Name = "Sarah Jenkins", Email = "sarah.jenkins@nexus.local", DepartmentId = itDept.Id, Designation = "Lead IT Architect", Salary = 95000.00m, ExperienceYears = 8, Status = Nexus.Data.Enums.EmployeeStatus.Active, CreatedAt = DateTime.UtcNow },
+                new Nexus.Data.Entities.Employee { Name = "Maria Garcia", Email = "maria.garcia@nexus.local", DepartmentId = hrDept.Id, Designation = "HR Specialist", Salary = 65000.00m, ExperienceYears = 4, Status = Nexus.Data.Enums.EmployeeStatus.Active, CreatedAt = DateTime.UtcNow },
+                new Nexus.Data.Entities.Employee { Name = "Bilal Ahmed", Email = "bilal.ahmed@nexus.local", DepartmentId = opsDept.Id, Designation = "Operations Lead", Salary = 70000.00m, ExperienceYears = 6, Status = Nexus.Data.Enums.EmployeeStatus.Active, CreatedAt = DateTime.UtcNow }
+            );
+            db.SaveChanges();
+        }
     }
     catch (Exception ex)
     {
-        app.Logger.LogWarning(ex, "Database initial connection warning: EnsureCreated skipped or failed.");
+        app.Logger.LogWarning(ex, "Database initial connection warning: Schema sync skipped or failed.");
     }
 }
 
