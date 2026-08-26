@@ -27,6 +27,8 @@ public class WelcomeEmailTool : IAgentTool
           ""type"": ""object"",
           ""properties"": {
             ""name"": { ""type"": ""string"" },
+            ""email"": { ""type"": ""string"" },
+            ""recipient_email"": { ""type"": ""string"" },
             ""designation"": { ""type"": ""string"" },
             ""department"": { ""type"": ""string"" }
           }

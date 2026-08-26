@@ -65,6 +65,9 @@ else
 }
 builder.Services.AddScoped<IIntentParser, IntentParser>();
 
+// Register Document Generation Subsystem
+builder.Services.AddScoped<IDocumentService, PdfDocumentService>();
+
 // Register Python Automation Subsystem
 builder.Services.AddSingleton<Nexus.Tools.Automation.IPythonAutomationService, Nexus.Tools.Automation.PythonAutomationService>();
 
@@ -103,6 +106,10 @@ builder.Services.AddScoped<BudgetReallocateTool>();
 builder.Services.AddScoped<BudgetFreezeTool>();
 builder.Services.AddScoped<PayrollActionTool>();
 builder.Services.AddScoped<BulkEmployeeUpdateTool>();
+// Document & Onboarding/Offboarding/Orientation Tools
+builder.Services.AddScoped<OnboardingPrepareTool>();
+builder.Services.AddScoped<OffboardingInitiateTool>();
+builder.Services.AddScoped<OrientationScheduleTool>();
 
 builder.Services.AddScoped<IToolRegistry>(sp =>
 {
@@ -134,6 +141,10 @@ builder.Services.AddScoped<IToolRegistry>(sp =>
     registry.RegisterTool(sp.GetRequiredService<BudgetFreezeTool>());
     registry.RegisterTool(sp.GetRequiredService<PayrollActionTool>());
     registry.RegisterTool(sp.GetRequiredService<BulkEmployeeUpdateTool>());
+    // Document & Onboarding/Offboarding/Orientation Tools
+    registry.RegisterTool(sp.GetRequiredService<OnboardingPrepareTool>());
+    registry.RegisterTool(sp.GetRequiredService<OffboardingInitiateTool>());
+    registry.RegisterTool(sp.GetRequiredService<OrientationScheduleTool>());
     return registry;
 });
 

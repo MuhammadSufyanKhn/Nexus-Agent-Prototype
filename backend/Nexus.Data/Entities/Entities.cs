@@ -196,3 +196,17 @@ public class Leave
 
     public Employee? Employee { get; set; }
 }
+
+public class GeneratedDocument
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString("N");
+    public string DocumentType { get; set; } = string.Empty; // ONBOARDING_PACKAGE, OFFBOARDING_PACKAGE, ORIENTATION_SCHEDULE
+    public string Title { get; set; } = string.Empty;
+    public string FilePath { get; set; } = string.Empty;
+    public string ContentHtml { get; set; } = string.Empty;
+    public int? EmployeeId { get; set; }
+    public string EmployeeName { get; set; } = string.Empty;
+    public string DepartmentName { get; set; } = string.Empty;
+    public Guid? AgentRunId { get; set; }
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+}

@@ -147,23 +147,33 @@ public class EmployeeCreateTool : IAgentTool
             ?? context.GetArgument<string>("candidateName")
             ?? context.GetArgument<string>("candidate");
 
-        if (!string.IsNullOrWhiteSpace(name)) return name.Trim();
+        if (!string.IsNullOrWhiteSpace(name) && !name.Equals("In It", StringComparison.OrdinalIgnoreCase) && !name.Equals("IT", StringComparison.OrdinalIgnoreCase)) return name.Trim();
 
         var prompt = context.GetArgument<string>("prompt") ?? context.GetArgument<string>("question") ?? string.Empty;
         if (!string.IsNullOrWhiteSpace(prompt))
         {
-            var knownNames = new[] { "Ahmed Khan", "Sufyan Khan", "Tariq Mahmood", "Sarah Jenkins", "Maria Garcia", "Ali", "Sara", "Ahmed" };
+            var knownNames = new[] { "John Smith", "Jane Doe", "Michael Johnson", "David Lee", "Robert Chen", "Sarah Jenkins", "Tariq Mahmood", "Maria Garcia", "Ahmed Khan", "Sufyan Khan", "Alex", "Amanda", "Sarah", "Jim", "Pam", "Marcus", "Ali", "Sara", "Ahmed" };
             foreach (var kn in knownNames)
             {
                 if (Regex.IsMatch(prompt, $@"\b{kn}\b", RegexOptions.IgnoreCase))
                     return kn;
             }
 
+            // Match capitalized full name (e.g. "John Smith", "David Lee")
+            var capNameMatch = Regex.Match(prompt, @"\b([A-Z][a-z]+\s+[A-Z][a-z]+)\b");
+            if (capNameMatch.Success)
+            {
+                var candidate = capNameMatch.Groups[1].Value.Trim();
+                var lower = candidate.ToLowerInvariant();
+                if (!lower.Contains("department") && !lower.Contains("office") && !lower.Contains("branch") && !lower.Contains("team"))
+                    return candidate;
+            }
+
             var namePatterns = new[]
             {
-                @"\b(?:add\s+employee|create\s+employee|onboard\s+employee|onboard|hire)\s+(?:named\s+|name\s+)?([A-Za-z]+(?:\s+[A-Za-z]+)?)\b",
-                @"\bemployee\s+([A-Za-z]+(?:\s+[A-Za-z]+)?)\b",
-                @"\bname\s+(?:is\s+)?([A-Za-z]+(?:\s+[A-Za-z]+)?)\b"
+                @"\b(?:add\s+employee|create\s+employee|onboard\s+employee|onboard|hire)\s+(?:named\s+|name\s+)?([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\b",
+                @"\bemployee\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\b",
+                @"\bname\s+(?:is\s+)?([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\b"
             };
 
             var fillerWords = new HashSet<string>(StringComparer.OrdinalIgnoreCase)

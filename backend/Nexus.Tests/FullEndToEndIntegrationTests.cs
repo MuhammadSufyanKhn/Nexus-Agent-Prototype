@@ -232,6 +232,60 @@ public class FullEndToEndIntegrationTests
         Assert.Equal(82500.00m, tariqAfter!.Salary);
     }
 
+    [Fact]
+    public async Task Onboarding_Triggers_Exactly_One_Welcome_Email()
+    {
+        using var db = GetInMemoryDbContext("SingleEmailTestDb");
+        var mockLlm = new MockLLMService(new ParsedIntentResult
+        {
+            Intent = "EMPLOYEE_ONBOARDING",
+            Entities = new Dictionary<string, string>
+            {
+                { "name", "Sara Miller" },
+                { "department", "IT" },
+                { "designation", "Software Engineer" },
+                { "email", "sara.miller@nexus.local" }
+            },
+            Confidence = 0.95
+        });
+        var registry = CreateFullToolRegistry(db, mockLlm);
+        var intentParser = new IntentParser(mockLlm, NullLogger<IntentParser>.Instance);
+        var broadcaster = new AgentEventBroadcaster(NullLogger<AgentEventBroadcaster>.Instance);
+
+        var orchestrator = new AgentOrchestrator(
+            intentParser,
+            registry,
+            db,
+            NullLogger<AgentOrchestrator>.Instance,
+            new RiskEngine(),
+            new PermissionService(),
+            broadcaster);
+
+        var prompt = "Onboard Sara Miller as Software Engineer in IT department with email sara.miller@nexus.local.";
+        var result = await orchestrator.ExecuteAsync(prompt, userId: 1, userRole: "Admin");
+
+        Assert.NotNull(result);
+        Assert.True(result.RequiresApproval);
+
+        var pendingApproval = await db.Approvals.FirstOrDefaultAsync(a => a.AgentRunId == result.RunId);
+        Assert.NotNull(pendingApproval);
+
+        var approvalController = new ApprovalController(db, orchestrator);
+        await approvalController.DecideApproval(new ApprovalDecisionRequest
+        {
+            ApprovalId = pendingApproval!.Id,
+            Approved = true,
+            ApprovedBy = "Executive Admin"
+        });
+
+        // Verify that exactly 1 email.welcome action was logged for this run
+        var emailActions = await db.AgentActions
+            .Where(a => a.AgentRunId == result.RunId && a.ToolName == "email.welcome")
+            .ToListAsync();
+
+        Assert.Single(emailActions);
+    }
+
     private class MockLLMService : ILLMService
     {
         private readonly object? _responseObject;

@@ -475,6 +475,43 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
           <CheckCircle2 className="w-5 h-5 text-emerald-500 ml-auto shrink-0" />
         </div>
 
+        {/* Interactive PDF Document Widget */}
+        {(data?.documentId || data?.downloadUrl) && (
+          <div className="p-4 bg-slate-900 text-white rounded-xl border border-slate-800 space-y-3 shadow-md">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+              <div className="flex items-center gap-2">
+                <FileText className="w-5 h-5 text-indigo-400" />
+                <span className="font-bold text-xs tracking-wide text-indigo-200">
+                  {data?.documentTitle ?? 'Generated HR Document Packet'}
+                </span>
+              </div>
+              <span className="text-[10px] bg-indigo-900 text-indigo-300 px-2 py-0.5 rounded font-mono border border-indigo-700">
+                PDF READY
+              </span>
+            </div>
+            <p className="text-xs text-slate-300">
+              Official HR document packet compiled and signed via Nexus Document Subsystem.
+            </p>
+            <div className="flex items-center gap-3 pt-1">
+              <a
+                href={data.previewUrl ?? `/api/documents/${data.documentId}/preview`}
+                target="_blank"
+                rel="noreferrer"
+                className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-xs"
+              >
+                Preview Document
+              </a>
+              <a
+                href={data.downloadUrl ?? `/api/documents/${data.documentId}/download`}
+                download
+                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-xs"
+              >
+                Download PDF
+              </a>
+            </div>
+          </div>
+        )}
+
         {/* Array results (e.g. policy list, employee list) */}
         {(data?.policies || data?.employees || data?.departments || data?.budgets) && (
           <div className="space-y-2">

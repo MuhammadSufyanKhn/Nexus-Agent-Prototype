@@ -1781,11 +1781,11 @@
         "net10.0": {
           "targetAlias": "net10.0",
           "projectReferences": {
-            "d:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Data\\Nexus.Data.csproj": {
-              "projectPath": "d:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Data\\Nexus.Data.csproj"
+            "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Data\\Nexus.Data.csproj": {
+              "projectPath": "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Data\\Nexus.Data.csproj"
             },
-            "d:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Security\\Nexus.Security.csproj": {
-              "projectPath": "d:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Security\\Nexus.Security.csproj"
+            "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Security\\Nexus.Security.csproj": {
+              "projectPath": "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Security\\Nexus.Security.csproj"
             }
           }
         }

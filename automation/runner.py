@@ -22,7 +22,36 @@ def sanitize_json(raw: str) -> dict:
     try:
         return json.loads(raw)
     except Exception:
-        return {}
+        pass
+
+    try:
+        import ast
+        val = ast.literal_eval(raw)
+        if isinstance(val, dict):
+            return val
+    except Exception:
+        pass
+
+    import re
+    try:
+        clean = raw.strip("{}")
+        res = {}
+        items = re.findall(r'([a-zA-Z0-9_]+)\s*:\s*([^,{}]+)', clean)
+        for k, v in items:
+            val_str = v.strip().strip('"\'')
+            res[k.strip()] = val_str
+        if res:
+            return res
+    except Exception:
+        pass
+
+    try:
+        fixed = re.sub(r'([{,]\s*)([a-zA-Z0-9_]+)\s*:', r'\1"\2":', raw)
+        return json.loads(fixed)
+    except Exception:
+        pass
+
+    return {}
 
 def main():
     if len(sys.argv) < 2:

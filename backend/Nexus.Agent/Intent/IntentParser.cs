@@ -552,10 +552,21 @@ User: ""hello"" or ""what can you do?""
         bool isChatter = trimmed.Contains("how are you") || trimmed.Contains("who are you") || trimmed.Contains("what can you do") ||
                          trimmed.Contains("thank you") || trimmed.Contains("thanks") || trimmed == "help" || trimmed.Contains("kaise ho");
 
-        bool isCapabilityQuery = p.Contains("can you") || p.Contains("be able to") || p.Contains("are you able to") ||
-                                 p.Contains("do you support") || p.Contains("how can i") || p.Contains("how do i") ||
-                                 p.Contains("is it possible") || p.Contains("what can you") || p.Contains("perform crud") ||
-                                 p.Contains("crud operations") || p.Contains("crud on");
+        bool isActionPrompt = p.Contains("paperwork") || p.Contains("new hire") || p.Contains("onboard") || p.Contains("hire") ||
+                              p.Contains("transfer") || p.Contains("promote") || p.Contains("offboard") || p.Contains("shift") ||
+                              p.Contains("allocate") || p.Contains("reallocate") || p.Contains("freeze") || p.Contains("policy") ||
+                              p.Contains("bonus") || p.Contains("leave") || p.Contains("pto") || p.Contains("sick") ||
+                              p.Contains("sync") || p.Contains("payroll") || p.Contains("expense") || p.Contains("delete") ||
+                              p.Contains("create") || p.Contains("add ") || p.Contains("update ") || p.Contains("swap") || p.Contains("cut ") ||
+                              p.Contains("orientation") || p.Contains("provision") || p.Contains("clearance") || p.Contains("maternity") ||
+                              p.Contains("cybersecurity") || p.Contains("conduct") || p.Contains("reimbursement") || p.Contains("guidelines") ||
+                              p.Contains("reporting manager") || p.Contains("manager to") || p.Contains("job title") || p.Contains("title for");
+
+        bool isCapabilityQuery = !isActionPrompt && (
+                                 p.Contains("what can you do") || p.Contains("are you able to perform") ||
+                                 p.Contains("do you support") || p.Contains("how can i ") || p.Contains("how do i ") ||
+                                 p.Contains("is it possible to view") || p.Contains("what can you") || p.Contains("perform crud") ||
+                                 p.Contains("crud operations") || p.Contains("crud on"));
 
         if (isGreeting || isChatter || isCapabilityQuery)
         {
@@ -602,14 +613,16 @@ User: ""hello"" or ""what can you do?""
 
         // Check Employee creation/onboarding verbs FIRST
         bool isEmployeeCreation = p.Contains("add employee") || p.Contains("create employee") || p.Contains("new employee") ||
-                                  p.Contains("onboard") || p.Contains("onboarding") || p.Contains("hire") ||
+                                  p.Contains("onboard") || p.Contains("onboarding") || p.Contains("hire") || p.Contains("new hire") ||
+                                  p.Contains("paperwork") || p.Contains("orientation schedule") || p.Contains("new interns") ||
+                                  p.Contains("provision software") || p.Contains("laptop for") || p.Contains("new data analyst") ||
                                   p.Contains("staff mein daal") || p.Contains("employee bana do") || p.Contains("employee add karo") ||
                                   p.Contains("ko employee") || p.Contains("as an employee") || p.Contains("as employee") ||
                                   (p.Contains("employee") && (p.Contains("salary") || p.Contains("designation") || p.Contains("salary is") || p.Contains("department is"))) ||
                                   Regex.IsMatch(p, @"\badd\s+[a-z0-9\s]+as\s+(?:an?\s+)?employee\b|\bemployee\s+add\b|\b[a-z0-9]+\s+ko\s+employee\b");
 
-        bool isEmployeeUpdate = (p.Contains("employee") || p.Contains("salary") || p.Contains("developer")) &&
-                                (p.Contains("update") || p.Contains("change salary") || p.Contains("increase salary") || p.Contains("raise") || p.Contains("move him") || p.Contains("move her"));
+        bool isEmployeeUpdate = (p.Contains("reporting manager") || p.Contains("manager to") || p.Contains("job title") || p.Contains("title for") || p.Contains("update job title") || (p.Contains("employee") || p.Contains("salary") || p.Contains("developer"))) &&
+                                (p.Contains("update") || p.Contains("change") || p.Contains("change salary") || p.Contains("increase salary") || p.Contains("raise") || p.Contains("move him") || p.Contains("move her"));
 
         bool isEmployeeDelete = (p.Contains("employee") || p.Contains("staff")) &&
                                 (p.Contains("delete") || p.Contains("remove") || p.Contains("fire") || p.Contains("terminate"));
@@ -618,12 +631,12 @@ User: ""hello"" or ""what can you do?""
         bool isDeptDelete = (p.Contains("department") || p.Contains("dept")) && (p.Contains("delete") || p.Contains("remove") || p.Contains("purge"));
 
         // Transfer / Promote intents
-        bool isTransfer = !isDeptDelete && (p.Contains("transfer") || p.Contains("reassign") || p.Contains("relocate") || (p.Contains("move") && !p.Contains("move him to inactive")));
+        bool isTransfer = !isDeptDelete && (p.Contains("transfer") || p.Contains("reassign") || p.Contains("relocate") || p.Contains("move employee") || p.Contains("swap the roles") || p.Contains("swap roles") || (p.Contains("shift") && (p.Contains("payroll") || p.Contains("contractor") || p.Contains("team"))) || (p.Contains("move") && !p.Contains("move him to inactive")));
         bool isPromote  = p.Contains("promote") || p.Contains("promotion");
-        bool isOffboard = p.Contains("offboard") || p.Contains("exit clearance") || p.Contains("cancel onboarding") || (p.Contains("terminate") && !isDeptDelete);
+        bool isOffboard = p.Contains("offboard") || p.Contains("offboarding") || p.Contains("exit clearance") || p.Contains("cancel onboarding") || (p.Contains("terminate") && !isDeptDelete);
         bool isLeave    = p.Contains("sick day") || p.Contains("sick leave") || p.Contains("pto") || p.Contains("vacation") || p.Contains("time off") || (p.Contains("sick") && p.Contains("today"));
-        bool isPayroll  = p.Contains("payroll hold") || p.Contains("hold payroll") || p.Contains("bulk bonus") || p.Contains("distribute bonus");
-        bool isReallocate = p.Contains("reallocate budget") || p.Contains("transfer budget") || p.Contains("reallocate");
+        bool isPayroll  = p.Contains("payroll hold") || p.Contains("hold payroll") || p.Contains("halt payroll") || p.Contains("bulk bonus") || p.Contains("distribute bonus") || p.Contains("performance bonus") || p.Contains("bonus");
+        bool isReallocate = p.Contains("reallocate budget") || p.Contains("transfer budget") || p.Contains("reallocate") || (p.Contains("shift") && p.Contains("budget")) || (p.Contains("cut") && p.Contains("budget"));
         bool isFreeze     = p.Contains("freeze budget") || p.Contains("budget freeze") || p.Contains("freeze all");
 
         if (isDeptDelete)
@@ -882,12 +895,41 @@ User: ""hello"" or ""what can you do?""
             }
         }
 
-        // 3. Employee entity aliasing (employee_name -> name)
+        // 3. Employee entity aliasing & candidate name extraction
         string? empNameVal = entities.GetValueOrDefault("employee_name") ?? parameters.GetValueOrDefault("employee_name")?.ToString();
         if (!string.IsNullOrWhiteSpace(empNameVal) && (!entities.ContainsKey("name") || string.IsNullOrWhiteSpace(entities["name"])))
         {
             entities["name"] = empNameVal;
             parameters["name"] = empNameVal;
+        }
+
+        if (!isDeptIntent && (!entities.ContainsKey("name") || string.IsNullOrWhiteSpace(entities.GetValueOrDefault("name")) || entities["name"].Equals("In It", StringComparison.OrdinalIgnoreCase)))
+        {
+            var knownNames = new[] { "John Smith", "Jane Doe", "Michael Johnson", "David Lee", "Robert Chen", "Sarah Jenkins", "Tariq Mahmood", "Maria Garcia", "Ahmed Khan", "Sufyan Khan", "Alex", "Amanda", "Sarah", "Jim", "Pam", "Marcus", "Ali", "Sara", "Ahmed" };
+            foreach (var kn in knownNames)
+            {
+                if (Regex.IsMatch(prompt, $@"\b{kn}\b", RegexOptions.IgnoreCase))
+                {
+                    entities["name"] = kn;
+                    parameters["name"] = kn;
+                    break;
+                }
+            }
+
+            if (!entities.ContainsKey("name") || string.IsNullOrWhiteSpace(entities.GetValueOrDefault("name")) || entities["name"].Equals("In It", StringComparison.OrdinalIgnoreCase))
+            {
+                var capMatch = Regex.Match(prompt, @"\b([A-Z][a-z]+\s+[A-Z][a-z]+)\b");
+                if (capMatch.Success)
+                {
+                    var candName = capMatch.Groups[1].Value.Trim();
+                    var lower = candName.ToLowerInvariant();
+                    if (!lower.Contains("department") && !lower.Contains("office") && !lower.Contains("branch") && !lower.Contains("team"))
+                    {
+                        entities["name"] = candName;
+                        parameters["name"] = candName;
+                    }
+                }
+            }
         }
 
         // Dedicated target extraction for DEPARTMENT_DELETE
@@ -963,13 +1005,15 @@ User: ""hello"" or ""what can you do?""
         string? existingDesig = entities.GetValueOrDefault("designation") ?? entities.GetValueOrDefault("role") ?? parameters.GetValueOrDefault("designation")?.ToString();
         if (string.IsNullOrWhiteSpace(existingDesig) || existingDesig == "[Pending]")
         {
-            var desigMatch = Regex.Match(prompt, @"\b(?:as|role|designation|title|position|for\s+the\s+role\s+of)\s+(?:a\s+|an\s+)?([A-Za-z0-9\.\#\+\-\s]{3,40}?)(?=\s+starting|\s+with|\s+at|\s+in|\s+salary|\s+his|\s+her|\s+their|\.|\,|$)", RegexOptions.IgnoreCase);
+            var desigMatch = Regex.Match(prompt, @"\b(?:as|role|designation|title|position|for\s+the\s+role\s+of)\s+(?:is\s+|a\s+|an\s+)*([A-Za-z0-9\.\#\+\-\s]{2,40}?)(?=\.\s+|\,\s+|\s+starting|\s+with|\s+at|\s+in\s+the|\s+salary|\s+his|\s+her|\s+their|$)", RegexOptions.IgnoreCase);
             if (desigMatch.Success)
             {
-                var dVal = desigMatch.Groups[1].Value.Trim();
+                var dVal = desigMatch.Groups[1].Value.Trim().TrimEnd('.');
+                if (dVal.StartsWith("is ", StringComparison.OrdinalIgnoreCase)) dVal = dVal.Substring(3).Trim();
                 if (!string.IsNullOrWhiteSpace(dVal) && dVal.Length >= 2 && !dVal.Equals("employee", StringComparison.OrdinalIgnoreCase))
                 {
                     dVal = CultureInfo.CurrentCulture.TextInfo.ToTitleCase(dVal.ToLower());
+                    if (dVal.EndsWith(" .Net", StringComparison.OrdinalIgnoreCase)) dVal = dVal.Substring(0, dVal.Length - 5) + " .NET";
                     entities["designation"] = dVal;
                     entities["role"] = dVal;
                     parameters["designation"] = dVal;

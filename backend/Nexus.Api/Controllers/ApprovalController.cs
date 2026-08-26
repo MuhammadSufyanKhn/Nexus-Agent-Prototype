@@ -18,8 +18,10 @@ using Nexus.Data.Entities;
 using Nexus.Data.Enums;
 using Nexus.Data.LLM;
 using Nexus.Data.Services;
+using Nexus.Tools.Automation;
 using Nexus.Tools.Core;
 using Nexus.Tools.Implementations;
+using Nexus.Tools.Sap;
 
 namespace Nexus.Api.Controllers;
 
@@ -120,7 +122,14 @@ public class ApprovalController : ControllerBase
     {
         var empService = new EmployeeService(db);
 
+        var docService = new PdfDocumentService(db);
+        var pythonService = new PythonAutomationService(NullLogger<PythonAutomationService>.Instance);
+        var sapConnector = new MockSapConnector(NullLogger<MockSapConnector>.Instance);
         var registry = new ToolRegistry();
+        registry.RegisterTool(new WelcomeEmailTool(pythonService, NullLogger<WelcomeEmailTool>.Instance));
+        registry.RegisterTool(new CreateTicketTool(pythonService, NullLogger<CreateTicketTool>.Instance));
+        registry.RegisterTool(new BrowserAutomationTool(pythonService, NullLogger<BrowserAutomationTool>.Instance));
+        registry.RegisterTool(new MockSapTool(sapConnector, NullLogger<MockSapTool>.Instance));
         registry.RegisterTool(new EmployeeCreateTool(empService));
         registry.RegisterTool(new EmployeeReadTool(empService));
         registry.RegisterTool(new EmployeeUpdateTool(empService));
@@ -136,6 +145,9 @@ public class ApprovalController : ControllerBase
         registry.RegisterTool(new BudgetFreezeTool(db, NullLogger<BudgetFreezeTool>.Instance));
         registry.RegisterTool(new PayrollActionTool(db, NullLogger<PayrollActionTool>.Instance));
         registry.RegisterTool(new BulkEmployeeUpdateTool(db, NullLogger<BulkEmployeeUpdateTool>.Instance));
+        registry.RegisterTool(new OnboardingPrepareTool(docService, db));
+        registry.RegisterTool(new OffboardingInitiateTool(docService, db));
+        registry.RegisterTool(new OrientationScheduleTool(docService, db));
 
         var llm = new LocalLLMService(new HttpClient(), Options.Create(new LLMOptions()), NullLogger<LocalLLMService>.Instance);
         var intentParser = new IntentParser(llm, NullLogger<IntentParser>.Instance);

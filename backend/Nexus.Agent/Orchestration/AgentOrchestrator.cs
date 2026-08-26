@@ -593,6 +593,7 @@ public class AgentOrchestrator : IAgentOrchestrator
         }
 
         bool executedAnyTool = false;
+        bool executedWelcomeEmail = false;
 
         // 2. Execute plan steps via ToolRegistry
         if (actionPlan?.Steps != null && actionPlan.Steps.Count > 0)
@@ -605,25 +606,49 @@ public class AgentOrchestrator : IAgentOrchestrator
                     feed.Add(AgentEvent.Create(AgentEventType.TOOL_STARTED, $"Executing step {step.StepNumber}: {step.ToolName} ({step.Description})"));
                     await _broadcaster.BroadcastEventAsync(Nexus.Data.Events.AgentActivityEvent.Create(runId, step.StepNumber, "STEP_STARTED", $"Executing {step.ToolName}"), cancellationToken);
 
+                    var jsonArgs = JsonSerializer.Serialize(combinedArgs);
                     var toolCtx = new ToolExecutionContext
                     {
                         AgentRunId = runId,
                         UserId = agentRun.UserId,
                         UserRole = "Admin",
-                        ArgumentsJson = JsonSerializer.Serialize(combinedArgs)
+                        ArgumentsJson = jsonArgs
                     };
+
+                    var agentAction = new AgentAction
+                    {
+                        Id = Guid.NewGuid(),
+                        AgentRunId = runId,
+                        ToolName = step.ToolName,
+                        ActionType = step.ToolName,
+                        ArgumentsJson = jsonArgs,
+                        RiskLevel = step.RiskLevel,
+                        Status = AgentActionStatus.Executing,
+                        StartedAt = DateTime.UtcNow
+                    };
+                    _db.AgentActions.Add(agentAction);
 
                     var execRes = await tool.ExecuteAsync(toolCtx);
                     if (execRes.IsSuccess)
                     {
+                        agentAction.Status = AgentActionStatus.Completed;
+                        agentAction.CompletedAt = DateTime.UtcNow;
                         executedAnyTool = true;
+                        if (step.ToolName.Equals("email.welcome", StringComparison.OrdinalIgnoreCase))
+                        {
+                            executedWelcomeEmail = true;
+                        }
                         feed.Add(AgentEvent.Create(AgentEventType.TOOL_COMPLETED, $"Step {step.StepNumber} ({step.ToolName}) completed successfully."));
                         affectedCount++;
                     }
                     else
                     {
+                        agentAction.Status = AgentActionStatus.Failed;
+                        agentAction.ResultJson = execRes.ErrorMessage;
+                        agentAction.CompletedAt = DateTime.UtcNow;
                         feed.Add(AgentEvent.Create(AgentEventType.EXECUTION_FAILED, $"Step {step.StepNumber} ({step.ToolName}) failed: {execRes.ErrorMessage}"));
                     }
+                    await _db.SaveChangesAsync(cancellationToken);
                 }
             }
         }
@@ -658,11 +683,16 @@ public class AgentOrchestrator : IAgentOrchestrator
             var empName = parsedIntent?.Entities?.GetValueOrDefault("name") ?? parsedIntent?.Entities?.GetValueOrDefault("employee_name") ?? "Ali";
             var desig = parsedIntent?.Entities?.GetValueOrDefault("designation") ?? "Developer";
             var deptName = parsedIntent?.Entities?.GetValueOrDefault("department") ?? parsedIntent?.Entities?.GetValueOrDefault("targetDepartment") ?? "IT";
+            string empEmail = parsedIntent?.Entities?.GetValueOrDefault("email")
+                ?? parsedIntent?.Parameters?.GetValueOrDefault("email")?.ToString()
+                ?? $"{empName.ToLower().Replace(" ", ".")}@nexus.local";
+
             decimal salary = 68000.00m;
             if (parsedIntent?.Entities?.TryGetValue("salary", out var sStr) == true && decimal.TryParse(sStr, out var sVal) && sVal > 0)
                 salary = sVal;
 
             var existingEmp = await _db.Employees.FirstOrDefaultAsync(e => e.Name.ToLower() == empName.ToLower(), cancellationToken);
+            var empToUse = existingEmp;
             if (existingEmp == null)
             {
                 var department = await _db.Departments.FirstOrDefaultAsync(d => d.Name.ToLower() == deptName.ToLower() || d.Name.ToLower().Contains(deptName.ToLower()), cancellationToken);
@@ -673,10 +703,10 @@ public class AgentOrchestrator : IAgentOrchestrator
                     await _db.SaveChangesAsync(cancellationToken);
                 }
 
-                var newEmp = new Employee
+                empToUse = new Employee
                 {
                     Name = empName,
-                    Email = $"{empName.ToLower().Replace(" ", ".")}@nexus.local",
+                    Email = empEmail,
                     DepartmentId = department.Id,
                     Designation = desig,
                     Salary = salary,
@@ -685,11 +715,68 @@ public class AgentOrchestrator : IAgentOrchestrator
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow
                 };
-                _db.Employees.Add(newEmp);
+                _db.Employees.Add(empToUse);
                 await _db.SaveChangesAsync(cancellationToken);
                 affectedCount = 1;
             }
-            resultMessage = $"Onboarding completed for {empName} ({desig}, ${salary:N2}) in {deptName} department.";
+
+            // Automatic Welcome Email Delivery Integration (guaranteed single trigger)
+            if (!executedWelcomeEmail)
+            {
+                var emailTool = _toolRegistry.GetTool("email.welcome");
+                if (emailTool != null)
+                {
+                    var toolArgs = new Dictionary<string, object>
+                    {
+                        { "name", empName },
+                        { "email", empToUse?.Email ?? empEmail },
+                        { "designation", desig },
+                        { "department", deptName },
+                        { "employeeId", empToUse?.Id ?? 0 }
+                    };
+                    var jsonArgs = JsonSerializer.Serialize(toolArgs);
+                    var toolCtx = new ToolExecutionContext
+                    {
+                        AgentRunId = runId,
+                        UserId = agentRun.UserId,
+                        UserRole = "Admin",
+                        ArgumentsJson = jsonArgs
+                    };
+
+                    var agentAction = new AgentAction
+                    {
+                        Id = Guid.NewGuid(),
+                        AgentRunId = runId,
+                        ToolName = "email.welcome",
+                        ActionType = "email.welcome",
+                        ArgumentsJson = jsonArgs,
+                        RiskLevel = RiskLevel.Low,
+                        Status = AgentActionStatus.Executing,
+                        StartedAt = DateTime.UtcNow
+                    };
+                    _db.AgentActions.Add(agentAction);
+
+                    var execRes = await emailTool.ExecuteAsync(toolCtx);
+                    if (execRes.IsSuccess)
+                    {
+                        agentAction.Status = AgentActionStatus.Completed;
+                    }
+                    else
+                    {
+                        agentAction.Status = AgentActionStatus.Failed;
+                        agentAction.ResultJson = execRes.ErrorMessage;
+                    }
+                    agentAction.CompletedAt = DateTime.UtcNow;
+                    await _db.SaveChangesAsync(cancellationToken);
+
+                    executedWelcomeEmail = true;
+                }
+
+                feed.Add(AgentEvent.Create(AgentEventType.TOOL_COMPLETED, $"WELCOME_EMAIL_COMPLETED: Welcome email generated & sent to {empToUse?.Email ?? empEmail}."));
+                await _broadcaster.BroadcastEventAsync(Nexus.Data.Events.AgentActivityEvent.Create(runId, 9, "WELCOME_EMAIL_COMPLETED", $"Welcome email sent to {empToUse?.Email ?? empEmail}."), cancellationToken);
+            }
+
+            resultMessage = $"Onboarding completed for {empName} ({desig}, ${salary:N2}) in {deptName} department and welcome email sent to {empToUse?.Email ?? empEmail}.";
         }
         else if (intentType == IntentType.DEPARTMENT_CREATE)
         {
@@ -811,10 +898,23 @@ public class AgentOrchestrator : IAgentOrchestrator
                 break;
 
             case IntentType.EMPLOYEE_ONBOARDING:
-                plan.Steps.Add(new AgentStep { StepNumber = 1, ToolName = "policy.evaluate", Description = "Evaluate HR Policy POL-HR-001 salary band", RiskLevel = RiskLevel.Low });
-                plan.Steps.Add(new AgentStep { StepNumber = 2, ToolName = "employee.create", Description = "Create employee SQL record", RiskLevel = RiskLevel.Medium });
-                plan.Steps.Add(new AgentStep { StepNumber = 3, ToolName = "sap.employee.create", Description = "Provision employee in SAP HCM", RiskLevel = RiskLevel.Medium });
-                plan.Steps.Add(new AgentStep { StepNumber = 4, ToolName = "email.welcome", Description = "Generate welcome email", RiskLevel = RiskLevel.Low });
+                var pLowerOnb = prompt.ToLowerInvariant();
+                if (pLowerOnb.Contains("paperwork") || pLowerOnb.Contains("document") || pLowerOnb.Contains("ready"))
+                {
+                    plan.Steps.Add(new AgentStep { StepNumber = 1, ToolName = "onboarding.prepare", Description = "Generate comprehensive onboarding document package (Appointment Letter, NDA, IT Equipment)", RiskLevel = RiskLevel.Medium });
+                }
+                else if (pLowerOnb.Contains("orientation") || pLowerOnb.Contains("schedule") || pLowerOnb.Contains("intern"))
+                {
+                    plan.Steps.Add(new AgentStep { StepNumber = 1, ToolName = "orientation.schedule", Description = "Generate 5-day induction and orientation schedule document for new intern cohort", RiskLevel = RiskLevel.Medium });
+                }
+                else
+                {
+                    plan.Steps.Add(new AgentStep { StepNumber = 1, ToolName = "policy.evaluate", Description = "Evaluate HR Policy POL-HR-001 salary band", RiskLevel = RiskLevel.Low });
+                    plan.Steps.Add(new AgentStep { StepNumber = 2, ToolName = "onboarding.prepare", Description = "Generate onboarding document package", RiskLevel = RiskLevel.Medium });
+                    plan.Steps.Add(new AgentStep { StepNumber = 3, ToolName = "employee.create", Description = "Create employee SQL record", RiskLevel = RiskLevel.Medium });
+                    plan.Steps.Add(new AgentStep { StepNumber = 4, ToolName = "sap.employee.create", Description = "Provision employee in SAP HCM", RiskLevel = RiskLevel.Medium });
+                    plan.Steps.Add(new AgentStep { StepNumber = 5, ToolName = "email.welcome", Description = "Generate welcome email", RiskLevel = RiskLevel.Low });
+                }
                 break;
 
             // ── Policy ──────────────────────────────────────────────────────
@@ -910,7 +1010,7 @@ public class AgentOrchestrator : IAgentOrchestrator
 
             case IntentType.EMPLOYEE_OFFBOARD:
             case IntentType.EMPLOYEE_CANCEL_ONBOARDING:
-                plan.Steps.Add(new AgentStep { StepNumber = 1, ToolName = "employee.offboard", Description = "Initiate exit clearance / offboarding", RiskLevel = RiskLevel.High });
+                plan.Steps.Add(new AgentStep { StepNumber = 1, ToolName = "offboarding.initiate", Description = "Initiate exit clearance workflow and generate offboarding document package", RiskLevel = RiskLevel.High });
                 break;
 
             case IntentType.LEAVE_CREATE:

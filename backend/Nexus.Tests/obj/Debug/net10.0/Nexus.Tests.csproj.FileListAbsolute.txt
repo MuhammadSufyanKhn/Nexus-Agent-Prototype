@@ -154,3 +154,4 @@ D:\.NET PROJECTS\NEXUS AGENT LITE\backend\Nexus.Tests\obj\Debug\net10.0\Nexus.Te
 D:\.NET PROJECTS\NEXUS AGENT LITE\backend\Nexus.Tests\obj\Debug\net10.0\Nexus.Tests.genruntimeconfig.cache
 D:\.NET PROJECTS\NEXUS AGENT LITE\backend\Nexus.Tests\obj\Debug\net10.0\ref\Nexus.Tests.dll
 d:\.NET PROJECTS\NEXUS AGENT LITE\backend\Nexus.Tests\obj\Debug\net10.0\Nexus.Tests.sourcelink.json
+d:\.NET PROJECTS\NEXUS AGENT LITE\backend\Nexus.Tests\bin\Debug\net10.0\Nexus.Api.staticwebassets.runtime.json
