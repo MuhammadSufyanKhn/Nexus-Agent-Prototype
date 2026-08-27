@@ -1,5 +1,6 @@
 import React from 'react';
-import { Cpu, Globe, Database, Mail, CheckCircle2 } from 'lucide-react';
+import { Cpu, Database, Mail, CheckCircle2 } from 'lucide-react';
+
 
 export const AutomationView: React.FC = () => {
   const subsystems = [

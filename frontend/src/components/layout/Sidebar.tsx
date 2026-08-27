@@ -11,7 +11,8 @@ import {
   Cpu,
   ShieldCheck,
   Activity,
-  Shield
+  Shield,
+  Ticket
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -36,6 +37,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'employees',   label: 'Employees',      icon: Users },
     { id: 'departments', label: 'Departments',    icon: Building2 },
     { id: 'policies',    label: 'Policy Center',  icon: FileText },
+    { id: 'tickets',     label: 'IT Tickets',     icon: Ticket },
     { id: 'approvals',   label: 'Approvals',      icon: CheckSquare, badge: pendingCount },
     { id: 'expenses',    label: 'Expenses',       icon: Receipt },
     { id: 'cv',          label: 'CV Checker',     icon: CheckSquare },
@@ -43,6 +45,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'automation',  label: 'Automation',     icon: Cpu },
     { id: 'audit',       label: 'Audit Logs',     icon: ShieldCheck },
   ];
+
 
   const isGeminiOnline = health?.isAvailable === true;
 

@@ -72,7 +72,8 @@ public class GeminiLLMService : ILLMService
                 ? "gemini-1.5-flash"
                 : _options.Model;
 
-            var candidateModels = new List<string> { model, "gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro", "gemini-2.5-flash" };
+            var candidateModels = new List<string> { model, "gemini-2.0-flash", "gemini-2.5-flash", "gemini-1.5-flash", "gemini-1.5-pro" };
+
             var fullPrompt = BuildFullPrompt(prompt, systemPrompt, requestJson);
 
             HttpResponseMessage? response = null;

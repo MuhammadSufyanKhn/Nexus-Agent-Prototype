@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "d:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Tests\\Nexus.Tests.csproj": {}
+    "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Tests\\Nexus.Tests.csproj": {}
   },
   "projects": {
-    "d:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Agent\\Nexus.Agent.csproj": {
+    "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Agent\\Nexus.Agent.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "d:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Agent\\Nexus.Agent.csproj",
+        "projectUniqueName": "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Agent\\Nexus.Agent.csproj",
         "projectName": "Nexus.Agent",
-        "projectPath": "d:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Agent\\Nexus.Agent.csproj",
+        "projectPath": "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Agent\\Nexus.Agent.csproj",
         "packagesPath": "C:\\Users\\DELL\\.nuget\\packages\\",
-        "outputPath": "d:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Agent\\obj\\",
+        "outputPath": "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Agent\\obj\\",
         "projectStyle": "PackageReference",
         "fallbackFolders": [
           "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
@@ -33,14 +33,14 @@
           "net10.0": {
             "targetAlias": "net10.0",
             "projectReferences": {
-              "d:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Data\\Nexus.Data.csproj": {
-                "projectPath": "d:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Data\\Nexus.Data.csproj"
+              "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Data\\Nexus.Data.csproj": {
+                "projectPath": "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Data\\Nexus.Data.csproj"
               },
-              "d:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Security\\Nexus.Security.csproj": {
-                "projectPath": "d:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Security\\Nexus.Security.csproj"
+              "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Security\\Nexus.Security.csproj": {
+                "projectPath": "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Security\\Nexus.Security.csproj"
               },
-              "d:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Tools\\Nexus.Tools.csproj": {
-                "projectPath": "d:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Tools\\Nexus.Tools.csproj"
+              "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Tools\\Nexus.Tools.csproj": {
+                "projectPath": "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Tools\\Nexus.Tools.csproj"
               }
             }
           }
@@ -354,14 +354,14 @@
         }
       }
     },
-    "d:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Api\\Nexus.Api.csproj": {
+    "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Api\\Nexus.Api.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "d:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Api\\Nexus.Api.csproj",
+        "projectUniqueName": "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Api\\Nexus.Api.csproj",
         "projectName": "Nexus.Api",
-        "projectPath": "d:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Api\\Nexus.Api.csproj",
+        "projectPath": "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Api\\Nexus.Api.csproj",
         "packagesPath": "C:\\Users\\DELL\\.nuget\\packages\\",
-        "outputPath": "d:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Api\\obj\\",
+        "outputPath": "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Api\\obj\\",
         "projectStyle": "PackageReference",
         "fallbackFolders": [
           "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
@@ -383,17 +383,17 @@
           "net10.0": {
             "targetAlias": "net10.0",
             "projectReferences": {
-              "d:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Agent\\Nexus.Agent.csproj": {
-                "projectPath": "d:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Agent\\Nexus.Agent.csproj"
+              "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Agent\\Nexus.Agent.csproj": {
+                "projectPath": "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Agent\\Nexus.Agent.csproj"
               },
-              "d:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Data\\Nexus.Data.csproj": {
-                "projectPath": "d:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Data\\Nexus.Data.csproj"
+              "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Data\\Nexus.Data.csproj": {
+                "projectPath": "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Data\\Nexus.Data.csproj"
               },
-              "d:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Security\\Nexus.Security.csproj": {
-                "projectPath": "d:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Security\\Nexus.Security.csproj"
+              "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Security\\Nexus.Security.csproj": {
+                "projectPath": "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Security\\Nexus.Security.csproj"
               },
-              "d:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Tools\\Nexus.Tools.csproj": {
-                "projectPath": "d:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Tools\\Nexus.Tools.csproj"
+              "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Tools\\Nexus.Tools.csproj": {
+                "projectPath": "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Tools\\Nexus.Tools.csproj"
               }
             }
           }
@@ -866,14 +866,14 @@
         }
       }
     },
-    "d:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Data\\Nexus.Data.csproj": {
+    "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Data\\Nexus.Data.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "d:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Data\\Nexus.Data.csproj",
+        "projectUniqueName": "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Data\\Nexus.Data.csproj",
         "projectName": "Nexus.Data",
-        "projectPath": "d:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Data\\Nexus.Data.csproj",
+        "projectPath": "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Data\\Nexus.Data.csproj",
         "packagesPath": "C:\\Users\\DELL\\.nuget\\packages\\",
-        "outputPath": "d:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Data\\obj\\",
+        "outputPath": "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Data\\obj\\",
         "projectStyle": "PackageReference",
         "fallbackFolders": [
           "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
@@ -1222,14 +1222,14 @@
         }
       }
     },
-    "d:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Security\\Nexus.Security.csproj": {
+    "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Security\\Nexus.Security.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "d:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Security\\Nexus.Security.csproj",
+        "projectUniqueName": "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Security\\Nexus.Security.csproj",
         "projectName": "Nexus.Security",
-        "projectPath": "d:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Security\\Nexus.Security.csproj",
+        "projectPath": "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Security\\Nexus.Security.csproj",
         "packagesPath": "C:\\Users\\DELL\\.nuget\\packages\\",
-        "outputPath": "d:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Security\\obj\\",
+        "outputPath": "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Security\\obj\\",
         "projectStyle": "PackageReference",
         "fallbackFolders": [
           "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
@@ -1251,8 +1251,8 @@
           "net10.0": {
             "targetAlias": "net10.0",
             "projectReferences": {
-              "d:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Data\\Nexus.Data.csproj": {
-                "projectPath": "d:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Data\\Nexus.Data.csproj"
+              "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Data\\Nexus.Data.csproj": {
+                "projectPath": "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Data\\Nexus.Data.csproj"
               }
             }
           }
@@ -1566,14 +1566,14 @@
         }
       }
     },
-    "d:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Tests\\Nexus.Tests.csproj": {
+    "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Tests\\Nexus.Tests.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "d:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Tests\\Nexus.Tests.csproj",
+        "projectUniqueName": "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Tests\\Nexus.Tests.csproj",
         "projectName": "Nexus.Tests",
-        "projectPath": "d:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Tests\\Nexus.Tests.csproj",
+        "projectPath": "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Tests\\Nexus.Tests.csproj",
         "packagesPath": "C:\\Users\\DELL\\.nuget\\packages\\",
-        "outputPath": "d:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Tests\\obj\\",
+        "outputPath": "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Tests\\obj\\",
         "projectStyle": "PackageReference",
         "fallbackFolders": [
           "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
@@ -1595,11 +1595,11 @@
           "net10.0": {
             "targetAlias": "net10.0",
             "projectReferences": {
-              "d:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Api\\Nexus.Api.csproj": {
-                "projectPath": "d:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Api\\Nexus.Api.csproj"
+              "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Api\\Nexus.Api.csproj": {
+                "projectPath": "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Api\\Nexus.Api.csproj"
               },
-              "d:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Data\\Nexus.Data.csproj": {
-                "projectPath": "d:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Data\\Nexus.Data.csproj"
+              "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Data\\Nexus.Data.csproj": {
+                "projectPath": "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Data\\Nexus.Data.csproj"
               }
             }
           }
@@ -1933,14 +1933,14 @@
         }
       }
     },
-    "d:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Tools\\Nexus.Tools.csproj": {
+    "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Tools\\Nexus.Tools.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "d:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Tools\\Nexus.Tools.csproj",
+        "projectUniqueName": "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Tools\\Nexus.Tools.csproj",
         "projectName": "Nexus.Tools",
-        "projectPath": "d:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Tools\\Nexus.Tools.csproj",
+        "projectPath": "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Tools\\Nexus.Tools.csproj",
         "packagesPath": "C:\\Users\\DELL\\.nuget\\packages\\",
-        "outputPath": "d:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Tools\\obj\\",
+        "outputPath": "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Tools\\obj\\",
         "projectStyle": "PackageReference",
         "fallbackFolders": [
           "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
@@ -1962,11 +1962,11 @@
           "net10.0": {
             "targetAlias": "net10.0",
             "projectReferences": {
-              "d:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Data\\Nexus.Data.csproj": {
-                "projectPath": "d:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Data\\Nexus.Data.csproj"
+              "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Data\\Nexus.Data.csproj": {
+                "projectPath": "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Data\\Nexus.Data.csproj"
               },
-              "d:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Security\\Nexus.Security.csproj": {
-                "projectPath": "d:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Security\\Nexus.Security.csproj"
+              "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Security\\Nexus.Security.csproj": {
+                "projectPath": "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Security\\Nexus.Security.csproj"
               }
             }
           }

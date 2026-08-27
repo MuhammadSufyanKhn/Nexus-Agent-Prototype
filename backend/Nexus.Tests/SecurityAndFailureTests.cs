@@ -3,7 +3,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+
 using Nexus.Agent.Events;
 using Nexus.Agent.Intent;
 using Nexus.Agent.Orchestration;
@@ -57,10 +59,12 @@ public class SecurityAndFailureTests
         registry.RegisterTool(new SqlAnalyticsTool(sqlValidator, llmService, db, NullLogger<SqlAnalyticsTool>.Instance));
         registry.RegisterTool(new PolicyEvaluationTool(policyEngine, NullLogger<PolicyEvaluationTool>.Instance));
         registry.RegisterTool(new ComplianceTool(complianceEngine, NullLogger<ComplianceTool>.Instance));
+        var serviceProvider = new Microsoft.Extensions.DependencyInjection.ServiceCollection().BuildServiceProvider();
         registry.RegisterTool(new WelcomeEmailTool(pythonService, NullLogger<WelcomeEmailTool>.Instance));
-        registry.RegisterTool(new CreateTicketTool(pythonService, NullLogger<CreateTicketTool>.Instance));
-        registry.RegisterTool(new BrowserAutomationTool(pythonService, NullLogger<BrowserAutomationTool>.Instance));
+        registry.RegisterTool(new CreateTicketTool(pythonService, serviceProvider, NullLogger<CreateTicketTool>.Instance));
         registry.RegisterTool(new MockSapTool(sapConnector, NullLogger<MockSapTool>.Instance));
+
+
 
         return registry;
     }
@@ -202,12 +206,13 @@ public class SecurityAndFailureTests
         Assert.True(result.Status == ComplianceStatus.POLICY_NOT_FOUND || result.Status == ComplianceStatus.INSUFFICIENT_INFORMATION);
     }
 
-    // 10. Browser automation failure
+    // 10. Automation tool failure handling
     [Fact]
-    public async Task Test10_Browser_Automation_Failure_Is_Handled_Gracefully()
+    public async Task Test10_Automation_Tool_Failure_Is_Handled_Gracefully()
     {
         var pythonService = new PythonAutomationService(NullLogger<PythonAutomationService>.Instance);
-        var tool = new BrowserAutomationTool(pythonService, NullLogger<BrowserAutomationTool>.Instance);
+        var services = new Microsoft.Extensions.DependencyInjection.ServiceCollection().BuildServiceProvider();
+        var tool = new CreateTicketTool(pythonService, services, NullLogger<CreateTicketTool>.Instance);
 
         var context = new ToolExecutionContext { ArgumentsJson = "{\"invalid\":\"data\"}" };
         var result = await tool.ExecuteAsync(context);
@@ -215,6 +220,7 @@ public class SecurityAndFailureTests
         Assert.NotNull(result);
         Assert.True(result.IsSuccess); // Returns structured fallback JSON without crashing
     }
+
 
     // 11. Database failure
     [Fact]

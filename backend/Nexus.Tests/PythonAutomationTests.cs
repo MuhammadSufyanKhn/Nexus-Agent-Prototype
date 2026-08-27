@@ -1,5 +1,7 @@
 using System.Threading.Tasks;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+
 using Nexus.Tools.Automation;
 using Nexus.Tools.Core;
 using Nexus.Tools.Implementations;
@@ -31,7 +33,8 @@ public class PythonAutomationTests
     public async Task CreateTicketTool_Executes_Python_Script_Successfully()
     {
         var pythonService = new PythonAutomationService(NullLogger<PythonAutomationService>.Instance);
-        var tool = new CreateTicketTool(pythonService, NullLogger<CreateTicketTool>.Instance);
+        var services = new Microsoft.Extensions.DependencyInjection.ServiceCollection().BuildServiceProvider();
+        var tool = new CreateTicketTool(pythonService, services, NullLogger<CreateTicketTool>.Instance);
 
         var context = new ToolExecutionContext
         {
@@ -44,6 +47,7 @@ public class PythonAutomationTests
         Assert.True(result.IsSuccess);
         Assert.NotNull(result.Data);
     }
+
 
     [Fact]
     public async Task PythonAutomationService_Rejects_Unregistered_Operation()

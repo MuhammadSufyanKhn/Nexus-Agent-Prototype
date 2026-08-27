@@ -125,11 +125,13 @@ public class ApprovalController : ControllerBase
         var docService = new PdfDocumentService(db);
         var pythonService = new PythonAutomationService(NullLogger<PythonAutomationService>.Instance);
         var sapConnector = new MockSapConnector(NullLogger<MockSapConnector>.Instance);
+        var serviceProvider = new ServiceCollection().BuildServiceProvider();
         var registry = new ToolRegistry();
         registry.RegisterTool(new WelcomeEmailTool(pythonService, NullLogger<WelcomeEmailTool>.Instance));
-        registry.RegisterTool(new CreateTicketTool(pythonService, NullLogger<CreateTicketTool>.Instance));
-        registry.RegisterTool(new BrowserAutomationTool(pythonService, NullLogger<BrowserAutomationTool>.Instance));
+        registry.RegisterTool(new CreateTicketTool(pythonService, serviceProvider, NullLogger<CreateTicketTool>.Instance));
         registry.RegisterTool(new MockSapTool(sapConnector, NullLogger<MockSapTool>.Instance));
+
+
         registry.RegisterTool(new EmployeeCreateTool(empService));
         registry.RegisterTool(new EmployeeReadTool(empService));
         registry.RegisterTool(new EmployeeUpdateTool(empService));

@@ -4,7 +4,9 @@ using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+
 using Nexus.Agent.Events;
 using Nexus.Agent.Intent;
 using Nexus.Agent.Orchestration;
@@ -58,10 +60,11 @@ public class FullEndToEndIntegrationTests
         registry.RegisterTool(new SqlAnalyticsTool(sqlValidator, llmService, db, NullLogger<SqlAnalyticsTool>.Instance));
         registry.RegisterTool(new PolicyEvaluationTool(policyEngine, NullLogger<PolicyEvaluationTool>.Instance));
         registry.RegisterTool(new ComplianceTool(complianceEngine, NullLogger<ComplianceTool>.Instance));
+        var sp = new Microsoft.Extensions.DependencyInjection.ServiceCollection().BuildServiceProvider();
         registry.RegisterTool(new WelcomeEmailTool(pythonService, NullLogger<WelcomeEmailTool>.Instance));
-        registry.RegisterTool(new CreateTicketTool(pythonService, NullLogger<CreateTicketTool>.Instance));
-        registry.RegisterTool(new BrowserAutomationTool(pythonService, NullLogger<BrowserAutomationTool>.Instance));
+        registry.RegisterTool(new CreateTicketTool(pythonService, sp, NullLogger<CreateTicketTool>.Instance));
         registry.RegisterTool(new MockSapTool(sapConnector, NullLogger<MockSapTool>.Instance));
+
 
         return registry;
     }

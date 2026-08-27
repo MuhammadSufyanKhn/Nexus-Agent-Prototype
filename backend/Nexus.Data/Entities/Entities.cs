@@ -210,3 +210,17 @@ public class GeneratedDocument
     public Guid? AgentRunId { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }
+
+public class Ticket
+{
+    public int Id { get; set; }
+    public string TicketId { get; set; } = string.Empty;
+    public string EmployeeName { get; set; } = string.Empty;
+    public string Department { get; set; } = string.Empty;
+    public string RequestType { get; set; } = "Hardware & Software Provisioning";
+    public string Priority { get; set; } = "High";
+    public string Status { get; set; } = "Open"; // Open, In Progress, Resolved
+    public string Details { get; set; } = string.Empty;
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+}
+

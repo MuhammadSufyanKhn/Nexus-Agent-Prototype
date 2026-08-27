@@ -90,8 +90,8 @@ builder.Services.AddScoped<PolicyEvaluationTool>();
 builder.Services.AddScoped<ComplianceTool>();
 builder.Services.AddScoped<WelcomeEmailTool>();
 builder.Services.AddScoped<CreateTicketTool>();
-builder.Services.AddScoped<BrowserAutomationTool>();
 builder.Services.AddScoped<MockSapTool>();
+
 // CRUD Tools
 builder.Services.AddScoped<PolicyCrudTool>();
 builder.Services.AddScoped<DepartmentCrudTool>();
@@ -126,8 +126,8 @@ builder.Services.AddScoped<IToolRegistry>(sp =>
     registry.RegisterTool(sp.GetRequiredService<ComplianceTool>());
     registry.RegisterTool(sp.GetRequiredService<WelcomeEmailTool>());
     registry.RegisterTool(sp.GetRequiredService<CreateTicketTool>());
-    registry.RegisterTool(sp.GetRequiredService<BrowserAutomationTool>());
     registry.RegisterTool(sp.GetRequiredService<MockSapTool>());
+
     registry.RegisterTool(sp.GetRequiredService<PolicyCrudTool>());
     registry.RegisterTool(sp.GetRequiredService<DepartmentCrudTool>());
     registry.RegisterTool(sp.GetRequiredService<BudgetUpdateTool>());
@@ -227,6 +227,21 @@ using (var scope = app.Services.CreateScope())
                     CreatedAt DATETIME2 NOT NULL DEFAULT GETUTCDATE()
                 );
             END;
+
+            IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'Tickets')
+            BEGIN
+                CREATE TABLE Tickets (
+                    Id INT IDENTITY(1,1) PRIMARY KEY,
+                    TicketId NVARCHAR(50) NOT NULL,
+                    EmployeeName NVARCHAR(150) NOT NULL,
+                    Department NVARCHAR(100) NOT NULL,
+                    RequestType NVARCHAR(150) NOT NULL,
+                    Priority NVARCHAR(50) NOT NULL DEFAULT 'High',
+                    Status NVARCHAR(50) NOT NULL DEFAULT 'Open',
+                    Details NVARCHAR(MAX) NOT NULL,
+                    CreatedAt DATETIME2 NOT NULL DEFAULT GETUTCDATE()
+                );
+            END;
         ";
         db.Database.ExecuteSqlRaw(sql);
 
@@ -256,6 +271,17 @@ using (var scope = app.Services.CreateScope())
             );
             db.SaveChanges();
         }
+
+        if (!db.Tickets.Any())
+        {
+            db.Tickets.AddRange(
+                new Nexus.Data.Entities.Ticket { TicketId = "TCK-2026-4829", EmployeeName = "Tariq Mahmood", Department = "IT", RequestType = "Hardware & Software Provisioning", Priority = "High", Status = "Resolved", Details = "Workstation laptop, Visual Studio Pro, VPN access provisioned.", CreatedAt = DateTime.UtcNow.AddDays(-20) },
+                new Nexus.Data.Entities.Ticket { TicketId = "TCK-2026-5102", EmployeeName = "Sarah Jenkins", Department = "IT", RequestType = "Security Clearance & Admin Access", Priority = "High", Status = "Resolved", Details = "Elevated admin privileges and cloud infrastructure access granted.", CreatedAt = DateTime.UtcNow.AddDays(-10) },
+                new Nexus.Data.Entities.Ticket { TicketId = "TCK-2026-6941", EmployeeName = "Ahmed Khan", Department = "IT", RequestType = "Hardware Provisioning", Priority = "High", Status = "Open", Details = "MacBook Pro M3 Max 32GB, Dual 4K Monitors, YubiKey setup.", CreatedAt = DateTime.UtcNow.AddDays(-2) }
+            );
+            db.SaveChanges();
+        }
+
     }
     catch (Exception ex)
     {

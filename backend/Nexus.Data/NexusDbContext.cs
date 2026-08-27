@@ -23,6 +23,7 @@ public class NexusDbContext : DbContext
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<OnboardingTask> OnboardingTasks => Set<OnboardingTask>();
     public DbSet<Leave> Leaves => Set<Leave>();
+    public DbSet<Ticket> Tickets => Set<Ticket>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -236,5 +237,13 @@ public class NexusDbContext : DbContext
             new Policy { Id = 3, Code = "POL-FIN-002", Title = "Expense Reimbursement & Meal Policy", Category = "Finance", DocumentPath = "policies/Expense_Policy.pdf", ContentSummary = "Meal expenses are capped at $50 per person. Software tools require prior IT approval. Receipts mandatory above $25.", IsActive = true, UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc) },
             new Policy { Id = 4, Code = "POL-HR-002", Title = "Salary Adjustment & Compensation Band Policy", Category = "HR", DocumentPath = "policies/Salary_Policy.pdf", ContentSummary = "Bulk salary increases above 5% require management approval and a formal Plan of Action impact assessment.", IsActive = true, UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc) }
         );
+
+        // 7. IT Provisioning Tickets
+        modelBuilder.Entity<Ticket>().HasData(
+            new Ticket { Id = 1, TicketId = "TCK-2026-4829", EmployeeName = "Tariq Mahmood", Department = "IT", RequestType = "Hardware & Software Provisioning", Priority = "High", Status = "Resolved", Details = "Workstation laptop, Visual Studio Pro, VPN access provisioned.", CreatedAt = new DateTime(2026, 8, 1, 10, 0, 0, DateTimeKind.Utc) },
+            new Ticket { Id = 2, TicketId = "TCK-2026-5102", EmployeeName = "Sarah Jenkins", Department = "IT", RequestType = "Security Clearance & Admin Access", Priority = "High", Status = "Resolved", Details = "Elevated admin privileges and cloud infrastructure access granted.", CreatedAt = new DateTime(2026, 8, 10, 11, 30, 0, DateTimeKind.Utc) },
+            new Ticket { Id = 3, TicketId = "TCK-2026-6941", EmployeeName = "Ahmed Khan", Department = "IT", RequestType = "Hardware Provisioning", Priority = "High", Status = "Open", Details = "MacBook Pro M3 Max 32GB, Dual 4K Monitors, YubiKey setup.", CreatedAt = new DateTime(2026, 8, 25, 09, 15, 0, DateTimeKind.Utc) }
+        );
     }
 }
+

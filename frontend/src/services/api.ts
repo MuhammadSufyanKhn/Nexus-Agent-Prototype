@@ -371,3 +371,46 @@ export async function holdPayroll(division?: string, reason?: string): Promise<a
   return res.json();
 }
 
+export interface TicketItem {
+  id: number;
+  ticketId: string;
+  employeeName: string;
+  department: string;
+  requestType: string;
+  priority: string;
+  status: string;
+  details: string;
+  createdAt: string;
+}
+
+export async function fetchTickets(status?: string, search?: string): Promise<TicketItem[]> {
+  const params = new URLSearchParams();
+  if (status && status !== 'ALL') params.append('status', status);
+  if (search) params.append('search', search);
+
+  const res = await fetch(`${API_BASE}/ticket?${params.toString()}`);
+  if (!res.ok) return [];
+  return res.json();
+}
+
+export async function createTicket(data: { employeeName: string; department: string; requestType: string; priority?: string; details?: string }): Promise<TicketItem> {
+  const res = await fetch(`${API_BASE}/ticket`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  });
+  if (!res.ok) throw new Error('Failed to create ticket');
+  return res.json();
+}
+
+export async function updateTicketStatus(id: number, status: string): Promise<TicketItem> {
+  const res = await fetch(`${API_BASE}/ticket/${id}/status`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status })
+  });
+  if (!res.ok) throw new Error('Failed to update ticket status');
+  return res.json();
+}
+
+
