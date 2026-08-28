@@ -548,10 +548,28 @@ public class AgentOrchestrator : IAgentOrchestrator
             { "question", prompt }
         };
 
+        // Helper: unwrap JsonElement to its actual .NET primitive so it serializes correctly
+        static object UnwrapJsonElement(object val)
+        {
+            if (val is System.Text.Json.JsonElement je)
+            {
+                return je.ValueKind switch
+                {
+                    System.Text.Json.JsonValueKind.Number  => je.TryGetDecimal(out var d) ? (object)d : (je.TryGetInt64(out var l) ? l : je.GetDouble()),
+                    System.Text.Json.JsonValueKind.String  => je.GetString() ?? "",
+                    System.Text.Json.JsonValueKind.True    => true,
+                    System.Text.Json.JsonValueKind.False   => false,
+                    System.Text.Json.JsonValueKind.Null    => "",
+                    _                                      => je.GetRawText()
+                };
+            }
+            return val;
+        }
+
         if (parsedIntent?.Parameters != null)
         {
             foreach (var kv in parsedIntent.Parameters)
-                combinedArgs[kv.Key] = kv.Value;
+                combinedArgs[kv.Key] = UnwrapJsonElement(kv.Value);
         }
 
         if (parsedIntent?.Entities != null)
@@ -589,7 +607,7 @@ public class AgentOrchestrator : IAgentOrchestrator
         if (editedParameters != null)
         {
             foreach (var kv in editedParameters)
-                combinedArgs[kv.Key] = kv.Value;
+                combinedArgs[kv.Key] = UnwrapJsonElement(kv.Value);
         }
 
         bool executedAnyTool = false;
@@ -1328,16 +1346,98 @@ public class AgentOrchestrator : IAgentOrchestrator
             return actionPlan;
         }
 
-        // ── 2. BUDGET UPDATE / ALLOCATE ─────────────────────────────────────────
+        // ── 2. BUDGET REALLOCATE ───────────────────────────────────────────
+        if (intentType == IntentType.BUDGET_REALLOCATE || pLower.Contains("reallocate budget") || (pLower.Contains("reallocate") && pLower.Contains("budget")))
+        {
+            var srcDept = intent.Parameters.GetValueOrDefault("sourceDepartment")?.ToString()
+                ?? intent.Entities.GetValueOrDefault("sourceDepartment")
+                ?? "Marketing";
+            var tgtDept = intent.Parameters.GetValueOrDefault("targetDepartment")?.ToString()
+                ?? intent.Entities.GetValueOrDefault("targetDepartment")
+                ?? "IT";
+
+            decimal amount = 20000m;
+            if (intent.Parameters.TryGetValue("amount", out var aObj) && decimal.TryParse(aObj?.ToString(), out var aVal))
+                amount = aVal;
+            else if (intent.Parameters.TryGetValue("budgetAmount", out var bObj) && decimal.TryParse(bObj?.ToString(), out var bVal))
+                amount = bVal;
+
+            var actionPlan = new Nexus.Data.ActionPlan.ActionPlan
+            {
+                Title = $"Plan of Action: Reallocate ${amount:N2} Budget from {srcDept} to {tgtDept}",
+                RiskLevel = RiskLevel.High,
+                Status = "AWAITING_APPROVAL",
+                TotalFinancialImpact = 0m,
+                Metadata = JsonSerializer.Serialize(intent)
+            };
+
+            actionPlan.AffectedRecords.Add(new Nexus.Data.ActionPlan.AffectedRecord
+            {
+                RecordId = 0,
+                EntityName = "Department Budget (SQL Server)",
+                PrimaryLabel = $"{srcDept} → {tgtDept} Budget Transfer",
+                Changes = new List<Nexus.Data.ActionPlan.ChangePreview>
+                {
+                    new Nexus.Data.ActionPlan.ChangePreview { FieldName = $"{srcDept} Budget", OldValue = "[CURRENT]", NewValue = $"-[${amount:N2}]", Difference = $"-$[${amount:N2}]" },
+                    new Nexus.Data.ActionPlan.ChangePreview { FieldName = $"{tgtDept} Budget", OldValue = "[CURRENT]", NewValue = $"+[${amount:N2}]", Difference = $"+$[${amount:N2}]" }
+                }
+            });
+
+            actionPlan.Steps.Add(new Nexus.Data.ActionPlan.ActionPlanStep { StepNumber = 1, ToolName = "budget.reallocate", Description = $"Transfer ${amount:N2} budget from {srcDept} to {tgtDept}", RiskLevel = RiskLevel.High });
+            actionPlan.Warnings.Add($"Reallocates ${amount:N2} Q3 budget allocation from {srcDept} Department to {tgtDept} Department.");
+            return actionPlan;
+        }
+
+        // ── 2.1. BUDGET FREEZE ────────────────────────────────────────────────
+        if (intentType == IntentType.BUDGET_FREEZE || (pLower.Contains("freeze") && pLower.Contains("budget")))
+        {
+            var deptName = intent.Parameters.GetValueOrDefault("department")?.ToString()
+                ?? intent.Entities.GetValueOrDefault("department")
+                ?? "ALL";
+
+            var actionPlan = new Nexus.Data.ActionPlan.ActionPlan
+            {
+                Title = $"Plan of Action: Freeze Department Budget Allocation ({deptName})",
+                RiskLevel = RiskLevel.High,
+                Status = "AWAITING_APPROVAL",
+                TotalFinancialImpact = 0m,
+                Metadata = JsonSerializer.Serialize(intent)
+            };
+
+            actionPlan.AffectedRecords.Add(new Nexus.Data.ActionPlan.AffectedRecord
+            {
+                RecordId = 0,
+                EntityName = "Department Budget (SQL Server)",
+                PrimaryLabel = $"Budget Freeze ({deptName})",
+                Changes = new List<Nexus.Data.ActionPlan.ChangePreview>
+                {
+                    new Nexus.Data.ActionPlan.ChangePreview { FieldName = "IsFrozen State", OldValue = "False", NewValue = "True", Difference = "Budget Locked" }
+                }
+            });
+
+            actionPlan.Steps.Add(new Nexus.Data.ActionPlan.ActionPlanStep { StepNumber = 1, ToolName = "budget.freeze", Description = $"Freeze budget allocations for {deptName}", RiskLevel = RiskLevel.High });
+            actionPlan.Warnings.Add($"Freezes budget allocation and blocks further spending for department target: {deptName}.");
+            return actionPlan;
+        }
+
+        // ── 2.2. BUDGET UPDATE / ALLOCATE ─────────────────────────────────────────
         if (intentType == IntentType.BUDGET_UPDATE || intent.TargetEntity == "DEPARTMENT_BUDGET")
         {
             var deptName = intent.Parameters.GetValueOrDefault("department")?.ToString()
                 ?? intent.Entities.GetValueOrDefault("department")
                 ?? "IT";
 
-            decimal budgetAmt = 50000m;
-            if (intent.Parameters.TryGetValue("budgetAmount", out var bObj) && decimal.TryParse(bObj?.ToString(), out var bVal))
+            decimal budgetAmt = 0m;
+            if (intent.Parameters.TryGetValue("amount", out var aObj) && decimal.TryParse(aObj?.ToString(), out var aVal) && aVal > 0)
+                budgetAmt = aVal;
+            else if (intent.Parameters.TryGetValue("budgetAmount", out var bObj) && decimal.TryParse(bObj?.ToString(), out var bVal) && bVal > 0)
                 budgetAmt = bVal;
+            else if (intent.Entities.TryGetValue("amount", out var aStr) && decimal.TryParse(aStr, out var aVal2) && aVal2 > 0)
+                budgetAmt = aVal2;
+            else if (intent.Entities.TryGetValue("budgetAmount", out var baStr) && decimal.TryParse(baStr, out var baVal2) && baVal2 > 0)
+                budgetAmt = baVal2;
+
+            if (budgetAmt <= 0) budgetAmt = 0m;
 
             var actionPlan = new Nexus.Data.ActionPlan.ActionPlan
             {

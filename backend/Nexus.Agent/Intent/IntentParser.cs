@@ -730,8 +730,43 @@ User: ""hello"" or ""what can you do?""
                 result.Operation = "READ";
             }
         }
-        // Department intents (ONLY if explicit department creation/management and NOT employee)
-        else if ((p.Contains("department") || p.Contains("dept") || p.Contains("daprtment") || p.Contains("depatment") || p.Contains("deptment")) && !p.Contains("employee") && !p.Contains("salary"))
+        // Budget intents (Priority over general department read)
+        else if (p.Contains("budget") || p.Contains("allocate") || p.Contains("allocated") || p.Contains("reallocate") || p.Contains("allocated funds") || p.Contains("actual spend") || p.Contains("total allocated"))
+        {
+            result.TargetEntity = "DEPARTMENT_BUDGET";
+            if (p.Contains("reallocate") || (p.Contains("transfer") && p.Contains("budget")))
+            {
+                result.Intent = IntentType.BUDGET_REALLOCATE.ToString();
+                result.Operation = "ALLOCATE";
+            }
+            else if (p.Contains("freeze"))
+            {
+                result.Intent = IntentType.BUDGET_FREEZE.ToString();
+                result.Operation = "UPDATE";
+            }
+            else if (p.Contains("overall") || p.Contains("master") || p.Contains("company budget") || p.Contains("corporate budget") || p.Contains("1 billion") || p.Contains("1b"))
+            {
+                result.Intent = IntentType.BUDGET_UPDATE.ToString();
+                result.Operation = "ALLOCATE";
+            }
+            else if ((Regex.IsMatch(p, @"\bover\b|\bover-budget\b") && !p.Contains("overall")) || p.Contains("exceeding") || p.Contains("exceed") || p.Contains("crossed") || p.Contains("analysis") || p.Contains("compare") || p.Contains("overview") || p.Contains("versus") || p.Contains("vs") || p.Contains("actual spend") || p.Contains("allocated funds") || p.Contains("kis department ne"))
+            {
+                result.Intent = IntentType.BUDGET_ANALYSIS.ToString();
+                result.Operation = "ANALYZE";
+            }
+            else if (p.Contains("allocate") || p.Contains("increase") || p.Contains("add budget") || p.Contains("set budget") || p.Contains("set") || p.Contains("update budget") || p.Contains("give"))
+            {
+                result.Intent = IntentType.BUDGET_UPDATE.ToString();
+                result.Operation = "ALLOCATE";
+            }
+            else
+            {
+                result.Intent = IntentType.BUDGET_READ.ToString();
+                result.Operation = "READ";
+            }
+        }
+        // Department intents (ONLY if explicit department creation/management and NOT employee/budget/allocate)
+        else if ((p.Contains("department") || p.Contains("dept") || p.Contains("daprtment") || p.Contains("depatment") || p.Contains("deptment")) && !p.Contains("employee") && !p.Contains("salary") && !p.Contains("budget") && !p.Contains("allocate"))
         {
             result.TargetEntity = "DEPARTMENT";
             if (p.Contains("add") || p.Contains("create") || p.Contains("new") || p.Contains("bana do") || p.Contains("banao") || p.Contains("add karo"))
@@ -752,26 +787,6 @@ User: ""hello"" or ""what can you do?""
             else
             {
                 result.Intent = IntentType.DEPARTMENT_READ.ToString();
-                result.Operation = "READ";
-            }
-        }
-        // Budget intents
-        else if (p.Contains("budget"))
-        {
-            result.TargetEntity = "DEPARTMENT_BUDGET";
-            if (p.Contains("increase") || p.Contains("allocate") || p.Contains("add budget") || p.Contains("set budget") || p.Contains("update budget"))
-            {
-                result.Intent = IntentType.BUDGET_UPDATE.ToString();
-                result.Operation = "ALLOCATE";
-            }
-            else if (p.Contains("over") || p.Contains("exceeding") || p.Contains("exceed") || p.Contains("crossed") || p.Contains("analysis") || p.Contains("compare") || p.Contains("kis department ne"))
-            {
-                result.Intent = IntentType.BUDGET_ANALYSIS.ToString();
-                result.Operation = "ANALYZE";
-            }
-            else
-            {
-                result.Intent = IntentType.BUDGET_READ.ToString();
                 result.Operation = "READ";
             }
         }
@@ -1077,16 +1092,25 @@ User: ""hello"" or ""what can you do?""
             }
         }
 
-        // 6. Dynamic Amount / Budget / Salary Extraction (e.g. 100k, 100k monthly, 50k, 80000, $150k)
+        // 6. Dynamic Amount / Budget / Salary Extraction (e.g. 1 billion, 100k, 100k monthly, 50k, 80000, $150k)
         string? existingSal = entities.GetValueOrDefault("salary") ?? parameters.GetValueOrDefault("salary")?.ToString();
         string? existingBud = entities.GetValueOrDefault("budgetAmount") ?? parameters.GetValueOrDefault("budgetAmount")?.ToString();
 
+        if (p.Contains("overall") || p.Contains("master") || p.Contains("company budget") || p.Contains("total budget") || p.Contains("corporate budget") || p.Contains("budget pool"))
+        {
+            entities["isMasterPool"] = "true";
+            parameters["isMasterPool"] = true;
+        }
+
         if (string.IsNullOrWhiteSpace(existingSal) && string.IsNullOrWhiteSpace(existingBud))
         {
-            var shortMatch = Regex.Match(prompt, @"\b([0-9]+(?:\.[0-9]+)?)\s*(k|m)\b", RegexOptions.IgnoreCase);
+            var shortMatch = Regex.Match(prompt, @"\b([0-9]+(?:\.[0-9]+)?)\s*(b|billion|m|million|k|thousand)\b", RegexOptions.IgnoreCase);
             if (shortMatch.Success && decimal.TryParse(shortMatch.Groups[1].Value, NumberStyles.Any, CultureInfo.InvariantCulture, out var shortVal))
             {
-                var mult = shortMatch.Groups[2].Value.ToLower() == "k" ? 1000m : 1000000m;
+                var unit = shortMatch.Groups[2].Value.ToLower();
+                decimal mult = 1000m;
+                if (unit.StartsWith("b")) mult = 1_000_000_000m;
+                else if (unit.StartsWith("m")) mult = 1_000_000m;
                 var amount = shortVal * mult;
                 
                 // If prompt explicitly specifies monthly (e.g. "100k monthly"), convert to annual salary (* 12)
@@ -1099,6 +1123,23 @@ User: ""hello"" or ""what can you do?""
                 string key = isBudget ? "budgetAmount" : "salary";
                 entities[key] = amount.ToString(CultureInfo.InvariantCulture);
                 parameters[key] = amount;
+                if (isBudget)
+                {
+                    entities["amount"] = amount.ToString(CultureInfo.InvariantCulture);
+                    parameters["amount"] = amount;
+
+                    string mode = "SET";
+                    if (p.Contains("increase") || p.Contains("add") || p.Contains("plus") || p.Contains("more") || p.Contains("give"))
+                    {
+                        mode = "ADD";
+                    }
+                    else if (p.Contains("decrease") || p.Contains("reduce") || p.Contains("cut") || p.Contains("subtract") || p.Contains("minus") || p.Contains("less"))
+                    {
+                        mode = "SUBTRACT";
+                    }
+                    entities["mode"] = mode;
+                    parameters["mode"] = mode;
+                }
             }
             else
             {
@@ -1117,8 +1158,52 @@ User: ""hello"" or ""what can you do?""
                         string key = isBudget ? "budgetAmount" : "salary";
                         entities[key] = salVal.ToString(CultureInfo.InvariantCulture);
                         parameters[key] = salVal;
+                        if (isBudget)
+                        {
+                            entities["amount"] = salVal.ToString(CultureInfo.InvariantCulture);
+                            parameters["amount"] = salVal;
+
+                            string mode = "SET";
+                            if (p.Contains("increase") || p.Contains("add") || p.Contains("plus") || p.Contains("more") || p.Contains("give"))
+                            {
+                                mode = "ADD";
+                            }
+                            else if (p.Contains("decrease") || p.Contains("reduce") || p.Contains("cut") || p.Contains("subtract") || p.Contains("minus") || p.Contains("less"))
+                            {
+                                mode = "SUBTRACT";
+                            }
+                            entities["mode"] = mode;
+                            parameters["mode"] = mode;
+                        }
                     }
                 }
+            }
+        }
+
+        // 6.1. Budget Reallocation Source/Target & Amount Syncing
+        if (result.Intent.Contains("BUDGET_REALLOCATE") || p.Contains("reallocate") || (p.Contains("transfer") && p.Contains("budget")))
+        {
+            var reallocMatch = Regex.Match(prompt, @"\b(?:reallocate|transfer|move|shift)\s+(?:\$?\d+(?:[kK]|000)?\s+)?(?:budget\s+)?from\s+(?:the\s+)?([A-Za-z0-9\&]+)\s+(?:department|dept\s+)?to\s+(?:the\s+)?([A-Za-z0-9\&]+)", RegexOptions.IgnoreCase);
+            if (reallocMatch.Success)
+            {
+                var src = CleanDepartmentName(reallocMatch.Groups[1].Value);
+                var tgt = CleanDepartmentName(reallocMatch.Groups[2].Value);
+                if (!string.IsNullOrWhiteSpace(src))
+                {
+                    entities["sourceDepartment"] = src;
+                    parameters["sourceDepartment"] = src;
+                }
+                if (!string.IsNullOrWhiteSpace(tgt))
+                {
+                    entities["targetDepartment"] = tgt;
+                    parameters["targetDepartment"] = tgt;
+                }
+            }
+
+            if (entities.TryGetValue("budgetAmount", out var bAmt) && !entities.ContainsKey("amount"))
+            {
+                entities["amount"] = bAmt;
+                parameters["amount"] = parameters.GetValueOrDefault("budgetAmount") ?? bAmt;
             }
         }
 

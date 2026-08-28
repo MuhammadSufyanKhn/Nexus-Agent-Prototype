@@ -1,8 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   executeAgentPrompt,
-  decideApproval
+  decideApproval,
+  fetchDepartments
 } from '../services/api';
+import { getCommandSuggestions } from '../utils/commandEngine';
+import type { CommandSuggestion } from '../utils/commandEngine';
+import { CommandSuggestions } from './CommandSuggestions';
 import type {
   AgentResult,
   ActionPlan,
@@ -50,6 +54,38 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
   const [approvalProcessing, setApprovalProcessing] = useState(false);
   const [feedExpanded, setFeedExpanded] = useState(false);
 
+  // Autocomplete & Command Engine state
+  const [suggestions, setSuggestions] = useState<CommandSuggestion[]>([]);
+  const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(0);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [departmentsList, setDepartmentsList] = useState<string[]>(['IT', 'HR', 'Marketing', 'Operations', 'R&D']);
+
+  useEffect(() => {
+    fetchDepartments().then(depts => {
+      if (depts && depts.length > 0) {
+        setDepartmentsList(depts.map(d => d.name));
+      }
+    }).catch(() => {});
+  }, []);
+
+  const handlePromptChange = (val: string) => {
+    setPrompt(val);
+    if (val.trim().length >= 2) {
+      const sugs = getCommandSuggestions(val, departmentsList);
+      setSuggestions(sugs);
+      setSelectedSuggestionIndex(0);
+      setShowSuggestions(sugs.length > 0);
+    } else {
+      setSuggestions([]);
+      setShowSuggestions(false);
+    }
+  };
+
+  const applySuggestion = (sug: CommandSuggestion) => {
+    setPrompt(sug.completedText);
+    setShowSuggestions(false);
+  };
+
   // Editable workflow preview state
   const [editedParams, setEditedParams] = useState<Record<string, string>>({});
 
@@ -62,6 +98,16 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
   const [qaNewSalary, setQaNewSalary] = useState('90000');
   const [qaSalaryTarget, setQaSalaryTarget] = useState('Ali');
   const [qaPolicyQuery, setQaPolicyQuery] = useState('leave policy');
+
+  // Budget & HR Quick Action states
+  const [qaReallocTgt, setQaReallocTgt] = useState('IT');
+  const [qaReallocAmount, setQaReallocAmount] = useState('20000');
+  const [qaFreezeDept, setQaFreezeDept] = useState('ALL');
+  const [qaTransferName, setQaTransferName] = useState('Alex');
+  const [qaTransferDept, setQaTransferDept] = useState('Product');
+  const [qaTransferRole, setQaTransferRole] = useState('Senior Product Manager');
+  const [qaLeaveName, setQaLeaveName] = useState('Marcus');
+  const [qaPayrollDept, setQaPayrollDept] = useState('Sales');
 
   const quickPrompts = [
     {
@@ -83,10 +129,10 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
       prompt: "Log Marcus's sick day today and notify his team on Slack."
     },
     {
-      label: 'Reallocate Budget',
+      label: 'Allocate Budget',
       icon: BarChart3,
       type: 'budget_realloc',
-      prompt: 'Reallocate 20000 budget from Marketing to IT department for Q3.'
+      prompt: 'Allocate 100k budget to IT department for Q3.'
     },
     {
       label: 'Freeze Budgets',
@@ -128,6 +174,10 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
     try {
       const res = await executeAgentPrompt(targetPrompt, userRole);
       setResult(res);
+      if (res.isSuccess) {
+        window.dispatchEvent(new CustomEvent('nexus-data-updated'));
+        window.dispatchEvent(new CustomEvent('budget-updated'));
+      }
       if (!res.isSuccess && res.errorMessage) {
         setErrorMsg(res.errorMessage);
       }
@@ -171,6 +221,10 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
               : undefined
           };
         });
+        if (approved) {
+          window.dispatchEvent(new CustomEvent('nexus-data-updated'));
+          window.dispatchEvent(new CustomEvent('budget-updated'));
+        }
         if (onApprovalStateChange) onApprovalStateChange();
       }
     } catch (err: any) {
@@ -405,9 +459,8 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
   const renderComplianceResult = (comp: ComplianceResult) => {
     const isCompliant = comp.status === 'COMPLIANT';
     return (
-      <div className={`rounded-xl border p-5 shadow-xs space-y-3 ${
-        isCompliant ? 'bg-emerald-50/50 border-emerald-200' : 'bg-rose-50/50 border-rose-200'
-      }`}>
+      <div className={`rounded-xl border p-5 shadow-xs space-y-3 ${isCompliant ? 'bg-emerald-50/50 border-emerald-200' : 'bg-rose-50/50 border-rose-200'
+        }`}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             {isCompliant
@@ -458,8 +511,8 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
     // Build field list from result object
     const fields = typeof data === 'object' && data !== null
       ? Object.entries(data)
-          .filter(([k]) => !['message', 'result', 'summary'].includes(k))
-          .slice(0, 10)
+        .filter(([k]) => !['message', 'result', 'summary'].includes(k))
+        .slice(0, 10)
       : [];
 
     return (
@@ -615,8 +668,8 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
 
     // SQL / budget analytics
     if (intent === 'BUDGET_ANALYSIS' || intent === 'SQL_AGENT' ||
-        intent === 'DASHBOARD_ANALYTICS' || intent === 'APPROVAL_READ' ||
-        intent === 'ONBOARDING_READ' || intent === 'AUDIT_READ') {
+      intent === 'DASHBOARD_ANALYTICS' || intent === 'APPROVAL_READ' ||
+      intent === 'ONBOARDING_READ' || intent === 'AUDIT_READ') {
       if (data?.columns) return renderSqlAnalytics(data as SqlAnalyticsResult);
       return renderGenericResult(data, intent);
     }
@@ -649,16 +702,46 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
         <div className="relative">
           <textarea
             value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
+            onChange={(e) => handlePromptChange(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
+              if (e.key === 'Tab') {
+                if (showSuggestions && suggestions.length > 0) {
+                  e.preventDefault();
+                  const selected = suggestions[selectedSuggestionIndex] || suggestions[0];
+                  applySuggestion(selected);
+                  return;
+                }
+              } else if (e.key === 'ArrowDown') {
+                if (showSuggestions && suggestions.length > 0) {
+                  e.preventDefault();
+                  setSelectedSuggestionIndex((prev) => (prev + 1) % suggestions.length);
+                  return;
+                }
+              } else if (e.key === 'ArrowUp') {
+                if (showSuggestions && suggestions.length > 0) {
+                  e.preventDefault();
+                  setSelectedSuggestionIndex((prev) => (prev - 1 + suggestions.length) % suggestions.length);
+                  return;
+                }
+              } else if (e.key === 'Escape') {
+                setShowSuggestions(false);
+                return;
+              } else if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
+                setShowSuggestions(false);
                 handleExecute();
               }
             }}
-            placeholder="What would you like Nexus to do? e.g. 'Ali ka onboarding karo salary 500', 'show leave policy', 'increase IT budget by 50k'..."
+            placeholder="What would you like Nexus to do? e.g. 'alloc', 'onboard Ali', 'show leave policy', 'freeze IT budget'..."
             rows={3}
             className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all resize-none font-medium"
+          />
+
+          <CommandSuggestions
+            suggestions={showSuggestions ? suggestions : []}
+            selectedIndex={selectedSuggestionIndex}
+            onSelectSuggestion={applySuggestion}
+            onClose={() => setShowSuggestions(false)}
           />
           <button
             onClick={() => handleExecute()}
@@ -736,12 +819,11 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
                 <div>
                   {/* Workflow State Badge */}
                   {result.state && (
-                    <span className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider mb-1 ${
-                      result.state === 'CONFIRMATION_REQUIRED' ? 'bg-amber-100 text-amber-800 border border-amber-300' :
-                      result.state === 'CLARIFICATION_REQUIRED' ? 'bg-orange-100 text-orange-800 border border-orange-300' :
-                      result.state === 'READY_TO_EXECUTE' ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' :
-                      'bg-blue-100 text-blue-800 border border-blue-300'
-                    }`}>
+                    <span className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider mb-1 ${result.state === 'CONFIRMATION_REQUIRED' ? 'bg-amber-100 text-amber-800 border border-amber-300' :
+                        result.state === 'CLARIFICATION_REQUIRED' ? 'bg-orange-100 text-orange-800 border border-orange-300' :
+                          result.state === 'READY_TO_EXECUTE' ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' :
+                            'bg-blue-100 text-blue-800 border border-blue-300'
+                      }`}>
                       {result.state === 'CONFIRMATION_REQUIRED' && <ShieldAlert className="w-2.5 h-2.5" />}
                       {result.state === 'CLARIFICATION_REQUIRED' && <AlertCircle className="w-2.5 h-2.5" />}
                       {result.state === 'READY_TO_EXECUTE' && <CheckCircle2 className="w-2.5 h-2.5" />}
@@ -759,15 +841,14 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
                   <div className="text-[11px] text-slate-500 flex items-center gap-2 flex-wrap mt-0.5">
                     <span>Intent: <span className="font-semibold text-slate-700">{intentLabel(result.intent)}</span></span>
                     {result.targetSystem && result.targetSystem !== 'UNKNOWN' && (
-                      <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold ${
-                        result.targetSystem === 'SQL_SERVER' ? 'bg-slate-100 text-slate-600 border border-slate-200' :
-                        result.targetSystem === 'N8N_WORKFLOW' ? 'bg-purple-100 text-purple-700 border border-purple-200' :
-                        'bg-pink-100 text-pink-700 border border-pink-200'
-                      }`}>
+                      <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold ${result.targetSystem === 'SQL_SERVER' ? 'bg-slate-100 text-slate-600 border border-slate-200' :
+                          result.targetSystem === 'N8N_WORKFLOW' ? 'bg-purple-100 text-purple-700 border border-purple-200' :
+                            'bg-pink-100 text-pink-700 border border-pink-200'
+                        }`}>
                         <Database className="w-2.5 h-2.5" />
                         {result.targetSystem === 'SQL_SERVER' ? 'SQL Server' :
-                         result.targetSystem === 'N8N_WORKFLOW' ? 'n8n Workflow' :
-                         result.targetSystem === 'ZAPIER' ? 'Zapier' : result.targetSystem}
+                          result.targetSystem === 'N8N_WORKFLOW' ? 'n8n Workflow' :
+                            result.targetSystem === 'ZAPIER' ? 'Zapier' : result.targetSystem}
                       </span>
                     )}
                     {result.llmError && <span className="text-orange-600">(rule-based)</span>}
@@ -964,6 +1045,200 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
               >
                 <TrendingUp className="w-3.5 h-3.5" />
                 Draft Salary Update Plan
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Quick Action Dialog: Allocate / Reallocate Budget */}
+      {activeModal === 'budget_realloc' && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 border border-slate-200">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2 text-indigo-600 font-bold text-sm">
+                <BarChart3 className="w-5 h-5" />
+                <span>Quick Action: Allocate Department Budget</span>
+              </div>
+              <button onClick={() => setActiveModal(null)} className="text-slate-400 hover:text-slate-600 font-bold text-sm">✕</button>
+            </div>
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">Target Department</label>
+                <input type="text" value={qaReallocTgt} onChange={(e) => setQaReallocTgt(e.target.value)} className="w-full p-2.5 border border-slate-300 rounded-lg text-xs font-semibold focus:border-indigo-500" placeholder="e.g. HR, IT, Marketing..." />
+              </div>
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">Allocation Amount or Percentage</label>
+                <input type="text" value={qaReallocAmount} onChange={(e) => setQaReallocAmount(e.target.value)} className="w-full p-2.5 border border-slate-300 rounded-lg text-xs font-semibold focus:border-indigo-500" placeholder="e.g. 200k, 100000, 50%..." />
+              </div>
+            </div>
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+              <button onClick={() => setActiveModal(null)} className="px-3.5 py-2 border border-slate-300 rounded-lg text-xs font-bold text-slate-600 hover:bg-slate-50">Cancel</button>
+              <button
+                onClick={() => {
+                  const cmd = `Allocate ${qaReallocAmount} budget to ${qaReallocTgt} department for Q3.`;
+                  setPrompt(cmd);
+                  handleExecute(cmd);
+                }}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold shadow-xs flex items-center gap-1.5"
+              >
+                <BarChart3 className="w-3.5 h-3.5" />
+                Allocate Budget
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Quick Action Dialog: Freeze Budgets */}
+      {activeModal === 'freeze' && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 border border-slate-200">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2 text-rose-600 font-bold text-sm">
+                <ShieldAlert className="w-5 h-5" />
+                <span>Quick Action: Freeze Department Budgets</span>
+              </div>
+              <button onClick={() => setActiveModal(null)} className="text-slate-400 hover:text-slate-600 font-bold text-sm">✕</button>
+            </div>
+            <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg text-xs text-rose-800 font-medium">
+              🔒 Freezing budget allocations locks spending and requires executive confirmation.
+            </div>
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">Target Department (or ALL)</label>
+                <input type="text" value={qaFreezeDept} onChange={(e) => setQaFreezeDept(e.target.value)} className="w-full p-2.5 border border-slate-300 rounded-lg text-xs font-semibold focus:border-rose-500" placeholder="e.g. ALL or IT" />
+              </div>
+            </div>
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+              <button onClick={() => setActiveModal(null)} className="px-3.5 py-2 border border-slate-300 rounded-lg text-xs font-bold text-slate-600 hover:bg-slate-50">Cancel</button>
+              <button
+                onClick={() => {
+                  const cmd = qaFreezeDept.toUpperCase() === 'ALL'
+                    ? 'Freeze all department budget allocations for Q3.'
+                    : `Freeze ${qaFreezeDept} department budget allocation for Q3.`;
+                  setPrompt(cmd);
+                  handleExecute(cmd);
+                }}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold shadow-xs flex items-center gap-1.5"
+              >
+                <ShieldAlert className="w-3.5 h-3.5" />
+                Lock Budget Allocations
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Quick Action Dialog: Transfer / Promote */}
+      {activeModal === 'transfer' && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 border border-slate-200">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2 text-purple-600 font-bold text-sm">
+                <TrendingUp className="w-5 h-5" />
+                <span>Quick Action: Employee Transfer / Promote</span>
+              </div>
+              <button onClick={() => setActiveModal(null)} className="text-slate-400 hover:text-slate-600 font-bold text-sm">✕</button>
+            </div>
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">Employee Name</label>
+                <input type="text" value={qaTransferName} onChange={(e) => setQaTransferName(e.target.value)} className="w-full p-2.5 border border-slate-300 rounded-lg text-xs font-semibold focus:border-purple-500" placeholder="e.g. Alex" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">New Department</label>
+                  <input type="text" value={qaTransferDept} onChange={(e) => setQaTransferDept(e.target.value)} className="w-full p-2.5 border border-slate-300 rounded-lg text-xs font-semibold focus:border-purple-500" placeholder="e.g. Product" />
+                </div>
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">New Role / Title</label>
+                  <input type="text" value={qaTransferRole} onChange={(e) => setQaTransferRole(e.target.value)} className="w-full p-2.5 border border-slate-300 rounded-lg text-xs font-semibold focus:border-purple-500" placeholder="e.g. Senior PM" />
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+              <button onClick={() => setActiveModal(null)} className="px-3.5 py-2 border border-slate-300 rounded-lg text-xs font-bold text-slate-600 hover:bg-slate-50">Cancel</button>
+              <button
+                onClick={() => {
+                  const cmd = `Move ${qaTransferName} to ${qaTransferDept} as ${qaTransferRole}.`;
+                  setPrompt(cmd);
+                  handleExecute(cmd);
+                }}
+                className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-xs font-bold shadow-xs flex items-center gap-1.5"
+              >
+                <TrendingUp className="w-3.5 h-3.5" />
+                Execute Transfer / Promotion
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Quick Action Dialog: Log Sick Day */}
+      {activeModal === 'leave' && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 border border-slate-200">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2 text-amber-600 font-bold text-sm">
+                <Zap className="w-5 h-5" />
+                <span>Quick Action: Log Sick Day + Slack</span>
+              </div>
+              <button onClick={() => setActiveModal(null)} className="text-slate-400 hover:text-slate-600 font-bold text-sm">✕</button>
+            </div>
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">Employee Name</label>
+                <input type="text" value={qaLeaveName} onChange={(e) => setQaLeaveName(e.target.value)} className="w-full p-2.5 border border-slate-300 rounded-lg text-xs font-semibold focus:border-amber-500" placeholder="e.g. Marcus" />
+              </div>
+            </div>
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+              <button onClick={() => setActiveModal(null)} className="px-3.5 py-2 border border-slate-300 rounded-lg text-xs font-bold text-slate-600 hover:bg-slate-50">Cancel</button>
+              <button
+                onClick={() => {
+                  const cmd = `Log ${qaLeaveName}'s sick day today and notify his team on Slack.`;
+                  setPrompt(cmd);
+                  handleExecute(cmd);
+                }}
+                className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold shadow-xs flex items-center gap-1.5"
+              >
+                <Zap className="w-3.5 h-3.5" />
+                Record Sick Day & Notify Slack
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Quick Action Dialog: Hold Payroll */}
+      {activeModal === 'payroll' && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 border border-slate-200">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2 text-rose-700 font-bold text-sm">
+                <Shield className="w-5 h-5" />
+                <span>Quick Action: Hold Payroll</span>
+              </div>
+              <button onClick={() => setActiveModal(null)} className="text-slate-400 hover:text-slate-600 font-bold text-sm">✕</button>
+            </div>
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">Department / Division</label>
+                <input type="text" value={qaPayrollDept} onChange={(e) => setQaPayrollDept(e.target.value)} className="w-full p-2.5 border border-slate-300 rounded-lg text-xs font-semibold focus:border-rose-500" placeholder="e.g. Sales" />
+              </div>
+            </div>
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+              <button onClick={() => setActiveModal(null)} className="px-3.5 py-2 border border-slate-300 rounded-lg text-xs font-bold text-slate-600 hover:bg-slate-50">Cancel</button>
+              <button
+                onClick={() => {
+                  const cmd = `Place a payroll hold on the ${qaPayrollDept} division.`;
+                  setPrompt(cmd);
+                  handleExecute(cmd);
+                }}
+                className="px-4 py-2 bg-rose-700 hover:bg-rose-800 text-white rounded-lg text-xs font-bold shadow-xs flex items-center gap-1.5"
+              >
+                <Shield className="w-3.5 h-3.5" />
+                Place Payroll Hold
               </button>
             </div>
           </div>

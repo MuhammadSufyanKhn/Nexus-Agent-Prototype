@@ -67,6 +67,15 @@ public class Budget
     public Department? Department { get; set; }
 }
 
+public class MasterBudget
+{
+    public int Id { get; set; }
+    public int Year { get; set; } = 2026;
+    public string FiscalYear { get; set; } = "2026-2027";
+    public decimal TotalBudgetPool { get; set; } = 1_000_000_000m;
+    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+}
+
 public class Expense
 {
     public int Id { get; set; }

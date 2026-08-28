@@ -1,0 +1,126 @@
+[
+  {
+    "id": "onboard_employee",
+    "intent": "EMPLOYEE_ONBOARDING",
+    "category": "Employee Management",
+    "label": "Onboard Employee",
+    "keywords": ["onboard", "new employee", "hire", "add employee", "join", "orientation", "create employee"],
+    "aliases": ["onboard employee", "add new employee", "create employee record", "hire employee"],
+    "examples": [
+      "Onboard a new employee",
+      "Add a new employee to IT department",
+      "Create employee record for Sarah Jenkins"
+    ],
+    "template": "Onboard employee {employeeName} in {department} department"
+  },
+  {
+    "id": "transfer_promote",
+    "intent": "EMPLOYEE_TRANSFER",
+    "category": "Employee Management",
+    "label": "Transfer / Promote",
+    "keywords": ["transfer", "promote", "promotion", "move", "department change", "designation", "reassign"],
+    "aliases": ["transfer employee", "promote employee", "move employee to department", "change role"],
+    "examples": [
+      "Transfer John Doe to IT department",
+      "Promote Tariq Mahmood to Senior Developer",
+      "Move Sarah Jenkins to HR department"
+    ],
+    "template": "Transfer {employeeName} to {department} department"
+  },
+  {
+    "id": "sick_day_slack",
+    "intent": "SICK_LEAVE",
+    "category": "Employee Management",
+    "label": "Log Sick Day + Slack",
+    "keywords": ["sick", "leave", "sick day", "absent", "slack", "notify", "medical leave", "out of office"],
+    "aliases": ["log sick day", "mark sick leave", "notify sick day on slack", "log medical leave"],
+    "examples": [
+      "Log a sick day for John Doe and notify on Slack",
+      "Mark Tariq Mahmood absent due to sickness",
+      "Log sick leave for Sarah Jenkins"
+    ],
+    "template": "Log a sick day for {employeeName} and notify on Slack"
+  },
+  {
+    "id": "budget_update",
+    "intent": "BUDGET_UPDATE",
+    "category": "Budget Management",
+    "label": "Allocate Budget",
+    "keywords": ["allocate", "budget", "increase", "fund", "funding", "money", "assign", "department budget"],
+    "aliases": ["allocate budget", "increase budget", "add budget", "give budget", "assign budget", "fund department"],
+    "examples": [
+      "Allocate 100k budget to IT department",
+      "Increase Marketing department budget by 50k",
+      "Set the overall budget of 2026-2027 to 1 billion"
+    ],
+    "template": "Allocate {amount} to {department} department"
+  },
+  {
+    "id": "budget_reallocate",
+    "intent": "BUDGET_REALLOCATE",
+    "category": "Budget Management",
+    "label": "Reallocate Budget",
+    "keywords": ["reallocate", "transfer budget", "move budget", "shift budget", "rebalance"],
+    "aliases": ["reallocate budget", "transfer budget between departments", "move budget from marketing to hr"],
+    "examples": [
+      "Reallocate 100000 budget from Marketing to HR department",
+      "Transfer 50k budget from Operations to IT department"
+    ],
+    "template": "Reallocate {amount} budget from {sourceDepartment} to {targetDepartment} department"
+  },
+  {
+    "id": "budget_freeze",
+    "intent": "BUDGET_FREEZE",
+    "category": "Budget Management",
+    "label": "Freeze Budgets",
+    "keywords": ["freeze", "lock", "hold", "stop spending", "freeze budget", "audit lock"],
+    "aliases": ["freeze budget", "lock department budget", "put budget on hold", "freeze all budgets"],
+    "examples": [
+      "Freeze the Marketing department budget due to Q3 audit review",
+      "Freeze IT department budget",
+      "Lock budget allocation for Operations"
+    ],
+    "template": "Freeze the {department} department budget"
+  },
+  {
+    "id": "payroll_hold",
+    "intent": "PAYROLL_HOLD",
+    "category": "Payroll",
+    "label": "Hold Payroll",
+    "keywords": ["payroll", "hold payroll", "stop salary", "freeze payroll", "payroll hold", "compensation lock"],
+    "aliases": ["hold payroll", "freeze salary payout", "put payroll on hold"],
+    "examples": [
+      "Hold payroll for John Doe pending compliance audit",
+      "Put payroll on hold for IT department"
+    ],
+    "template": "Hold payroll for {employeeName}"
+  },
+  {
+    "id": "budget_analysis",
+    "intent": "BUDGET_ANALYSIS",
+    "category": "Budget Management",
+    "label": "Analyze Budget",
+    "keywords": ["analyze", "overview", "spend", "actual spend", "allocated vs spent", "budget report", "finance summary"],
+    "aliases": ["analyze budget", "show budget overview", "generate budget report", "compare allocated vs spent"],
+    "examples": [
+      "Generates an immediate overview of total allocated funds versus actual spend",
+      "Analyze department budget allocations",
+      "Show me the current IT department budget status"
+    ],
+    "template": "Generates an immediate overview of total allocated funds versus actual spend"
+  },
+  {
+    "id": "policy_check",
+    "intent": "POLICY_CHECK",
+    "category": "HR Policy",
+    "label": "Check Policy",
+    "keywords": ["policy", "compliance", "rules", "leave policy", "remote work", "hr policy", "guidelines"],
+    "aliases": ["check policy", "verify compliance", "read hr policy", "check leave policy"],
+    "examples": [
+      "Check HR policy compliance for remote work",
+      "What is the company leave policy?",
+      "Verify expense policy rules"
+    ],
+    "template": "Check HR policy compliance for {policyName}"
+  }
+]

@@ -118,6 +118,21 @@ public class IntentParserTests
         Assert.Equal("Marketing", result.Entities["department"]);
     }
 
+    [Fact]
+    public async Task IntentParser_Parses_Budget_Reallocation_And_Overview_Commands()
+    {
+        var mockLlm = new MockLLMService(null);
+        var parser = new IntentParser(mockLlm, NullLogger<IntentParser>.Instance);
+
+        var reallocResult = await parser.ParseIntentAsync("Reallocate 20000 budget from Marketing to IT department for Q3.");
+        Assert.Equal(IntentType.BUDGET_REALLOCATE, reallocResult.ParsedIntentType);
+        Assert.Equal("Marketing", reallocResult.Entities["sourceDepartment"]);
+        Assert.Equal("IT", reallocResult.Entities["targetDepartment"]);
+
+        var overviewResult = await parser.ParseIntentAsync("Generates an immediate overview of total allocated funds versus actual spend.");
+        Assert.Equal(IntentType.BUDGET_ANALYSIS, overviewResult.ParsedIntentType);
+    }
+
     private class MockLLMService : ILLMService
     {
         private readonly object? _responseObject;

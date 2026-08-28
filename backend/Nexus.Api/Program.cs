@@ -242,6 +242,19 @@ using (var scope = app.Services.CreateScope())
                     CreatedAt DATETIME2 NOT NULL DEFAULT GETUTCDATE()
                 );
             END;
+
+            IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'MasterBudgets')
+            BEGIN
+                CREATE TABLE MasterBudgets (
+                    Id INT IDENTITY(1,1) PRIMARY KEY,
+                    Year INT NOT NULL DEFAULT 2026,
+                    FiscalYear NVARCHAR(50) NOT NULL DEFAULT '2026-2027',
+                    TotalBudgetPool DECIMAL(18,2) NOT NULL DEFAULT 1000000000.00,
+                    UpdatedAt DATETIME2 NOT NULL DEFAULT GETUTCDATE()
+                );
+                INSERT INTO MasterBudgets (Year, FiscalYear, TotalBudgetPool, UpdatedAt)
+                VALUES (2026, '2026-2027', 1000000000.00, GETUTCDATE());
+            END;
         ";
         db.Database.ExecuteSqlRaw(sql);
 

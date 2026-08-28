@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using Nexus.Data;
 using Nexus.Data.Services;
 using Nexus.Data.DTOs;
 
@@ -25,6 +27,42 @@ public class BudgetsController : ControllerBase
     {
         var budgets = await _budgetService.GetAllAsync(departmentId, quarter, year);
         return Ok(budgets);
+    }
+
+    [HttpGet("master")]
+    public async Task<IActionResult> GetMasterBudget([FromServices] NexusDbContext db)
+    {
+        try
+        {
+            var master = await db.MasterBudgets.FirstOrDefaultAsync(m => m.Year == 2026);
+            decimal poolTotal = master?.TotalBudgetPool ?? 1_000_000_000m;
+            decimal totalAllocated = await db.Budgets.SumAsync(b => b.AllocatedAmount);
+            decimal remainingPool = poolTotal - totalAllocated;
+
+            return Ok(new
+            {
+                year = 2026,
+                fiscalYear = master?.FiscalYear ?? "2026-2027",
+                totalBudgetPool = poolTotal,
+                totalAllocatedAcrossDepartments = totalAllocated,
+                remainingUnallocatedPool = remainingPool,
+                updatedAt = master?.UpdatedAt ?? DateTime.UtcNow
+            });
+        }
+        catch
+        {
+            decimal totalAllocated = 0m;
+            try { totalAllocated = await db.Budgets.SumAsync(b => b.AllocatedAmount); } catch { }
+            return Ok(new
+            {
+                year = 2026,
+                fiscalYear = "2026-2027",
+                totalBudgetPool = 1_000_000_000m,
+                totalAllocatedAcrossDepartments = totalAllocated,
+                remainingUnallocatedPool = 1_000_000_000m - totalAllocated,
+                updatedAt = DateTime.UtcNow
+            });
+        }
     }
 
     [HttpGet("{id:int}")]

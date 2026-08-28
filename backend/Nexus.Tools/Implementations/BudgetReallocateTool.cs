@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Diagnostics;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
@@ -75,8 +75,8 @@ public class BudgetReallocateTool : IAgentTool
             if (srcDept == null) return ToolExecutionResult.Failure($"Source department '{srcName}' not found.", RiskLevel.Low);
             if (tgtDept == null) return ToolExecutionResult.Failure($"Target department '{tgtName}' not found.", RiskLevel.Low);
 
-            var srcBudget = await _db.Budgets.FirstOrDefaultAsync(b => b.DepartmentId == srcDept.Id && b.Quarter == quarter && b.Year == year);
-            var tgtBudget = await _db.Budgets.FirstOrDefaultAsync(b => b.DepartmentId == tgtDept.Id && b.Quarter == quarter && b.Year == year);
+            var srcBudget = await _db.Budgets.FirstOrDefaultAsync(b => b.DepartmentId == srcDept.Id);
+            var tgtBudget = await _db.Budgets.FirstOrDefaultAsync(b => b.DepartmentId == tgtDept.Id);
 
             if (srcBudget == null)
                 return ToolExecutionResult.Failure($"No {quarter} {year} budget record found for source department '{srcDept.Name}'.", RiskLevel.Low);

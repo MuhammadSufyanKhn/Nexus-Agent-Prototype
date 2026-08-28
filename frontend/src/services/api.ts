@@ -113,6 +113,10 @@ export interface Department {
   name: string;
   description?: string;
   employeeCount?: number;
+  allocatedBudget?: number;
+  actualSpent?: number;
+  remainingBudget?: number;
+  headOfDepartment?: string;
 }
 
 export interface Budget {
@@ -248,6 +252,30 @@ export async function fetchEmployees(): Promise<Employee[]> {
 export async function fetchDepartments(): Promise<Department[]> {
   const res = await fetch(`${API_BASE}/departments`);
   if (!res.ok) return [];
+  return res.json();
+}
+
+export interface MasterBudgetInfo {
+  year: number;
+  fiscalYear: string;
+  totalBudgetPool: number;
+  totalAllocatedAcrossDepartments: number;
+  remainingUnallocatedPool: number;
+  updatedAt: string;
+}
+
+export async function fetchMasterBudget(): Promise<MasterBudgetInfo> {
+  const res = await fetch(`${API_BASE}/budgets/master`);
+  if (!res.ok) {
+    return {
+      year: 2026,
+      fiscalYear: "2026-2027",
+      totalBudgetPool: 1000000000,
+      totalAllocatedAcrossDepartments: 0,
+      remainingUnallocatedPool: 1000000000,
+      updatedAt: new Date().toISOString()
+    };
+  }
   return res.json();
 }
 

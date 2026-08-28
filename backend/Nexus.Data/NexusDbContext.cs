@@ -15,6 +15,7 @@ public class NexusDbContext : DbContext
     public DbSet<Department> Departments => Set<Department>();
     public DbSet<Employee> Employees => Set<Employee>();
     public DbSet<Budget> Budgets => Set<Budget>();
+    public DbSet<MasterBudget> MasterBudgets => Set<MasterBudget>();
     public DbSet<Expense> Expenses => Set<Expense>();
     public DbSet<Policy> Policies => Set<Policy>();
     public DbSet<AgentRun> AgentRuns => Set<AgentRun>();
@@ -73,6 +74,14 @@ public class NexusDbContext : DbContext
                   .HasForeignKey(b => b.DepartmentId)
                   .OnDelete(DeleteBehavior.Cascade);
             entity.HasIndex(b => new { b.DepartmentId, b.Year, b.Quarter });
+        });
+
+        // MasterBudget Configuration
+        modelBuilder.Entity<MasterBudget>(entity =>
+        {
+            entity.HasKey(m => m.Id);
+            entity.Property(m => m.TotalBudgetPool).HasPrecision(18, 2);
+            entity.Property(m => m.FiscalYear).HasMaxLength(50);
         });
 
         // Expense Configuration
