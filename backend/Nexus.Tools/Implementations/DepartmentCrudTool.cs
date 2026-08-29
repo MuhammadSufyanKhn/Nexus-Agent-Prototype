@@ -162,16 +162,14 @@ public class DepartmentCrudTool : IAgentTool
         if (isBulk)
         {
             var allDepts = await _db.Departments.Include(d => d.Employees).ToListAsync();
-            int count = allDepts.Count;
+            int deptCount = allDepts.Count;
 
-            // Unassign employees from departments before removal
-            foreach (var d in allDepts)
-            {
-                foreach (var emp in d.Employees)
-                {
-                    emp.DepartmentId = null;
-                }
-            }
+            var allBudgets = await _db.Budgets.ToListAsync();
+            _db.Budgets.RemoveRange(allBudgets);
+
+            var allEmployees = await _db.Employees.ToListAsync();
+            int empCount = allEmployees.Count;
+            _db.Employees.RemoveRange(allEmployees);
 
             _db.Departments.RemoveRange(allDepts);
             await _db.SaveChangesAsync();
@@ -179,8 +177,10 @@ public class DepartmentCrudTool : IAgentTool
 
             return ToolExecutionResult.Success(new
             {
-                message = $"All {count} department(s) have been permanently deleted.",
-                affectedCount = count
+                message = $"All {deptCount} department(s) and all {empCount} employee(s) have been permanently deleted.",
+                affectedCount = deptCount + empCount,
+                deletedDepartments = deptCount,
+                deletedEmployees = empCount
             }, RiskLevel.High, sw.ElapsedMilliseconds);
         }
         else
@@ -198,11 +198,13 @@ public class DepartmentCrudTool : IAgentTool
             if (dept == null)
                 return ToolExecutionResult.Failure($"Department '{name}' not found.", RiskLevel.Low);
 
-            // Unassign employees if any exist
-            foreach (var emp in dept.Employees)
-            {
-                emp.DepartmentId = null;
-            }
+            // Delete associated budgets for this department
+            var deptBudgets = await _db.Budgets.Where(b => b.DepartmentId == dept.Id).ToListAsync();
+            _db.Budgets.RemoveRange(deptBudgets);
+
+            // Delete department employees
+            int empCount = dept.Employees.Count;
+            _db.Employees.RemoveRange(dept.Employees);
 
             _db.Departments.Remove(dept);
             await _db.SaveChangesAsync();
@@ -210,8 +212,10 @@ public class DepartmentCrudTool : IAgentTool
 
             return ToolExecutionResult.Success(new
             {
-                message = $"Department '{dept.Name}' has been permanently deleted.",
-                dept.Id, dept.Name
+                message = $"Department '{dept.Name}' and its {empCount} employee(s) have been permanently deleted.",
+                dept.Id,
+                dept.Name,
+                deletedEmployees = empCount
             }, RiskLevel.High, sw.ElapsedMilliseconds);
         }
     }

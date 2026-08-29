@@ -100,6 +100,7 @@ export interface Employee {
   name: string;
   email: string;
   departmentId: number;
+  departmentName?: string;
   designation: string;
   salary: number;
   experienceYears: number;

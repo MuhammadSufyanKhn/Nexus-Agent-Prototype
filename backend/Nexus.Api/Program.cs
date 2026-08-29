@@ -37,12 +37,6 @@ builder.Services.Configure<LLMOptions>(builder.Configuration.GetSection(LLMOptio
 
 // Startup validation — catch the known bad model name early
 var llmModel = builder.Configuration.GetSection(LLMOptions.SectionName).GetValue<string>("Model") ?? string.Empty;
-if (llmModel.Contains("3.6", StringComparison.OrdinalIgnoreCase))
-{
-    Console.ForegroundColor = ConsoleColor.Yellow;
-    Console.WriteLine($"[NEXUS WARNING] LLM:Model '{llmModel}' does not exist. Change to 'gemini-2.0-flash' in appsettings.json.");
-    Console.ResetColor();
-}
 
 // Provider-aware LLM service registration:
 //   Provider = "Gemini"  → GeminiLLMService  (Google Generative Language API)
@@ -192,6 +186,18 @@ using (var scope = app.Services.CreateScope())
                 ALTER TABLE Employees ADD ManagerName NVARCHAR(255) NULL;
             IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Employees') AND name = 'StartDate')
                 ALTER TABLE Employees ADD StartDate DATETIME2 NULL;
+
+            IF EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Employees') AND name = 'DepartmentId' AND is_nullable = 0)
+                ALTER TABLE Employees ALTER COLUMN DepartmentId INT NULL;
+
+            IF EXISTS (SELECT 1 FROM sys.tables WHERE name = 'Departments')
+            BEGIN
+                DECLARE @defItId INT = (SELECT TOP 1 Id FROM Departments WHERE Name = 'IT');
+                IF @defItId IS NOT NULL
+                    UPDATE Employees SET DepartmentId = @defItId WHERE DepartmentId IN (SELECT Id FROM Departments WHERE Name IN ('Q3', '1000000', 'Named', 'ALL'));
+                DELETE FROM Budgets WHERE DepartmentId IN (SELECT Id FROM Departments WHERE Name IN ('Q3', '1000000', 'Named', 'ALL'));
+                DELETE FROM Departments WHERE Name IN ('Q3', '1000000', 'Named', 'ALL');
+            END;
 
             IF EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Employees') AND name = 'UpdatedAt')
             BEGIN

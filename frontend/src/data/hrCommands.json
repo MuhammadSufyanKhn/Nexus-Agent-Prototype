@@ -1,126 +1,1010 @@
 [
   {
-    "id": "onboard_employee",
+    "id": "onboard_general",
     "intent": "EMPLOYEE_ONBOARDING",
     "category": "Employee Management",
-    "label": "Onboard Employee",
-    "keywords": ["onboard", "new employee", "hire", "add employee", "join", "orientation", "create employee"],
+    "label": "Onboard New Employee",
+    "keywords": ["onboard", "new hire", "hire", "add employee", "join", "orientation", "create employee"],
     "aliases": ["onboard employee", "add new employee", "create employee record", "hire employee"],
     "examples": [
       "Onboard a new employee",
       "Add a new employee to IT department",
-      "Create employee record for Sarah Jenkins"
+      "Onboard software engineer Alex Rivera"
     ],
     "template": "Onboard employee {employeeName} in {department} department"
   },
   {
-    "id": "transfer_promote",
+    "id": "onboard_full_profile",
+    "intent": "EMPLOYEE_ONBOARDING",
+    "category": "Employee Management",
+    "label": "Onboard with Salary & Role",
+    "keywords": ["onboard salary", "hire with designation", "starting salary", "full profile onboarding"],
+    "aliases": ["onboard candidate with salary", "provision employee profile", "hire team member with package"],
+    "examples": [
+      "Onboard Sarah Jenkins to IT as Senior Cloud Architect with starting salary 120k",
+      "Onboard Michael Johnson to Marketing as Content Lead with salary 85000",
+      "Onboard Jane Doe in HR department as Talent Acquisition Partner with salary 75k"
+    ],
+    "template": "Onboard {employeeName} to {department} as {designation} with salary {salary}"
+  },
+  {
+    "id": "onboard_multi_system",
+    "intent": "EMPLOYEE_ONBOARDING",
+    "category": "Employee Management",
+    "label": "Multi-System ERP Onboarding",
+    "keywords": ["sap onboarding", "legacy portal", "provision sap", "multi system hire"],
+    "aliases": ["sync onboarding with sap", "provision erp and legacy hr", "full stack employee provisioning"],
+    "examples": [
+      "Provision full multi-system onboarding for Tariq Mahmood in IT",
+      "Run complete enterprise onboarding workflow for Amanda Chen"
+    ],
+    "template": "Provision full enterprise onboarding for {employeeName} in {department}"
+  },
+  {
+    "id": "onboard_batch",
+    "intent": "EMPLOYEE_ONBOARDING",
+    "category": "Employee Management",
+    "label": "Batch Onboard Cohort",
+    "keywords": ["batch onboard", "cohort hire", "intern batch", "group onboarding"],
+    "aliases": ["onboard multiple employees", "bulk onboard engineering interns", "import hire batch"],
+    "examples": [
+      "Onboard summer engineering intern cohort into IT",
+      "Initialize batch onboarding workflow for 5 new associates"
+    ],
+    "template": "Batch onboard {cohortName} into {department}"
+  },
+  {
+    "id": "onboard_hardware_provision",
+    "intent": "IT_OPERATIONS",
+    "category": "IT Operations",
+    "label": "Provision Onboarding Hardware",
+    "keywords": ["laptop request", "provision hardware", "macbook", "workstation setup", "equipment"],
+    "aliases": ["order laptop for new hire", "provision workstation for engineer", "assign dev laptop"],
+    "examples": [
+      "Order MacBook Pro M3 and peripherals for new hire Alex Rivera",
+      "Provision developer workstation for Umar Danish in IT"
+    ],
+    "template": "Provision developer workstation and hardware for {employeeName}"
+  },
+  {
+    "id": "onboard_sso_slack",
+    "intent": "IT_OPERATIONS",
+    "category": "IT Operations",
+    "label": "Setup SSO & Workspace Accounts",
+    "keywords": ["slack invite", "sso setup", "google workspace", "email account", "it access"],
+    "aliases": ["create corporate email", "provision slack and okta accounts", "setup employee email"],
+    "examples": [
+      "Create Google Workspace email and Slack account for Sarah Jenkins",
+      "Provision corporate SSO access for Tariq Mahmood"
+    ],
+    "template": "Provision corporate email and Slack access for {employeeName}"
+  },
+  {
+    "id": "onboard_orientation_schedule",
+    "intent": "EMPLOYEE_ONBOARDING",
+    "category": "Employee Management",
+    "label": "Schedule HR Orientation",
+    "keywords": ["orientation", "day one schedule", "welcome meeting", "hr induction"],
+    "aliases": ["schedule day 1 orientation", "book induction session", "send orientation calendar invite"],
+    "examples": [
+      "Schedule Day 1 orientation session for Alex Rivera",
+      "Send HR induction calendar invites to newly joined engineers"
+    ],
+    "template": "Schedule Day 1 orientation session for {employeeName}"
+  },
+  {
+    "id": "onboard_buddy_assignment",
+    "intent": "EMPLOYEE_ONBOARDING",
+    "category": "Employee Management",
+    "label": "Assign Onboarding Buddy / Mentor",
+    "keywords": ["mentor", "buddy", "peer guide", "onboarding partner"],
+    "aliases": ["assign mentor to new hire", "set onboarding buddy", "link onboarding partner"],
+    "examples": [
+      "Assign Tariq Mahmood as onboarding mentor for Sarah Jenkins",
+      "Set up peer buddy assignment for Alex Rivera in IT"
+    ],
+    "template": "Assign {mentorName} as onboarding mentor for {employeeName}"
+  },
+  {
+    "id": "onboard_welcome_packet",
+    "intent": "EMPLOYEE_ONBOARDING",
+    "category": "Employee Management",
+    "label": "Send Digital Welcome Packet",
+    "keywords": ["welcome kit", "handbook", "welcome email", "welcome pack"],
+    "aliases": ["send employee handbook", "email onboarding documents", "dispatch welcome package"],
+    "examples": [
+      "Send employee handbook and benefit documents to Sarah Jenkins",
+      "Dispatch welcome email and portal credentials to new hire"
+    ],
+    "template": "Send welcome packet and employee handbook to {employeeName}"
+  },
+  {
+    "id": "onboard_probation_target",
+    "intent": "EMPLOYEE_ONBOARDING",
+    "category": "Employee Management",
+    "label": "Set 90-Day Probation Review",
+    "keywords": ["probation", "90 day review", "performance milestone", "probationary period"],
+    "aliases": ["set probation milestone", "schedule 90-day evaluation", "register probation review"],
+    "examples": [
+      "Schedule 90-day probation review meeting for Alex Rivera",
+      "Set 3-month performance checkpoint for Sarah Jenkins"
+    ],
+    "template": "Set 90-day probation review meeting for {employeeName}"
+  },
+  {
+    "id": "transfer_promote_general",
     "intent": "EMPLOYEE_TRANSFER",
     "category": "Employee Management",
-    "label": "Transfer / Promote",
+    "label": "Transfer / Promote Employee",
     "keywords": ["transfer", "promote", "promotion", "move", "department change", "designation", "reassign"],
     "aliases": ["transfer employee", "promote employee", "move employee to department", "change role"],
     "examples": [
+      "Move Umar Danish to HR as Senior Product Manager",
       "Transfer John Doe to IT department",
-      "Promote Tariq Mahmood to Senior Developer",
-      "Move Sarah Jenkins to HR department"
+      "Promote Tariq Mahmood to Senior Staff Engineer"
+    ],
+    "template": "Move {employeeName} to {department} as {designation}"
+  },
+  {
+    "id": "transfer_dept_lateral",
+    "intent": "EMPLOYEE_TRANSFER",
+    "category": "Employee Management",
+    "label": "Lateral Department Transfer",
+    "keywords": ["lateral transfer", "internal move", "switch department", "shift team"],
+    "aliases": ["move employee to another department", "reassign team member", "transfer laterally"],
+    "examples": [
+      "Transfer Sarah Jenkins from IT to Operations department",
+      "Move Michael Johnson to Marketing division as Digital Specialist",
+      "Relocate Alex Rivera to R&D department"
     ],
     "template": "Transfer {employeeName} to {department} department"
   },
   {
-    "id": "sick_day_slack",
-    "intent": "SICK_LEAVE",
+    "id": "promote_title_upgrade",
+    "intent": "EMPLOYEE_PROMOTE",
     "category": "Employee Management",
-    "label": "Log Sick Day + Slack",
-    "keywords": ["sick", "leave", "sick day", "absent", "slack", "notify", "medical leave", "out of office"],
-    "aliases": ["log sick day", "mark sick leave", "notify sick day on slack", "log medical leave"],
+    "label": "Title Upgrade & Role Promotion",
+    "keywords": ["promote title", "upgrade role", "senior promotion", "level up"],
+    "aliases": ["promote to principal engineer", "upgrade designation", "promote to manager"],
     "examples": [
-      "Log a sick day for John Doe and notify on Slack",
-      "Mark Tariq Mahmood absent due to sickness",
-      "Log sick leave for Sarah Jenkins"
+      "Promote Tariq Mahmood to Principal Software Architect",
+      "Promote Umar Danish to VP of Product Strategy",
+      "Upgrade Sarah Jenkins to Lead Cloud Infrastructure Engineer"
+    ],
+    "template": "Promote {employeeName} to {designation}"
+  },
+  {
+    "id": "promote_with_raise",
+    "intent": "EMPLOYEE_PROMOTE",
+    "category": "Employee Management",
+    "label": "Promote with Salary Increase",
+    "keywords": ["raise and promote", "merit increase", "promotion increment", "salary hike promotion"],
+    "aliases": ["promote with 15% raise", "promote and increase compensation", "upgrade role and salary"],
+    "examples": [
+      "Promote Tariq Mahmood to Lead Engineer with a 15% salary increase",
+      "Promote Sarah Jenkins to Engineering Manager with 110k salary"
+    ],
+    "template": "Promote {employeeName} to {designation} with {percentage}% salary increase"
+  },
+  {
+    "id": "transfer_manager_reassignment",
+    "intent": "EMPLOYEE_TRANSFER",
+    "category": "Employee Management",
+    "label": "Reassign Direct Reporting Manager",
+    "keywords": ["change manager", "reporting line", "reassign supervisor", "new manager"],
+    "aliases": ["update reporting manager", "assign supervisor", "change reporting hierarchy"],
+    "examples": [
+      "Change direct reporting manager for Sarah Jenkins to Tariq Mahmood",
+      "Reassign Alex Rivera to report directly to VP of Engineering"
+    ],
+    "template": "Reassign direct manager for {employeeName} to {managerName}"
+  },
+  {
+    "id": "transfer_remote_transition",
+    "intent": "EMPLOYEE_TRANSFER",
+    "category": "Employee Management",
+    "label": "Transition to Remote / Hybrid Status",
+    "keywords": ["remote work", "hybrid status", "relocation", "wfh transition"],
+    "aliases": ["set remote employment status", "transition employee to hybrid", "update work arrangement"],
+    "examples": [
+      "Transition Sarah Jenkins to permanent remote employment status",
+      "Update work arrangement for IT team to hybrid 3-days in office"
+    ],
+    "template": "Transition {employeeName} to permanent remote status"
+  },
+  {
+    "id": "transfer_contractor_conversion",
+    "intent": "EMPLOYEE_TRANSFER",
+    "category": "Employee Management",
+    "label": "Convert Contractor to Full-Time (FTE)",
+    "keywords": ["contractor conversion", "convert to fte", "full time offer", "permanent contract"],
+    "aliases": ["convert contractor to permanent employee", "hire contractor full-time"],
+    "examples": [
+      "Convert contractor Alex Rivera to full-time Senior Developer in IT",
+      "Transition consultant Sarah Jenkins to regular FTE status"
+    ],
+    "template": "Convert contractor {employeeName} to full-time {designation} in {department}"
+  },
+  {
+    "id": "transfer_acting_head",
+    "intent": "EMPLOYEE_TRANSFER",
+    "category": "Employee Management",
+    "label": "Appoint Interim / Acting Department Head",
+    "keywords": ["interim head", "acting manager", "temporary lead", "department chair"],
+    "aliases": ["appoint acting department head", "designate interim director", "assign acting lead"],
+    "examples": [
+      "Appoint Umar Danish as Acting Head of R&D department",
+      "Designate Tariq Mahmood as Interim Director of IT"
+    ],
+    "template": "Appoint {employeeName} as Acting Head of {department} department"
+  },
+  {
+    "id": "offboard_immediate",
+    "intent": "EMPLOYEE_OFFBOARD",
+    "category": "Employee Management",
+    "label": "Offboard Employee (Full Clearance)",
+    "keywords": ["offboard", "exit", "terminate", "separation", "departure", "clearance"],
+    "aliases": ["offboard employee", "initiate employee exit", "process employee departure"],
+    "examples": [
+      "Offboard John Doe from IT department with full clearance",
+      "Initiate formal exit offboarding for Michael Johnson"
+    ],
+    "template": "Offboard employee {employeeName} with full clearance"
+  },
+  {
+    "id": "offboard_access_revocation",
+    "intent": "IT_OPERATIONS",
+    "category": "IT Operations",
+    "label": "Emergency Revocation of All System Access",
+    "keywords": ["revoke access", "lock account", "disable vpn", "security lockout"],
+    "aliases": ["revoke all corporate credentials", "lockdown employee accounts", "disable sso and email"],
+    "examples": [
+      "Immediately revoke all system, VPN, and GitHub access for John Doe",
+      "Lock down SSO credentials for departed employee"
+    ],
+    "template": "Immediately revoke all system and VPN access for {employeeName}"
+  },
+  {
+    "id": "offboard_asset_recovery",
+    "intent": "IT_OPERATIONS",
+    "category": "IT Operations",
+    "label": "Schedule Hardware & Asset Return",
+    "keywords": ["asset return", "laptop collection", "equipment handover", "return hardware"],
+    "aliases": ["schedule laptop collection", "send return shipping box", "track hardware recovery"],
+    "examples": [
+      "Schedule courier pickup for company laptop from Sarah Jenkins",
+      "Track asset return checklist for departing engineer"
+    ],
+    "template": "Schedule hardware and company laptop recovery for {employeeName}"
+  },
+  {
+    "id": "offboard_resignation_notice",
+    "intent": "EMPLOYEE_OFFBOARD",
+    "category": "Employee Management",
+    "label": "Log Voluntary Resignation Notice",
+    "keywords": ["resignation", "two weeks notice", "quit", "voluntary exit"],
+    "aliases": ["log employee resignation", "record 2 weeks notice", "process voluntary separation"],
+    "examples": [
+      "Log two weeks resignation notice for Sarah Jenkins with final day March 31",
+      "Record voluntary resignation for Michael Johnson in Marketing"
+    ],
+    "template": "Log resignation notice for {employeeName} with last working day {date}"
+  },
+  {
+    "id": "offboard_exit_interview",
+    "intent": "EMPLOYEE_OFFBOARD",
+    "category": "Employee Management",
+    "label": "Schedule Exit Interview Survey",
+    "keywords": ["exit interview", "departure feedback", "exit survey", "hr exit meeting"],
+    "aliases": ["book exit interview with hr", "send exit interview questionnaire"],
+    "examples": [
+      "Schedule exit interview meeting with HR for John Doe",
+      "Send departure feedback questionnaire to Michael Johnson"
+    ],
+    "template": "Schedule exit interview meeting with HR for {employeeName}"
+  },
+  {
+    "id": "offboard_garden_leave",
+    "intent": "EMPLOYEE_OFFBOARD",
+    "category": "Employee Management",
+    "label": "Place on Garden Leave",
+    "keywords": ["garden leave", "non compete leave", "paid separation", "restricted exit"],
+    "aliases": ["put employee on garden leave", "activate garden leave period"],
+    "examples": [
+      "Place John Doe on 30-day paid garden leave with system access revoked",
+      "Activate garden leave policy for departing executive"
+    ],
+    "template": "Place {employeeName} on {days}-day paid garden leave"
+  },
+  {
+    "id": "offboard_severance_calc",
+    "intent": "PAYROLL_ACTION",
+    "category": "Payroll",
+    "label": "Calculate Severance & Final Payout",
+    "keywords": ["severance", "final settlement", "pto payout", "exit package"],
+    "aliases": ["compute severance package", "process final salary and pto encashment"],
+    "examples": [
+      "Calculate final settlement and unused PTO payout for John Doe",
+      "Generate severance payout calculation for departing staff"
+    ],
+    "template": "Calculate final settlement and unused PTO payout for {employeeName}"
+  },
+  {
+    "id": "employee_delete_single",
+    "intent": "EMPLOYEE_DELETE",
+    "category": "Employee Management",
+    "label": "Delete Employee Record (Database Purge)",
+    "keywords": ["delete employee", "purge employee", "remove employee record", "erase employee"],
+    "aliases": ["permanently delete employee", "remove employee from database"],
+    "examples": [
+      "Delete employee record for John Doe from database",
+      "Permanently remove Michael Johnson employee profile"
+    ],
+    "template": "Permanently delete employee record for {employeeName}"
+  },
+  {
+    "id": "employee_delete_all",
+    "intent": "EMPLOYEE_DELETE",
+    "category": "Employee Management",
+    "label": "Purge All Employees (High Risk)",
+    "keywords": ["delete all employees", "purge all staff", "remove all employees", "wipe employee database"],
+    "aliases": ["wipe all employees", "delete every employee", "clean employee table"],
+    "examples": [
+      "Delete all employees from the database",
+      "Permanently remove all employee records across all departments"
+    ],
+    "template": "Delete all employees from the database"
+  },
+  {
+    "id": "sick_leave_slack",
+    "intent": "SICK_LEAVE",
+    "category": "Leave & Absence",
+    "label": "Log Sick Leave + Slack Notification",
+    "keywords": ["sick day", "sick leave", "absent", "medical leave", "out sick"],
+    "aliases": ["log sick day", "mark sick leave", "notify team of sick leave on slack"],
+    "examples": [
+      "Log a sick day for Umar Danish and notify on Slack",
+      "Mark Tariq Mahmood absent today due to sickness",
+      "Record medical sick leave for Sarah Jenkins"
     ],
     "template": "Log a sick day for {employeeName} and notify on Slack"
   },
   {
-    "id": "budget_update",
-    "intent": "BUDGET_UPDATE",
-    "category": "Budget Management",
-    "label": "Allocate Budget",
-    "keywords": ["allocate", "budget", "increase", "fund", "funding", "money", "assign", "department budget"],
-    "aliases": ["allocate budget", "increase budget", "add budget", "give budget", "assign budget", "fund department"],
+    "id": "pto_request_submit",
+    "intent": "LEAVE_CREATE",
+    "category": "Leave & Absence",
+    "label": "Submit Annual Vacation PTO",
+    "keywords": ["vacation", "pto", "annual leave", "time off", "holiday request"],
+    "aliases": ["request 5 days pto", "submit vacation request", "book annual leave"],
     "examples": [
-      "Allocate 100k budget to IT department",
-      "Increase Marketing department budget by 50k",
-      "Set the overall budget of 2026-2027 to 1 billion"
+      "Submit 5 days annual PTO for Sarah Jenkins from July 10 to July 15",
+      "Request 3 days vacation leave for Tariq Mahmood"
     ],
-    "template": "Allocate {amount} to {department} department"
+    "template": "Submit {days} days annual PTO for {employeeName}"
   },
   {
-    "id": "budget_reallocate",
+    "id": "leave_parental_request",
+    "intent": "LEAVE_CREATE",
+    "category": "Leave & Absence",
+    "label": "Submit Parental / Maternity Leave",
+    "keywords": ["parental leave", "maternity leave", "paternity leave", "baby bonding"],
+    "aliases": ["apply for maternity leave", "register paternity leave", "log parental time off"],
+    "examples": [
+      "Submit 12 weeks paid parental leave for Sarah Jenkins starting next month",
+      "Log 4 weeks paternity leave for Alex Rivera"
+    ],
+    "template": "Submit {weeks} weeks paid parental leave for {employeeName}"
+  },
+  {
+    "id": "leave_bereavement_log",
+    "intent": "LEAVE_CREATE",
+    "category": "Leave & Absence",
+    "label": "Log Compassionate / Bereavement Leave",
+    "keywords": ["bereavement", "compassionate leave", "family emergency leave", "funeral"],
+    "aliases": ["log bereavement time off", "grant compassionate leave"],
+    "examples": [
+      "Log 3 days compassionate bereavement leave for Michael Johnson",
+      "Grant emergency bereavement leave to Sarah Jenkins"
+    ],
+    "template": "Log 3 days compassionate bereavement leave for {employeeName}"
+  },
+  {
+    "id": "leave_balance_inquiry",
+    "intent": "LEAVE_QUERY",
+    "category": "Leave & Absence",
+    "label": "Check Remaining PTO / Leave Balance",
+    "keywords": ["check pto balance", "remaining leave", "vacation days left", "pto inquiry"],
+    "aliases": ["how many days leave left", "show pto balance for employee"],
+    "examples": [
+      "Check remaining vacation and sick leave balance for Umar Danish",
+      "Show PTO allowance balance for Sarah Jenkins"
+    ],
+    "template": "Check remaining leave and PTO balance for {employeeName}"
+  },
+  {
+    "id": "leave_half_day_log",
+    "intent": "LEAVE_CREATE",
+    "category": "Leave & Absence",
+    "label": "Log Half-Day Leave",
+    "keywords": ["half day", "morning off", "afternoon off", "partial leave"],
+    "aliases": ["log morning half day", "record afternoon absence"],
+    "examples": [
+      "Log a half-day afternoon medical appointment leave for Alex Rivera",
+      "Record morning half-day off for Sarah Jenkins"
+    ],
+    "template": "Log a half-day leave for {employeeName}"
+  },
+  {
+    "id": "leave_unpaid_sabbatical",
+    "intent": "LEAVE_CREATE",
+    "category": "Leave & Absence",
+    "label": "Request Unpaid Leave / Sabbatical",
+    "keywords": ["sabbatical", "unpaid leave", "career break", "extended absence"],
+    "aliases": ["request 3 month sabbatical", "apply for unpaid personal leave"],
+    "examples": [
+      "Submit request for 3-month unpaid sabbatical for Tariq Mahmood",
+      "Log 1 month personal unpaid leave for Sarah Jenkins"
+    ],
+    "template": "Submit request for unpaid sabbatical for {employeeName}"
+  },
+  {
+    "id": "leave_approve_pending",
+    "intent": "LEAVE_APPROVE",
+    "category": "Leave & Absence",
+    "label": "Approve Pending Leave Request",
+    "keywords": ["approve leave", "sign off pto", "accept time off", "authorize absence"],
+    "aliases": ["approve employee vacation", "grant pending leave request"],
+    "examples": [
+      "Approve pending 5-day vacation leave for Sarah Jenkins",
+      "Authorize all pending leave requests for IT department"
+    ],
+    "template": "Approve pending leave request for {employeeName}"
+  },
+  {
+    "id": "payroll_hold_division",
+    "intent": "PAYROLL_HOLD",
+    "category": "Payroll",
+    "label": "Hold Payroll for Division",
+    "keywords": ["place payroll hold", "hold payroll", "stop salary payout", "payroll freeze"],
+    "aliases": ["place a payroll hold on the IT division", "freeze payroll for engineering", "suspend salary batch"],
+    "examples": [
+      "Place a payroll hold on the IT division",
+      "Hold payroll for Marketing division pending audit review",
+      "Place a payroll hold on all departments"
+    ],
+    "template": "Place a payroll hold on the {department} division"
+  },
+  {
+    "id": "payroll_hold_employee",
+    "intent": "PAYROLL_HOLD",
+    "category": "Payroll",
+    "label": "Hold Payroll for Specific Employee",
+    "keywords": ["hold employee payroll", "freeze salary for user", "block direct deposit"],
+    "aliases": ["place payroll hold on individual", "stop paycheck for employee"],
+    "examples": [
+      "Place a payroll hold on Umar Danish pending contract review",
+      "Hold payroll for Sarah Jenkins"
+    ],
+    "template": "Place a payroll hold on {employeeName}"
+  },
+  {
+    "id": "payroll_release_hold",
+    "intent": "PAYROLL_RESUME",
+    "category": "Payroll",
+    "label": "Release Payroll from Hold",
+    "keywords": ["release payroll", "resume payroll", "unfreeze salary", "unlock payroll"],
+    "aliases": ["resume payroll for it division", "unfreeze payroll payout", "clear payroll hold"],
+    "examples": [
+      "Release payroll from hold for the IT division",
+      "Resume payroll payout for Umar Danish",
+      "Lift payroll hold across all departments"
+    ],
+    "template": "Release payroll hold for {department} division"
+  },
+  {
+    "id": "payroll_salary_bump_pct",
+    "intent": "UPDATE_SALARY",
+    "category": "Payroll",
+    "label": "Apply Salary Increase by Percentage",
+    "keywords": ["salary bump", "increase salary by %", "give raise", "salary hike"],
+    "aliases": ["increase salary by 10%", "give 5% raise to employee", "boost salary"],
+    "examples": [
+      "Increase salary by 10% for Umar Danish",
+      "Give a 12% salary raise to Tariq Mahmood",
+      "Increase salary by 8% for Sarah Jenkins"
+    ],
+    "template": "Increase salary by {percentage}% for {employeeName}"
+  },
+  {
+    "id": "payroll_salary_bump_dept",
+    "intent": "UPDATE_SALARY",
+    "category": "Payroll",
+    "label": "Department-Wide Salary Adjustment",
+    "keywords": ["department salary increase", "division raise", "cost of living adjustment", "cola raise"],
+    "aliases": ["give 5% raise to all it staff", "adjust department salary scale"],
+    "examples": [
+      "Increase salary by 5% for all employees in IT department",
+      "Apply 4% annual cost-of-living adjustment across Marketing"
+    ],
+    "template": "Increase salary by {percentage}% for all employees in {department} department"
+  },
+  {
+    "id": "payroll_quarterly_bonus",
+    "intent": "PAYROLL_BONUS",
+    "category": "Payroll",
+    "label": "Distribute Quarterly Performance Bonus",
+    "keywords": ["distribute bonus", "quarterly bonus", "performance payout", "bonus pool"],
+    "aliases": ["payout q3 performance bonus", "distribute team bonuses", "award department bonus"],
+    "examples": [
+      "Distribute $2,000 quarterly bonus to each employee in IT",
+      "Payout Q3 performance bonus of 10% across R&D division",
+      "Initiate bonus distribution for Marketing department"
+    ],
+    "template": "Distribute {amount} performance bonus to employees in {department} department"
+  },
+  {
+    "id": "payroll_spot_bonus_single",
+    "intent": "PAYROLL_BONUS",
+    "category": "Payroll",
+    "label": "Award Individual Spot Bonus",
+    "keywords": ["spot bonus", "recognition reward", "excellence award", "one-time bonus"],
+    "aliases": ["give 1500 spot bonus", "reward employee with cash bonus"],
+    "examples": [
+      "Award a $1,500 spot bonus to Tariq Mahmood for outstanding delivery",
+      "Give a $1,000 spot recognition bonus to Sarah Jenkins"
+    ],
+    "template": "Award a {amount} spot bonus to {employeeName}"
+  },
+  {
+    "id": "payroll_overtime_payout",
+    "intent": "PAYROLL_ACTION",
+    "category": "Payroll",
+    "label": "Process Overtime Compensation Payout",
+    "keywords": ["overtime pay", "ot compensation", "extra hours payout", "weekend work pay"],
+    "aliases": ["process overtime hours payout", "reimburse overtime work"],
+    "examples": [
+      "Process 15 hours of overtime payout for Sarah Jenkins at 1.5x rate",
+      "Approve overtime compensation batch for IT support staff"
+    ],
+    "template": "Process overtime compensation payout for {employeeName}"
+  },
+  {
+    "id": "payroll_direct_deposit_update",
+    "intent": "PAYROLL_ACTION",
+    "category": "Payroll",
+    "label": "Update Direct Deposit Bank Information",
+    "keywords": ["direct deposit", "bank account update", "payroll account", "routing number"],
+    "aliases": ["change direct deposit account", "update employee banking info"],
+    "examples": [
+      "Update direct deposit bank routing info for Umar Danish",
+      "Verify direct deposit account details for Alex Rivera"
+    ],
+    "template": "Update direct deposit bank details for {employeeName}"
+  },
+  {
+    "id": "payroll_tax_document_generate",
+    "intent": "PAYROLL_ACTION",
+    "category": "Payroll",
+    "label": "Generate Annual Tax Documents (W-2 / 1099)",
+    "keywords": ["tax forms", "w2", "1099", "annual tax statement", "tax withholding"],
+    "aliases": ["generate w-2 document", "export employee tax statement"],
+    "examples": [
+      "Generate annual W-2 tax statement for Umar Danish",
+      "Export 1099 contractor payment summary for 2026 tax filing"
+    ],
+    "template": "Generate annual tax document for {employeeName}"
+  },
+  {
+    "id": "budget_increase_rd_q3",
+    "intent": "BUDGET_UPDATE",
+    "category": "Budget Management",
+    "label": "Increase Department Budget (Quarterly)",
+    "keywords": ["increase budget", "increase r&d budget", "q3 budget increase", "add funds to department"],
+    "aliases": ["increase r&d budget by 1000000 for q3", "add 1m to r&d budget", "expand department budget"],
+    "examples": [
+      "Increase R&D budget by 1000000 for Q3",
+      "Increase IT department budget by 250k for Q3",
+      "Increase Marketing budget by 50000 for Q2"
+    ],
+    "template": "Increase {department} budget by {amount} for {quarter}"
+  },
+  {
+    "id": "budget_set_fixed_amount",
+    "intent": "BUDGET_UPDATE",
+    "category": "Budget Management",
+    "label": "Set Department Budget to Fixed Amount",
+    "keywords": ["set budget to", "allocate fixed budget", "set r&d budget to 1000000", "adjust budget ceiling"],
+    "aliases": ["set r&d budget to 1000000 for q3", "set it budget to 500k", "lock budget to amount"],
+    "examples": [
+      "Set R&D budget to 1000000 for Q3",
+      "Set IT department budget to 750000 for 2026",
+      "Set Marketing budget to 300000"
+    ],
+    "template": "Set {department} budget to {amount} for {quarter}"
+  },
+  {
+    "id": "budget_allocate_general",
+    "intent": "BUDGET_UPDATE",
+    "category": "Budget Management",
+    "label": "Allocate Budget to Department",
+    "keywords": ["allocate budget", "assign budget", "fund department", "add budget money"],
+    "aliases": ["allocate 100k budget to it department", "grant budget to team", "fund engineering"],
+    "examples": [
+      "Allocate 100k budget to IT department",
+      "Allocate 500k budget to R&D department",
+      "Allocate 75000 budget to HR department"
+    ],
+    "template": "Allocate {amount} budget to {department} department"
+  },
+  {
+    "id": "budget_reallocate_cross_dept",
     "intent": "BUDGET_REALLOCATE",
     "category": "Budget Management",
-    "label": "Reallocate Budget",
-    "keywords": ["reallocate", "transfer budget", "move budget", "shift budget", "rebalance"],
-    "aliases": ["reallocate budget", "transfer budget between departments", "move budget from marketing to hr"],
+    "label": "Reallocate Budget Between Departments",
+    "keywords": ["reallocate budget", "transfer budget", "shift funds", "move money between departments"],
+    "aliases": ["reallocate 100000 budget from marketing to hr", "transfer 50k from operations to it"],
     "examples": [
       "Reallocate 100000 budget from Marketing to HR department",
-      "Transfer 50k budget from Operations to IT department"
+      "Transfer 50k budget from Operations to IT department",
+      "Move 200000 budget from Marketing to R&D division"
     ],
     "template": "Reallocate {amount} budget from {sourceDepartment} to {targetDepartment} department"
   },
   {
-    "id": "budget_freeze",
+    "id": "budget_freeze_dept_quarter",
     "intent": "BUDGET_FREEZE",
     "category": "Budget Management",
-    "label": "Freeze Budgets",
-    "keywords": ["freeze", "lock", "hold", "stop spending", "freeze budget", "audit lock"],
-    "aliases": ["freeze budget", "lock department budget", "put budget on hold", "freeze all budgets"],
+    "label": "Freeze Department Budget (Quarterly)",
+    "keywords": ["freeze budget", "freeze q3 budget", "lock spending", "audit freeze", "halt spending"],
+    "aliases": ["freeze q3 department budget allocation for q3", "freeze the marketing department budget", "freeze it budget"],
     "examples": [
+      "Freeze Q3 department budget allocation for Q3",
       "Freeze the Marketing department budget due to Q3 audit review",
-      "Freeze IT department budget",
-      "Lock budget allocation for Operations"
+      "Freeze IT department budget allocations"
     ],
-    "template": "Freeze the {department} department budget"
+    "template": "Freeze {department} department budget allocation for {quarter}"
   },
   {
-    "id": "payroll_hold",
-    "intent": "PAYROLL_HOLD",
-    "category": "Payroll",
-    "label": "Hold Payroll",
-    "keywords": ["payroll", "hold payroll", "stop salary", "freeze payroll", "payroll hold", "compensation lock"],
-    "aliases": ["hold payroll", "freeze salary payout", "put payroll on hold"],
+    "id": "budget_unfreeze_dept",
+    "intent": "BUDGET_FREEZE",
+    "category": "Budget Management",
+    "label": "Unfreeze Department Budget",
+    "keywords": ["unfreeze budget", "unlock spending", "resume budget", "lift budget freeze"],
+    "aliases": ["unfreeze it department budget", "resume marketing spending", "lift freeze on r&d"],
     "examples": [
-      "Hold payroll for John Doe pending compliance audit",
-      "Put payroll on hold for IT department"
+      "Unfreeze the IT department budget and resume operational spending",
+      "Lift budget freeze on Marketing department"
     ],
-    "template": "Hold payroll for {employeeName}"
+    "template": "Unfreeze the {department} department budget"
   },
   {
-    "id": "budget_analysis",
+    "id": "budget_reduce_cut",
+    "intent": "BUDGET_UPDATE",
+    "category": "Budget Management",
+    "label": "Reduce Department Budget (Cut Spending)",
+    "keywords": ["reduce budget", "cut budget", "decrease budget", "trim spending"],
+    "aliases": ["reduce marketing budget by 50k", "cut it expenditure by 10%"],
+    "examples": [
+      "Reduce Marketing department budget by 50000 for Q3",
+      "Cut Operations budget by 15% due to fiscal constraints"
+    ],
+    "template": "Reduce {department} budget by {amount}"
+  },
+  {
+    "id": "budget_set_master_annual",
+    "intent": "BUDGET_UPDATE",
+    "category": "Budget Management",
+    "label": "Set Master Company Budget Pool",
+    "keywords": ["master budget", "company budget", "annual budget pool", "overall budget 2026-2027"],
+    "aliases": ["set the overall budget of 2026-2027 to 1 billion", "set corporate annual budget pool"],
+    "examples": [
+      "Set the overall budget of 2026-2027 to 1 billion",
+      "Initialize master company budget pool of 50 million for FY2026"
+    ],
+    "template": "Set master company budget for {year} to {amount}"
+  },
+  {
+    "id": "budget_overview_analytics",
     "intent": "BUDGET_ANALYSIS",
     "category": "Budget Management",
-    "label": "Analyze Budget",
-    "keywords": ["analyze", "overview", "spend", "actual spend", "allocated vs spent", "budget report", "finance summary"],
-    "aliases": ["analyze budget", "show budget overview", "generate budget report", "compare allocated vs spent"],
+    "label": "Analyze Budget Allocated vs Actual Spend",
+    "keywords": ["analyze budget", "allocated vs spent", "budget burn rate", "budget audit report"],
+    "aliases": ["generates an immediate overview of total allocated funds versus actual spend", "show budget report"],
     "examples": [
       "Generates an immediate overview of total allocated funds versus actual spend",
-      "Analyze department budget allocations",
-      "Show me the current IT department budget status"
+      "Analyze department budget allocations and spending efficiency",
+      "Show current budget vs actual expense burn rate for IT"
     ],
-    "template": "Generates an immediate overview of total allocated funds versus actual spend"
+    "template": "Analyze total allocated funds versus actual spend across all departments"
   },
   {
-    "id": "policy_check",
+    "id": "budget_emergency_reserve",
+    "intent": "BUDGET_UPDATE",
+    "category": "Budget Management",
+    "label": "Top-Up Emergency Project Reserve",
+    "keywords": ["emergency budget", "contingency fund", "project reserve", "top up funds"],
+    "aliases": ["add 100k to emergency contingency fund", "top up r&d reserve"],
+    "examples": [
+      "Allocate $250,000 to the corporate contingency reserve pool",
+      "Top up R&D emergency project fund by 100k"
+    ],
+    "template": "Allocate {amount} to corporate contingency reserve"
+  },
+  {
+    "id": "dept_create_with_head",
+    "intent": "DEPARTMENT_CREATE",
+    "category": "Organization",
+    "label": "Create New Department with Head & Budget",
+    "keywords": ["create department", "new department", "add department", "establish division"],
+    "aliases": ["create finance department with head sufyan", "create new department", "add division"],
+    "examples": [
+      "Create Finance department with head Sufyan and budget 500000",
+      "Create AI Innovations department with head Tariq Mahmood",
+      "Create Security & Compliance department with allocated budget 250k"
+    ],
+    "template": "Create {department} department with head {headName} and budget {amount}"
+  },
+  {
+    "id": "dept_delete_all",
+    "intent": "DEPARTMENT_DELETE",
+    "category": "Organization",
+    "label": "Delete All Departments (Complete Wipe)",
+    "keywords": ["delete all departments", "remove all departments", "wipe departments", "purge all divisions"],
+    "aliases": ["delete all departments", "remove all departments and employees", "wipe organization departments"],
+    "examples": [
+      "delete all departments",
+      "Permanently remove all departments from the database",
+      "Wipe all department entities and associated employee records"
+    ],
+    "template": "delete all departments"
+  },
+  {
+    "id": "dept_delete_single",
+    "intent": "DEPARTMENT_DELETE",
+    "category": "Organization",
+    "label": "Delete Specific Department",
+    "keywords": ["delete department", "remove department", "purge department", "drop division"],
+    "aliases": ["delete marketing department", "remove hr department", "delete it division"],
+    "examples": [
+      "Delete Marketing department",
+      "Remove Operations department permanently",
+      "Delete Legal department and purge department budgets"
+    ],
+    "template": "Delete {department} department"
+  },
+  {
+    "id": "dept_rename",
+    "intent": "DEPARTMENT_UPDATE",
+    "category": "Organization",
+    "label": "Rename Existing Department",
+    "keywords": ["rename department", "change department name", "rebrand division"],
+    "aliases": ["rename it department to digital technology", "change name of department"],
+    "examples": [
+      "Rename IT department to Digital Technology & Infrastructure",
+      "Rename Marketing department to Growth & Brand Strategy"
+    ],
+    "template": "Rename {oldDepartment} department to {newDepartment}"
+  },
+  {
+    "id": "dept_update_head",
+    "intent": "DEPARTMENT_UPDATE",
+    "category": "Organization",
+    "label": "Update Department Head / Director",
+    "keywords": ["change department head", "appoint director", "new head of department"],
+    "aliases": ["set tariq mahmood as head of it", "update department head for marketing"],
+    "examples": [
+      "Set Tariq Mahmood as Department Head for IT department",
+      "Assign Sarah Jenkins as Head of HR department"
+    ],
+    "template": "Set {employeeName} as Department Head for {department} department"
+  },
+  {
+    "id": "dept_headcount_ceiling",
+    "intent": "DEPARTMENT_UPDATE",
+    "category": "Organization",
+    "label": "Set Department Headcount Ceiling",
+    "keywords": ["headcount cap", "staff ceiling", "max hires", "headcount limit"],
+    "aliases": ["cap it department headcount at 50", "set maximum staffing ceiling"],
+    "examples": [
+      "Set maximum headcount ceiling for IT department to 45 employees",
+      "Cap R&D division staffing limit at 60 members"
+    ],
+    "template": "Set maximum headcount ceiling for {department} to {count}"
+  },
+  {
+    "id": "dept_org_hierarchy_view",
+    "intent": "ORG_QUERY",
+    "category": "Organization",
+    "label": "View Org Hierarchy & Reporting Tree",
+    "keywords": ["org chart", "hierarchy", "reporting tree", "organization structure"],
+    "aliases": ["show org chart", "display department reporting structure", "export org hierarchy"],
+    "examples": [
+      "Display organizational hierarchy chart for IT department",
+      "Generate complete corporate organization tree report"
+    ],
+    "template": "Display organizational hierarchy chart for {department}"
+  },
+  {
+    "id": "policy_check_remote_work",
     "intent": "POLICY_CHECK",
     "category": "HR Policy",
-    "label": "Check Policy",
-    "keywords": ["policy", "compliance", "rules", "leave policy", "remote work", "hr policy", "guidelines"],
-    "aliases": ["check policy", "verify compliance", "read hr policy", "check leave policy"],
+    "label": "Check Remote Work Policy Compliance",
+    "keywords": ["remote work policy", "wfh policy", "hybrid rules", "work from home guidelines"],
+    "aliases": ["check hr policy compliance for remote work", "what are the remote work rules"],
     "examples": [
       "Check HR policy compliance for remote work",
-      "What is the company leave policy?",
-      "Verify expense policy rules"
+      "What are the corporate travel and remote work guidelines?",
+      "Review policy requirements for working from abroad"
     ],
     "template": "Check HR policy compliance for {policyName}"
+  },
+  {
+    "id": "policy_salary_band_pol_hr_001",
+    "intent": "POLICY_CHECK",
+    "category": "HR Policy",
+    "label": "Evaluate Salary Band Compliance (POL-HR-001)",
+    "keywords": ["pol-hr-001", "salary band policy", "compensation compliance", "pay equity"],
+    "aliases": ["check salary band rules", "evaluate compensation against pol-hr-001"],
+    "examples": [
+      "Evaluate HR Policy POL-HR-001 salary band rules for Senior Engineer",
+      "Check if 120k compensation complies with POL-HR-001 guidelines"
+    ],
+    "template": "Evaluate HR Policy POL-HR-001 salary band rules for {designation}"
+  },
+  {
+    "id": "policy_travel_expense_rules",
+    "intent": "POLICY_CHECK",
+    "category": "HR Policy",
+    "label": "Verify Travel & Expense Reimbursement Policy",
+    "keywords": ["travel policy", "per diem rules", "flight booking policy", "meal allowance"],
+    "aliases": ["check travel reimbursement limits", "verify meal per diem guidelines"],
+    "examples": [
+      "Verify company policy limits for international flight bookings",
+      "Check maximum allowable daily meal per diem under travel policy"
+    ],
+    "template": "Verify company travel policy limits for {expenseType}"
+  },
+  {
+    "id": "policy_mandatory_training_audit",
+    "intent": "POLICY_CHECK",
+    "category": "HR Policy",
+    "label": "Audit Mandatory Compliance Training Completion",
+    "keywords": ["mandatory training", "compliance courses", "cybersecurity training", "hipaa training"],
+    "aliases": ["audit anti-harassment training completion", "check security training status"],
+    "examples": [
+      "Audit IT department mandatory security awareness training completion",
+      "Report employees with overdue annual compliance training"
+    ],
+    "template": "Audit mandatory compliance training completion for {department}"
+  },
+  {
+    "id": "policy_nda_reacknowledgment",
+    "intent": "POLICY_CHECK",
+    "category": "HR Policy",
+    "label": "Trigger NDA & Confidentiality Re-Acknowledgement",
+    "keywords": ["nda", "confidentiality agreement", "ip agreement", "re-sign policy"],
+    "aliases": ["send annual nda acknowledgement", "request compliance re-signature"],
+    "examples": [
+      "Trigger annual NDA and intellectual property policy re-acknowledgment for R&D",
+      "Verify signed confidentiality agreements for all new engineers"
+    ],
+    "template": "Trigger annual NDA re-acknowledgment for {department}"
+  },
+  {
+    "id": "it_ticket_new_hire_setup",
+    "intent": "IT_OPERATIONS",
+    "category": "IT Operations",
+    "label": "Create IT Support Ticket for Setup",
+    "keywords": ["it ticket", "support request", "new hire setup ticket", "helpdesk"],
+    "aliases": ["create it ticket for developer setup", "open helpdesk ticket"],
+    "examples": [
+      "Create IT support ticket for workstation setup for Umar Danish",
+      "Open high-priority IT ticket for monitor and docking station"
+    ],
+    "template": "Create IT support ticket for workstation setup for {employeeName}"
+  },
+  {
+    "id": "it_github_access_grant",
+    "intent": "IT_OPERATIONS",
+    "category": "IT Operations",
+    "label": "Grant GitHub Enterprise Organization Access",
+    "keywords": ["github access", "repo permissions", "developer access", "git org"],
+    "aliases": ["invite engineer to github enterprise", "grant repository write permissions"],
+    "examples": [
+      "Grant GitHub Enterprise organization write access to Sarah Jenkins",
+      "Add Umar Danish to internal developer GitHub team"
+    ],
+    "template": "Grant GitHub Enterprise access to {employeeName}"
+  },
+  {
+    "id": "it_aws_cloud_credentials",
+    "intent": "IT_OPERATIONS",
+    "category": "IT Operations",
+    "label": "Provision Cloud Infrastructure IAM Role",
+    "keywords": ["aws access", "cloud console", "iam role", "azure permissions"],
+    "aliases": ["provision aws developer sandbox role", "assign cloud dev credentials"],
+    "examples": [
+      "Provision AWS Developer Sandbox IAM role for Tariq Mahmood",
+      "Grant read-only staging Kubernetes cluster access to Sarah Jenkins"
+    ],
+    "template": "Provision cloud IAM developer role for {employeeName}"
+  },
+  {
+    "id": "it_software_license_assign",
+    "intent": "IT_OPERATIONS",
+    "category": "IT Operations",
+    "label": "Assign Software Licenses (Figma, JetBrains, Copilot)",
+    "keywords": ["license", "jetbrains", "figma license", "github copilot", "software access"],
+    "aliases": ["assign figma enterprise license", "provision copilot subscription"],
+    "examples": [
+      "Assign JetBrains All Products Pack and GitHub Copilot license to Umar Danish",
+      "Provision Figma Enterprise editor seat for UX Designer"
+    ],
+    "template": "Assign {softwareName} license to {employeeName}"
+  },
+  {
+    "id": "it_device_compliance_scan",
+    "intent": "IT_OPERATIONS",
+    "category": "IT Operations",
+    "label": "Run Endpoint Device Security Compliance Scan",
+    "keywords": ["device scan", "mdm compliance", "antivirus check", "endpoint security"],
+    "aliases": ["check laptop disk encryption", "audit mdm endpoint compliance"],
+    "examples": [
+      "Run endpoint security and disk encryption compliance scan on IT laptops",
+      "Verify MDM compliance status for all remote employees"
+    ],
+    "template": "Run endpoint security compliance scan on {department} devices"
+  },
+  {
+    "id": "analytics_headcount_summary",
+    "intent": "ANALYTICS_QUERY",
+    "category": "Analytics & Reports",
+    "label": "Generate Corporate Headcount & Staffing Report",
+    "keywords": ["headcount report", "staffing summary", "total employees", "workforce metrics"],
+    "aliases": ["show total employee headcount by department", "generate workforce report"],
+    "examples": [
+      "Generate comprehensive headcount and staffing distribution report",
+      "Show active employee count across all departments"
+    ],
+    "template": "Generate comprehensive headcount distribution report across all departments"
+  },
+  {
+    "id": "analytics_salary_distribution",
+    "intent": "ANALYTICS_QUERY",
+    "category": "Analytics & Reports",
+    "label": "Salary Distribution & Comp Ratio Analysis",
+    "keywords": ["salary distribution", "compensation report", "payroll analytics", "comp ratio"],
+    "aliases": ["show salary distribution by department", "analyze compensation parity"],
+    "examples": [
+      "Generate salary distribution and average compensation report for IT",
+      "Analyze gender and department compensation parity across the organization"
+    ],
+    "template": "Generate salary distribution report for {department} department"
+  },
+  {
+    "id": "analytics_turnover_attrition",
+    "intent": "ANALYTICS_QUERY",
+    "category": "Analytics & Reports",
+    "label": "Turnover & Employee Attrition Analytics",
+    "keywords": ["turnover rate", "attrition report", "retention metrics", "exit analytics"],
+    "aliases": ["calculate quarterly employee turnover rate", "show department retention rate"],
+    "examples": [
+      "Calculate annualized employee turnover and attrition rate for 2026",
+      "Show quarterly retention metrics across engineering teams"
+    ],
+    "template": "Calculate annual employee turnover and retention metrics for {year}"
+  },
+  {
+    "id": "analytics_audit_ledger_inspect",
+    "intent": "ANALYTICS_QUERY",
+    "category": "Analytics & Reports",
+    "label": "Inspect Cryptographic SHA-256 Audit Ledger",
+    "keywords": ["audit log", "sha256 ledger", "tamper proof log", "compliance ledger", "security audit"],
+    "aliases": ["verify cryptographic audit trail", "inspect agent execution audit logs"],
+    "examples": [
+      "Inspect SHA-256 cryptographic audit ledger for recent agent mutations",
+      "Verify integrity of executive approval audit log chain"
+    ],
+    "template": "Inspect cryptographic audit ledger for recent administrative actions"
   }
 ]

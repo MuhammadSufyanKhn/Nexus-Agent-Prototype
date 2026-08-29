@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -110,16 +110,7 @@ public class EmployeeTransferTool : IAgentTool
                 if (matches.Count == 0)
                     return ToolExecutionResult.Failure($"No employee named '{empName}' found.", RiskLevel.Low);
 
-                if (matches.Count > 1)
-                {
-                    var matchList = string.Join(", ", matches.Select(m =>
-                        $"#{m.Id} {m.Name} ({m.Department?.Name ?? "No Dept"})"));
-                    return ToolExecutionResult.Failure(
-                        $"Multiple employees named '{empName}' found: {matchList}. Please provide the employee ID to proceed.",
-                        RiskLevel.Low);
-                }
-
-                employee = matches[0];
+                employee = matches.OrderByDescending(m => m.Id).First();
             }
 
             if (employee == null)

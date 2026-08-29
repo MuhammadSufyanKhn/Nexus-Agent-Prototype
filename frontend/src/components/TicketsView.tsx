@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Ticket, Search, Plus, X, CheckCircle2, Clock, AlertCircle, Laptop, Shield, User, Filter, RefreshCw } from 'lucide-react';
+import { Ticket, Search, Plus, X, CheckCircle2, Clock, AlertCircle, User, RefreshCw } from 'lucide-react';
 import { fetchTickets, createTicket, updateTicketStatus, type TicketItem } from '../services/api';
 
 export const TicketsView: React.FC = () => {

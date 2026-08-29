@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("Nexus.Agent")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+5f18e63d403ddb1029b482f36e08631543b3d556")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+e58ce387460933255b7a59db21c879fbc7fcf1e8")]
 [assembly: System.Reflection.AssemblyProductAttribute("Nexus.Agent")]
 [assembly: System.Reflection.AssemblyTitleAttribute("Nexus.Agent")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

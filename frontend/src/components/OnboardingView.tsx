@@ -1,18 +1,30 @@
 import React, { useEffect, useState } from 'react';
-import { fetchEmployees } from '../services/api';
-import type { Employee } from '../services/api';
+import { fetchEmployees, fetchDepartments } from '../services/api';
+import type { Employee, Department } from '../services/api';
 import { UserPlus, CheckCircle2 } from 'lucide-react';
 
 export const OnboardingView: React.FC = () => {
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchEmployees()
-      .then(data => setEmployees(data))
+    Promise.all([
+      fetchEmployees(),
+      fetchDepartments()
+    ])
+      .then(([empData, deptData]) => {
+        setEmployees(empData);
+        setDepartments(deptData);
+      })
       .catch(err => console.error("Onboarding fetch error:", err))
       .finally(() => setLoading(false));
   }, []);
+
+  const getDeptName = (emp: Employee) => {
+    const d = departments.find(dep => dep.id === emp.departmentId);
+    return d?.name || emp.departmentName || 'Department';
+  };
 
   return (
     <div className="max-w-6xl mx-auto px-6 py-6 space-y-6">
@@ -39,6 +51,7 @@ export const OnboardingView: React.FC = () => {
       ) : (
         <div className="space-y-4">
           {employees.map((emp) => {
+            const deptName = getDeptName(emp);
             const steps = [
               { title: 'Employee Information Parsed', status: 'COMPLETED', detail: `${emp.designation} profile verified` },
               { title: 'Policy Validation (POL-HR-001)', status: 'COMPLETED', detail: `Salary Band Verified ($${emp.salary.toLocaleString()})` },
@@ -58,7 +71,7 @@ export const OnboardingView: React.FC = () => {
                       </span>
                       <h4 className="font-bold text-slate-900 text-base">{emp.name}</h4>
                     </div>
-                    <p className="text-xs text-slate-500 mt-0.5">{emp.designation} • IT & Software • ${emp.salary.toLocaleString()}</p>
+                    <p className="text-xs text-slate-500 mt-0.5">{emp.designation} • {deptName} • ${emp.salary.toLocaleString()}</p>
                   </div>
 
                   <span className="text-xs bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold px-3 py-1 rounded-full flex items-center gap-1.5">

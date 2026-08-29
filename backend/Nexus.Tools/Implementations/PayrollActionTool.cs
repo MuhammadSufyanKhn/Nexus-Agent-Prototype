@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
@@ -73,23 +73,35 @@ public class PayrollActionTool : IAgentTool
                 actionType.Equals("Resume", StringComparison.OrdinalIgnoreCase))
             {
                 var query = _db.Employees.Include(e => e.Department).AsQueryable();
-                if (!string.IsNullOrWhiteSpace(division))
+                if (!string.IsNullOrWhiteSpace(division) && !division.Equals("all", StringComparison.OrdinalIgnoreCase))
                     query = query.Where(e => e.Department != null && e.Department.Name.ToLower().Contains(division.ToLower()));
                 else if (!string.IsNullOrWhiteSpace(empName))
                     query = query.Where(e => e.Name.ToLower().Contains(empName.ToLower()));
 
                 var employees = await query.ToListAsync();
-                sw.Stop();
-
                 var isHold = actionType.Equals("Hold", StringComparison.OrdinalIgnoreCase);
-                var verb   = isHold ? "placed on HOLD" : "RELEASED from hold";
+
+                foreach (var emp in employees)
+                {
+                    emp.Status = isHold ? EmployeeStatus.Inactive : EmployeeStatus.Active;
+                    emp.UpdatedAt = DateTime.UtcNow;
+                }
+
+                if (employees.Count > 0)
+                {
+                    await _db.SaveChangesAsync();
+                }
+
+                sw.Stop();
+                var verb = isHold ? "placed on HOLD" : "RELEASED from hold";
 
                 return ToolExecutionResult.Success(new
                 {
                     message       = $"Payroll for {employees.Count} employee(s) in {division ?? "all divisions"} has been {verb}.",
                     actionType,
                     affectedCount = employees.Count,
-                    reason
+                    reason,
+                    employeeIds   = employees.Select(e => e.Id).ToList()
                 }, Definition.RiskLevel, sw.ElapsedMilliseconds);
             }
 
@@ -97,7 +109,7 @@ public class PayrollActionTool : IAgentTool
                 actionType.Equals("IndividualBonus", StringComparison.OrdinalIgnoreCase))
             {
                 var query = _db.Employees.Include(e => e.Department).AsQueryable();
-                if (!string.IsNullOrWhiteSpace(division))
+                if (!string.IsNullOrWhiteSpace(division) && !division.Equals("all", StringComparison.OrdinalIgnoreCase))
                     query = query.Where(e => e.Department != null && e.Department.Name.ToLower().Contains(division.ToLower()));
                 else if (!string.IsNullOrWhiteSpace(empName))
                     query = query.Where(e => e.Name.ToLower().Contains(empName.ToLower()));
@@ -115,18 +127,23 @@ public class PayrollActionTool : IAgentTool
                     else
                         bonusVal = 1000.00m;
 
+                    emp.Salary += bonusVal;
+                    emp.UpdatedAt = DateTime.UtcNow;
                     totalBonusPaid += bonusVal;
                 }
 
-                await _db.SaveChangesAsync();
-                sw.Stop();
+                if (employees.Count > 0)
+                {
+                    await _db.SaveChangesAsync();
+                }
 
+                sw.Stop();
                 return ToolExecutionResult.Success(new
                 {
-                    message        = $"Bonus distribution completed for {employees.Count} employee(s). Total financial impact: ${totalBonusPaid:N2}.",
-                    actionType,
+                    message        = $"Distributed ${totalBonusPaid:N2} in bonuses across {employees.Count} employee(s) in {division ?? "company"}.",
                     affectedCount  = employees.Count,
-                    totalFinancialImpact = totalBonusPaid
+                    totalBonusPaid,
+                    reason
                 }, Definition.RiskLevel, sw.ElapsedMilliseconds);
             }
 

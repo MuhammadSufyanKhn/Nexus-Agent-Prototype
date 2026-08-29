@@ -876,8 +876,16 @@ User: ""hello"" or ""what can you do?""
             }
         }
 
+        // Override TargetEntity if prompt is a payroll directive
+        if (p.Contains("payroll") && (p.Contains("hold") || p.Contains("bonus") || p.Contains("halt") || p.Contains("freeze")))
+        {
+            result.TargetEntity = "EMPLOYEE";
+            result.Intent = p.Contains("bonus") ? IntentType.PAYROLL_BONUS.ToString() : IntentType.PAYROLL_HOLD.ToString();
+            result.Operation = "UPDATE";
+        }
+
         // 2. Department entity aliasing (department <-> name)
-        bool isDeptIntent = result.TargetEntity.Equals("DEPARTMENT", StringComparison.OrdinalIgnoreCase) ||
+        bool isDeptIntent = (result.TargetEntity.Equals("DEPARTMENT", StringComparison.OrdinalIgnoreCase) && !p.Contains("payroll")) ||
                             result.ParsedIntentType == IntentType.DEPARTMENT_CREATE ||
                             result.ParsedIntentType == IntentType.DEPARTMENT_UPDATE ||
                             result.ParsedIntentType == IntentType.DEPARTMENT_DELETE;
@@ -918,30 +926,67 @@ User: ""hello"" or ""what can you do?""
             parameters["name"] = empNameVal;
         }
 
-        if (!isDeptIntent && (!entities.ContainsKey("name") || string.IsNullOrWhiteSpace(entities.GetValueOrDefault("name")) || entities["name"].Equals("In It", StringComparison.OrdinalIgnoreCase)))
+        if (!isDeptIntent && (!entities.ContainsKey("name") || string.IsNullOrWhiteSpace(entities.GetValueOrDefault("name")) || entities["name"].Equals("In It", StringComparison.OrdinalIgnoreCase) || entities["name"].StartsWith("Move ", StringComparison.OrdinalIgnoreCase)))
         {
-            var knownNames = new[] { "John Smith", "Jane Doe", "Michael Johnson", "David Lee", "Robert Chen", "Sarah Jenkins", "Tariq Mahmood", "Maria Garcia", "Ahmed Khan", "Sufyan Khan", "Alex", "Amanda", "Sarah", "Jim", "Pam", "Marcus", "Ali", "Sara", "Ahmed" };
-            foreach (var kn in knownNames)
+            // Priority 1: Check transfer, promote, onboard, and log actions with explicit employee name
+            var actionVerbNameMatch = Regex.Match(prompt, @"\b(?:move|transfer|promote|reassign|relocate|shift|onboard|hire)\s+([A-Za-z]+(?:\s+[A-Za-z]+)?)\s+(?:to|from|as|in|into|for)\b", RegexOptions.IgnoreCase);
+            if (actionVerbNameMatch.Success)
             {
-                if (Regex.IsMatch(prompt, $@"\b{kn}\b", RegexOptions.IgnoreCase))
+                var parsedName = actionVerbNameMatch.Groups[1].Value.Trim();
+                if (!parsedName.Equals("employee", StringComparison.OrdinalIgnoreCase) && !parsedName.Equals("the", StringComparison.OrdinalIgnoreCase))
                 {
-                    entities["name"] = kn;
-                    parameters["name"] = kn;
-                    break;
+                    parsedName = CultureInfo.CurrentCulture.TextInfo.ToTitleCase(parsedName.ToLower());
+                    entities["name"] = parsedName;
+                    parameters["name"] = parsedName;
+                }
+            }
+
+            if (!entities.ContainsKey("name") || string.IsNullOrWhiteSpace(entities.GetValueOrDefault("name")))
+            {
+                var knownNames = new[] { "Umar Danish", "John Smith", "Jane Doe", "Michael Johnson", "David Lee", "Robert Chen", "Sarah Jenkins", "Tariq Mahmood", "Maria Garcia", "Ahmed Khan", "Sufyan Khan", "Alex", "Amanda", "Sarah", "Jim", "Pam", "Marcus", "Ali", "Sara", "Ahmed", "Umar" };
+                foreach (var kn in knownNames)
+                {
+                    if (Regex.IsMatch(prompt, $@"\b{kn}\b", RegexOptions.IgnoreCase))
+                    {
+                        entities["name"] = kn;
+                        parameters["name"] = kn;
+                        break;
+                    }
                 }
             }
 
             if (!entities.ContainsKey("name") || string.IsNullOrWhiteSpace(entities.GetValueOrDefault("name")) || entities["name"].Equals("In It", StringComparison.OrdinalIgnoreCase))
             {
-                var capMatch = Regex.Match(prompt, @"\b([A-Z][a-z]+\s+[A-Z][a-z]+)\b");
-                if (capMatch.Success)
+                var capMatches = Regex.Matches(prompt, @"\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\b");
+                var verbExclusions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
                 {
-                    var candName = capMatch.Groups[1].Value.Trim();
+                    "Move", "Transfer", "Promote", "Onboard", "Delete", "Add", "Update", "Freeze", "Place", "Hold", "Set",
+                    "Increase", "Reduce", "Give", "Assign", "Cut", "Drop", "Remove", "Change", "Shift", "Show", "List",
+                    "Get", "Create", "Hire", "Plan", "Department", "Office", "Branch", "Team", "Senior", "Junior", "Lead"
+                };
+
+                foreach (Match m in capMatches)
+                {
+                    var candName = m.Groups[1].Value.Trim();
+                    var parts = candName.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                    if (parts.Length > 0 && verbExclusions.Contains(parts[0]))
+                    {
+                        if (parts.Length > 1 && !verbExclusions.Contains(parts[1]))
+                        {
+                            candName = string.Join(" ", parts.Skip(1));
+                        }
+                        else
+                        {
+                            continue;
+                        }
+                    }
+
                     var lower = candName.ToLowerInvariant();
-                    if (!lower.Contains("department") && !lower.Contains("office") && !lower.Contains("branch") && !lower.Contains("team"))
+                    if (!lower.Contains("department") && !lower.Contains("office") && !lower.Contains("branch") && !lower.Contains("team") && candName.Length >= 3)
                     {
                         entities["name"] = candName;
                         parameters["name"] = candName;
+                        break;
                     }
                 }
             }
@@ -978,19 +1023,29 @@ User: ""hello"" or ""what can you do?""
             parameters["name"] = cleanedN;
         }
 
+        // Clean bogus department values like Q1-Q4 or numbers
+        if (entities.TryGetValue("department", out var existingD) && (Regex.IsMatch(existingD, @"^(q[1-4]|\d+|quarter)$", RegexOptions.IgnoreCase) || existingD.Equals("ALL", StringComparison.OrdinalIgnoreCase)))
+        {
+            entities.Remove("department");
+            parameters.Remove("department");
+        }
+
         if (!entities.ContainsKey("department") || string.IsNullOrWhiteSpace(entities.GetValueOrDefault("department")) || entities["department"] == "[Pending]")
         {
             var deptPatterns = new[]
             {
-                @"\b(?:joining|join|in|to|for|at)\s+(?:the\s+)?([A-Za-z0-9\&\s]+?)\s+(?:department|dept)\b",
-                @"\b([A-Za-z0-9\&]+)\s+(?:department|dept)\b",
-                @"\b(?:department|dept)\s*(?:is|:|=)?\s*([A-Za-z0-9\&]+)\b",
+                @"\b(?:joining|join|in|to|for|at)\s+(?:the\s+)?([A-Za-z0-9\&\s]+?)\s+(?:department|dept|division)\b",
+                @"\b([A-Za-z0-9\&]+)\s+(?:department|dept|division)\b",
+                @"\b([A-Za-z0-9\&]+)\s+budget\b",
+                @"\b(?:budget\s+(?:for|of|to)\s+(?:the\s+)?)([A-Za-z0-9\&]+)\b",
+                @"\b(?:department|dept|division)\s*(?:is|:|=)?\s*([A-Za-z0-9\&]+)\b",
                 @"\b(?:joining|join|in|for|to|at)\s+(?:the\s+)?([A-Za-z0-9\&]+)\b"
             };
 
             var stopWords = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
             {
-                "the", "a", "an", "his", "her", "their", "new", "this", "our", "my", "your", "employee", "staff", "company", "office", "team", "first", "second", "third", "which", "whose", "name"
+                "the", "a", "an", "his", "her", "their", "new", "this", "our", "my", "your", "employee", "staff", "company", "office", "team", "first", "second", "third", "which", "whose", "name",
+                "q1", "q2", "q3", "q4", "quarter", "1000000", "500000", "100k", "50k", "all", "each", "every", "budget", "allocation", "payroll", "hold", "bonus"
             };
 
             foreach (var pattern in deptPatterns)
@@ -999,13 +1054,14 @@ User: ""hello"" or ""what can you do?""
                 if (match.Success)
                 {
                     var dCandidate = match.Groups[1].Value.Trim();
-                    if (!stopWords.Contains(dCandidate) && dCandidate.Length >= 2 && dCandidate.Length <= 30)
+                    if (!stopWords.Contains(dCandidate) && !Regex.IsMatch(dCandidate, @"^(q[1-4]|\d+|quarter)$", RegexOptions.IgnoreCase) && dCandidate.Length >= 2 && dCandidate.Length <= 30)
                     {
                         var dClean = CleanDepartmentName(dCandidate);
-                        if (!string.IsNullOrWhiteSpace(dClean))
+                        if (!string.IsNullOrWhiteSpace(dClean) && !stopWords.Contains(dClean) && !Regex.IsMatch(dClean, @"^(q[1-4]|\d+|quarter)$", RegexOptions.IgnoreCase))
                         {
-                            dClean = dClean.ToUpperInvariant() == "IT" || dClean.ToUpperInvariant() == "HR" || dClean.ToUpperInvariant() == "QA" || dClean.ToUpperInvariant() == "SQA" 
-                                ? dClean.ToUpperInvariant() 
+                            var upper = dClean.ToUpperInvariant();
+                            dClean = upper == "IT" || upper == "HR" || upper == "QA" || upper == "SQA" || upper == "R&D" || upper == "R & D"
+                                ? (upper == "R & D" ? "R&D" : upper)
                                 : CultureInfo.CurrentCulture.TextInfo.ToTitleCase(dClean.ToLower());
                             entities["department"] = dClean;
                             parameters["department"] = dClean;
@@ -1280,7 +1336,16 @@ User: ""hello"" or ""what can you do?""
             parameters["email"] = email;
         }
 
-        // 10. Final Parameter/Entity Alignment
+        // Dynamic Quarter Extraction (e.g. Q1, Q2, Q3, Q4)
+        var qMatch = Regex.Match(prompt, @"\b(Q[1-4])\b", RegexOptions.IgnoreCase);
+        if (qMatch.Success)
+        {
+            var qVal = qMatch.Groups[1].Value.ToUpperInvariant();
+            entities["quarter"] = qVal;
+            parameters["quarter"] = qVal;
+        }
+
+        // 11. Final Parameter/Entity Alignment
         foreach (var kv in entities)
         {
             if (!parameters.ContainsKey(kv.Key))
@@ -1289,7 +1354,7 @@ User: ""hello"" or ""what can you do?""
             }
         }
 
-        // 11. Populate StructuredEntities
+        // 12. Populate StructuredEntities
         result.StructuredEntities = new StructuredEntities
         {
             EmployeeName = isDeptIntent ? null : entities.GetValueOrDefault("name"),
@@ -1329,6 +1394,10 @@ User: ""hello"" or ""what can you do?""
         if (cleaned.Equals("IT", StringComparison.OrdinalIgnoreCase) || cleaned.Equals("HR", StringComparison.OrdinalIgnoreCase) || cleaned.Equals("QA", StringComparison.OrdinalIgnoreCase) || cleaned.Equals("SQA", StringComparison.OrdinalIgnoreCase))
         {
             return cleaned.ToUpperInvariant();
+        }
+        if (cleaned.Equals("R&D", StringComparison.OrdinalIgnoreCase) || cleaned.Equals("R & D", StringComparison.OrdinalIgnoreCase))
+        {
+            return "R&D";
         }
 
         return CultureInfo.CurrentCulture.TextInfo.ToTitleCase(cleaned.ToLower());

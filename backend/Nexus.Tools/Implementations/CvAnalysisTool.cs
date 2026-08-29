@@ -97,7 +97,7 @@ public class CvAnalysisTool : IAgentTool
             .ToList();
 
         // 1. Candidate Name Extraction
-        string candidateName = "Ali Khan";
+        string candidateName = "Candidate";
         var nameMatch = Regex.Match(cvText, @"\b(?:name|candidate|resume|cv)\s*[:\-]?\s*([A-Za-z]+(?:\s+[A-Za-z]+)?)\b", RegexOptions.IgnoreCase);
         if (nameMatch.Success && !string.IsNullOrWhiteSpace(nameMatch.Groups[1].Value))
         {

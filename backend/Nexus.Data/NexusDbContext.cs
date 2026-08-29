@@ -55,6 +55,7 @@ public class NexusDbContext : DbContext
             entity.Property(e => e.Email).IsRequired().HasMaxLength(150);
             entity.Property(e => e.Designation).IsRequired().HasMaxLength(100);
             entity.Property(e => e.Salary).HasPrecision(18, 2);
+            entity.Property(e => e.DepartmentId).IsRequired(false);
             entity.HasOne(e => e.Department)
                   .WithMany(d => d.Employees)
                   .HasForeignKey(e => e.DepartmentId)

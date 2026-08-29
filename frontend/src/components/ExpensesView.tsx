@@ -42,7 +42,7 @@ export const ExpensesView: React.FC = () => {
         <div className="bg-rose-50 border border-rose-200 rounded-xl p-5 shadow-2xs space-y-3">
           <div className="flex items-center gap-2 text-rose-900 font-bold text-sm">
             <AlertTriangle className="w-5 h-5 text-rose-600" />
-            <span>Policy Violation Alert: {violation.employeeName || 'Ahmed Khan'} (${violation.amount.toFixed(2)} Claim)</span>
+            <span>Policy Violation Alert: {violation.employeeName || employees.find(e => e.id === violation.employeeId)?.name || `Employee #${violation.employeeId}`} (${violation.amount.toFixed(2)} Claim)</span>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs bg-white p-3 rounded-lg border border-rose-150">
             <div>

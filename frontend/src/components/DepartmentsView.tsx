@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { fetchDepartments, fetchBudgets, fetchEmployees, fetchMasterBudget } from '../services/api';
 import type { Department, Budget, Employee, MasterBudgetInfo } from '../services/api';
-import { Building2, Landmark, PieChart, ShieldCheck } from 'lucide-react';
+import { Building2, Landmark } from 'lucide-react';
 
 export const DepartmentsView: React.FC = () => {
   const [departments, setDepartments] = useState<Department[]>([]);

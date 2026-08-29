@@ -2,6 +2,7 @@ using System;
 using System.Diagnostics;
 using System.Globalization;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -164,6 +165,17 @@ public class BudgetUpdateTool : IAgentTool
                 }, Definition.RiskLevel, sw.ElapsedMilliseconds);
             }
 
+            // Clean deptName if it was mistakenly set to a quarter or number
+            if (string.IsNullOrWhiteSpace(deptName) || Regex.IsMatch(deptName, @"^(q[1-4]|\d+|quarter)$", RegexOptions.IgnoreCase))
+            {
+                if (prompt.Contains("r&d") || prompt.Contains("r & d")) deptName = "R&D";
+                else if (prompt.Contains("marketing")) deptName = "Marketing";
+                else if (prompt.Contains("finance")) deptName = "Finance";
+                else if (prompt.Contains("operations")) deptName = "Operations";
+                else if (prompt.Contains("hr")) deptName = "HR";
+                else if (prompt.Contains("it")) deptName = "IT";
+            }
+
             // 2. DEPARTMENT BUDGET ALLOCATION (with Auto-Creation if Department is new)
             var dept = await _db.Departments
                 .FirstOrDefaultAsync(d => d.Name.ToLower().Equals(deptName.ToLower()) || d.Name.ToLower().Contains(deptName.ToLower()) || deptName.ToLower().Contains(d.Name.ToLower()));
@@ -171,9 +183,9 @@ public class BudgetUpdateTool : IAgentTool
             if (dept == null)
             {
                 var cleanDeptName = deptName.Trim();
-                if (cleanDeptName.Equals("IT", StringComparison.OrdinalIgnoreCase) || cleanDeptName.Equals("HR", StringComparison.OrdinalIgnoreCase) || cleanDeptName.Equals("QA", StringComparison.OrdinalIgnoreCase) || cleanDeptName.Equals("SQA", StringComparison.OrdinalIgnoreCase) || cleanDeptName.Equals("R&D", StringComparison.OrdinalIgnoreCase))
+                if (cleanDeptName.Equals("IT", StringComparison.OrdinalIgnoreCase) || cleanDeptName.Equals("HR", StringComparison.OrdinalIgnoreCase) || cleanDeptName.Equals("QA", StringComparison.OrdinalIgnoreCase) || cleanDeptName.Equals("SQA", StringComparison.OrdinalIgnoreCase) || cleanDeptName.Equals("R&D", StringComparison.OrdinalIgnoreCase) || cleanDeptName.Equals("R & D", StringComparison.OrdinalIgnoreCase))
                 {
-                    cleanDeptName = cleanDeptName.ToUpperInvariant();
+                    cleanDeptName = cleanDeptName.Equals("R & D", StringComparison.OrdinalIgnoreCase) ? "R&D" : cleanDeptName.ToUpperInvariant();
                 }
                 else
                 {
@@ -230,24 +242,10 @@ public class BudgetUpdateTool : IAgentTool
                     _ => oldAmount + amount // ADD (default)
                 };
                 budget.AllocatedAmount = newAmount;
+                if (!string.IsNullOrWhiteSpace(quarter)) budget.Quarter = quarter;
             }
 
             await _db.SaveChangesAsync();
-
-            // Sync raw SQL DepartmentBudgets table if present in SQL Server
-            try
-            {
-                await _db.Database.ExecuteSqlRawAsync(
-                    @"IF EXISTS (SELECT 1 FROM sys.tables WHERE name = 'DepartmentBudgets')
-                      BEGIN
-                          IF EXISTS (SELECT 1 FROM [dbo].[DepartmentBudgets] WHERE LOWER(DepartmentName) = LOWER({1}) OR LOWER(DepartmentName) LIKE {2})
-                              UPDATE [dbo].[DepartmentBudgets] SET AllocatedAmount = {0} WHERE LOWER(DepartmentName) = LOWER({1}) OR LOWER(DepartmentName) LIKE {2}
-                          ELSE
-                              INSERT INTO [dbo].[DepartmentBudgets] (DepartmentName, Year, Quarter, AllocatedAmount, SpentAmount) VALUES ({1}, {3}, {4}, {0}, 0.00)
-                      END",
-                    newAmount, dept.Name, "%" + dept.Name.ToLower() + "%", year, quarter);
-            }
-            catch { }
 
             // Explicit Post-Execution SQL Verification Check:
             // Verify that SQL Server actually holds the requested allocation for the target Department

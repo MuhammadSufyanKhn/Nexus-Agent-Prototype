@@ -104,10 +104,26 @@ export function getCommandSuggestions(
           .replace('{department}', activeDepts[0] || 'IT')
           .replace('{sourceDepartment}', activeDepts[2] || 'Marketing')
           .replace('{targetDepartment}', activeDepts[1] || 'HR')
-          .replace('{amount}', '100k')
-          .replace('{employeeName}', 'John Doe')
-          .replace('{designation}', 'Senior Developer')
-          .replace('{policyName}', 'remote work');
+          .replace('{amount}', '$100,000')
+          .replace('{employeeName}', 'Umar Danish')
+          .replace('{designation}', 'Senior Product Manager')
+          .replace('{policyName}', 'remote work')
+          .replace('{salary}', '$120,000')
+          .replace('{percentage}', '10')
+          .replace('{quarter}', 'Q3')
+          .replace('{days}', '5')
+          .replace('{weeks}', '12')
+          .replace('{year}', '2026')
+          .replace('{headName}', 'Sufyan Khan')
+          .replace('{oldDepartment}', 'IT')
+          .replace('{newDepartment}', 'Digital Technology')
+          .replace('{softwareName}', 'GitHub Copilot')
+          .replace('{expenseType}', 'international flight bookings')
+          .replace('{cohortName}', 'Summer 2026 Interns')
+          .replace('{mentorName}', 'Tariq Mahmood')
+          .replace('{managerName}', 'Tariq Mahmood')
+          .replace('{date}', 'March 31')
+          .replace('{count}', '50');
       }
 
       suggestions.push({
@@ -123,8 +139,8 @@ export function getCommandSuggestions(
   // Sort by score descending
   suggestions.sort((a, b) => b.score - a.score);
 
-  // Return top 4 unique suggestions
-  return suggestions.slice(0, 4);
+  // Return top 8 unique suggestions
+  return suggestions.slice(0, 8);
 }
 
 function isFuzzyMatch(query: string, text: string): boolean {

@@ -1,18 +1,25 @@
 import React, { useEffect, useState } from 'react';
-import { fetchEmployees } from '../services/api';
-import type { Employee } from '../services/api';
+import { fetchEmployees, fetchDepartments } from '../services/api';
+import type { Employee, Department } from '../services/api';
 import { Users, Search, X } from 'lucide-react';
 
 export const EmployeesView: React.FC = () => {
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [deptFilter, setDeptFilter] = useState('ALL');
   const [selectedEmp, setSelectedEmp] = useState<Employee | null>(null);
 
   useEffect(() => {
-    fetchEmployees()
-      .then((data) => setEmployees(data))
+    Promise.all([
+      fetchEmployees(),
+      fetchDepartments()
+    ])
+      .then(([empData, deptData]) => {
+        setEmployees(empData);
+        setDepartments(deptData);
+      })
       .catch((err) => console.error(err))
       .finally(() => setLoading(false));
   }, []);
@@ -24,6 +31,11 @@ export const EmployeesView: React.FC = () => {
     const matchesDept = deptFilter === 'ALL' || String(emp.departmentId) === deptFilter;
     return matchesSearch && matchesDept;
   });
+
+  const getDepartmentName = (emp: Employee) => {
+    const found = departments.find((d) => d.id === emp.departmentId);
+    return found?.name || emp.departmentName || 'Unassigned';
+  };
 
   return (
     <div className="max-w-6xl mx-auto px-6 py-6 space-y-6">
@@ -59,10 +71,11 @@ export const EmployeesView: React.FC = () => {
             className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 focus:outline-hidden"
           >
             <option value="ALL">All Departments</option>
-            <option value="1">IT & Software</option>
-            <option value="2">Human Resources</option>
-            <option value="3">Marketing</option>
-            <option value="4">Operations</option>
+            {departments.map((d) => (
+              <option key={d.id} value={String(d.id)}>
+                {d.name}
+              </option>
+            ))}
           </select>
         </div>
       </div>
@@ -98,7 +111,7 @@ export const EmployeesView: React.FC = () => {
                     </div>
                   </td>
                   <td className="py-3 px-4 font-medium text-slate-700">
-                    {emp.departmentId === 1 ? 'IT & Software' : emp.departmentId === 2 ? 'Human Resources' : 'Operations'}
+                    {getDepartmentName(emp)}
                   </td>
                   <td className="py-3 px-4 font-semibold text-slate-800">{emp.designation}</td>
                   <td className="py-3 px-4 font-bold text-slate-900">${emp.salary.toLocaleString()} / yr</td>

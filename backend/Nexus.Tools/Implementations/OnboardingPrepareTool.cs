@@ -120,6 +120,6 @@ public class OnboardingPrepareTool : IAgentTool
             }
         }
 
-        return "John Smith";
+        return null;
     }
 }

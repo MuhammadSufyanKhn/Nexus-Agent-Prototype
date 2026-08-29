@@ -69,10 +69,10 @@ public class GeminiLLMService : ILLMService
             }
 
             var model = string.IsNullOrWhiteSpace(_options.Model)
-                ? "gemini-1.5-flash"
+                ? "gemini-3.6-flash"
                 : _options.Model;
 
-            var candidateModels = new List<string> { model, "gemini-2.0-flash", "gemini-2.5-flash", "gemini-1.5-flash", "gemini-1.5-pro" };
+            var candidateModels = new List<string> { model, "gemini-3.6-flash", "gemini-3.7-flash", "gemini-flash-latest", "gemini-3.5-flash" };
 
             var fullPrompt = BuildFullPrompt(prompt, systemPrompt, requestJson);
 
@@ -243,7 +243,7 @@ public class GeminiLLMService : ILLMService
     {
         var sw = Stopwatch.StartNew();
         var model = string.IsNullOrWhiteSpace(_options.Model)
-            ? "gemini-2.0-flash"
+            ? "gemini-3.6-flash"
             : _options.Model;
 
         var apiKey = _options.ApiKey;

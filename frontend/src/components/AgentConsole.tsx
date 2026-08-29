@@ -102,12 +102,13 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
   // Budget & HR Quick Action states
   const [qaReallocTgt, setQaReallocTgt] = useState('IT');
   const [qaReallocAmount, setQaReallocAmount] = useState('20000');
+  const [qaAllocMode, setQaAllocMode] = useState<'ADD' | 'SET'>('ADD');
   const [qaFreezeDept, setQaFreezeDept] = useState('ALL');
   const [qaTransferName, setQaTransferName] = useState('Alex');
   const [qaTransferDept, setQaTransferDept] = useState('Product');
   const [qaTransferRole, setQaTransferRole] = useState('Senior Product Manager');
   const [qaLeaveName, setQaLeaveName] = useState('Marcus');
-  const [qaPayrollDept, setQaPayrollDept] = useState('Sales');
+  const [qaPayrollDept, setQaPayrollDept] = useState('ALL');
 
   const quickPrompts = [
     {
@@ -989,8 +990,33 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
             </div>
             <div className="space-y-3 text-xs">
               <div>
-                <label className="font-bold text-slate-700 block mb-1">Policy Title or Code</label>
-                <input type="text" value={qaPolicyQuery} onChange={(e) => setQaPolicyQuery(e.target.value)} className="w-full p-2.5 border border-slate-300 rounded-lg text-xs font-semibold focus:border-blue-500" placeholder="e.g. leave policy, POL-HR-001..." />
+                <label className="font-bold text-slate-700 block mb-1">Policy Category</label>
+                <select
+                  value={qaPolicyQuery}
+                  onChange={(e) => setQaPolicyQuery(e.target.value)}
+                  className="w-full p-2.5 border border-slate-300 rounded-lg text-xs font-semibold focus:border-blue-500 bg-white"
+                >
+                  <option value="leave policy">🏖️ Leave Policy</option>
+                  <option value="expense policy">🧾 Expense & Reimbursement Policy</option>
+                  <option value="compensation policy">💰 Compensation & Salary Policy</option>
+                  <option value="code of conduct policy">📋 Code of Conduct</option>
+                  <option value="remote work policy">🏠 Remote Work Policy</option>
+                  <option value="overtime policy">⏰ Overtime Policy</option>
+                  <option value="recruitment policy">👥 Recruitment Policy</option>
+                  <option value="data security policy">🔒 Data Security Policy</option>
+                  <option value="performance review policy">⭐ Performance Review Policy</option>
+                  <option value="travel policy">✈️ Travel Policy</option>
+                </select>
+              </div>
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">Or enter a custom policy keyword</label>
+                <input
+                  type="text"
+                  value={qaPolicyQuery}
+                  onChange={(e) => setQaPolicyQuery(e.target.value)}
+                  className="w-full p-2.5 border border-slate-300 rounded-lg text-xs font-semibold focus:border-blue-500"
+                  placeholder="e.g. maternity leave, POL-HR-001..."
+                />
               </div>
             </div>
             <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
@@ -1065,18 +1091,55 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
             <div className="space-y-3 text-xs">
               <div>
                 <label className="font-bold text-slate-700 block mb-1">Target Department</label>
-                <input type="text" value={qaReallocTgt} onChange={(e) => setQaReallocTgt(e.target.value)} className="w-full p-2.5 border border-slate-300 rounded-lg text-xs font-semibold focus:border-indigo-500" placeholder="e.g. HR, IT, Marketing..." />
+                <select
+                  value={qaReallocTgt}
+                  onChange={(e) => setQaReallocTgt(e.target.value)}
+                  className="w-full p-2.5 border border-slate-300 rounded-lg text-xs font-semibold focus:border-indigo-500 bg-white"
+                >
+                  {departmentsList.map(d => <option key={d} value={d}>{d}</option>)}
+                </select>
               </div>
               <div>
-                <label className="font-bold text-slate-700 block mb-1">Allocation Amount or Percentage</label>
+                <label className="font-bold text-slate-700 block mb-1">Amount</label>
                 <input type="text" value={qaReallocAmount} onChange={(e) => setQaReallocAmount(e.target.value)} className="w-full p-2.5 border border-slate-300 rounded-lg text-xs font-semibold focus:border-indigo-500" placeholder="e.g. 200k, 100000, 50%..." />
+              </div>
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">Allocation Mode</label>
+                <div className="flex rounded-lg border border-slate-200 overflow-hidden">
+                  <button
+                    onClick={() => setQaAllocMode('ADD')}
+                    className={`flex-1 py-2 text-xs font-bold transition-all ${
+                      qaAllocMode === 'ADD'
+                        ? 'bg-indigo-600 text-white'
+                        : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    ➕ Add to Existing
+                  </button>
+                  <button
+                    onClick={() => setQaAllocMode('SET')}
+                    className={`flex-1 py-2 text-xs font-bold transition-all border-l border-slate-200 ${
+                      qaAllocMode === 'SET'
+                        ? 'bg-indigo-600 text-white'
+                        : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    🎯 Set as New Total
+                  </button>
+                </div>
+                <p className="text-[10px] text-slate-400 mt-1">
+                  {qaAllocMode === 'ADD'
+                    ? `Will ADD ${qaReallocAmount} on top of existing budget (e.g. 20k existing + ${qaReallocAmount} = new total)`
+                    : `Will SET budget to exactly ${qaReallocAmount} regardless of current balance`}
+                </p>
               </div>
             </div>
             <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
               <button onClick={() => setActiveModal(null)} className="px-3.5 py-2 border border-slate-300 rounded-lg text-xs font-bold text-slate-600 hover:bg-slate-50">Cancel</button>
               <button
                 onClick={() => {
-                  const cmd = `Allocate ${qaReallocAmount} budget to ${qaReallocTgt} department for Q3.`;
+                  const verb = qaAllocMode === 'ADD' ? `Increase ${qaReallocTgt} budget by` : `Set ${qaReallocTgt} budget to`;
+                  const cmd = `${verb} ${qaReallocAmount} for Q3.`;
                   setPrompt(cmd);
                   handleExecute(cmd);
                 }}
@@ -1106,8 +1169,15 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
             </div>
             <div className="space-y-3 text-xs">
               <div>
-                <label className="font-bold text-slate-700 block mb-1">Target Department (or ALL)</label>
-                <input type="text" value={qaFreezeDept} onChange={(e) => setQaFreezeDept(e.target.value)} className="w-full p-2.5 border border-slate-300 rounded-lg text-xs font-semibold focus:border-rose-500" placeholder="e.g. ALL or IT" />
+                <label className="font-bold text-slate-700 block mb-1">Target Department</label>
+                <select
+                  value={qaFreezeDept}
+                  onChange={(e) => setQaFreezeDept(e.target.value)}
+                  className="w-full p-2.5 border border-slate-300 rounded-lg text-xs font-semibold focus:border-rose-500 bg-white"
+                >
+                  <option value="ALL">🔒 ALL Departments</option>
+                  {departmentsList.map(d => <option key={d} value={d}>{d}</option>)}
+                </select>
               </div>
             </div>
             <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
@@ -1224,14 +1294,23 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
             <div className="space-y-3 text-xs">
               <div>
                 <label className="font-bold text-slate-700 block mb-1">Department / Division</label>
-                <input type="text" value={qaPayrollDept} onChange={(e) => setQaPayrollDept(e.target.value)} className="w-full p-2.5 border border-slate-300 rounded-lg text-xs font-semibold focus:border-rose-500" placeholder="e.g. Sales" />
+                <select
+                  value={qaPayrollDept}
+                  onChange={(e) => setQaPayrollDept(e.target.value)}
+                  className="w-full p-2.5 border border-slate-300 rounded-lg text-xs font-semibold focus:border-rose-500 bg-white"
+                >
+                  <option value="ALL">⛔ ALL Divisions</option>
+                  {departmentsList.map(d => <option key={d} value={d}>{d}</option>)}
+                </select>
               </div>
             </div>
             <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
               <button onClick={() => setActiveModal(null)} className="px-3.5 py-2 border border-slate-300 rounded-lg text-xs font-bold text-slate-600 hover:bg-slate-50">Cancel</button>
               <button
                 onClick={() => {
-                  const cmd = `Place a payroll hold on the ${qaPayrollDept} division.`;
+                  const cmd = qaPayrollDept.toUpperCase() === 'ALL'
+                    ? 'Place a payroll hold on all divisions.'
+                    : `Place a payroll hold on the ${qaPayrollDept} division.`;
                   setPrompt(cmd);
                   handleExecute(cmd);
                 }}

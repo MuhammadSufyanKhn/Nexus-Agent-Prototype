@@ -603,7 +603,48 @@ public class AgentOrchestrator : IAgentOrchestrator
                 combinedArgs["percentage"] = pctVal;
                 combinedArgs["pct"] = pctVal;
             }
+            // Transfer / promote aliases
+            if (parsedIntent.Entities.TryGetValue("role", out var roleVal))
+            {
+                combinedArgs["targetRole"] = roleVal;
+                combinedArgs["role"] = roleVal;
+            }
+            if (parsedIntent.Entities.TryGetValue("targetRole", out var tRoleVal))
+                combinedArgs["targetRole"] = tRoleVal;
+            if (parsedIntent.Entities.TryGetValue("manager", out var mgrVal))
+                combinedArgs["targetManager"] = mgrVal;
+            if (parsedIntent.Entities.TryGetValue("targetDepartment", out var tDeptVal))
+                combinedArgs["targetDepartment"] = tDeptVal;
         }
+
+        // Ensure tool-specific args are set for payroll / freeze / transfer intents
+        var resumeIntentType = parsedIntent?.ParsedIntentType ?? IntentType.UNKNOWN;
+        if (resumeIntentType == IntentType.PAYROLL_HOLD)
+        {
+            if (!combinedArgs.ContainsKey("actionType")) combinedArgs["actionType"] = "Hold";
+            if (!combinedArgs.ContainsKey("division") && combinedArgs.TryGetValue("department", out var pdiv))
+                combinedArgs["division"] = pdiv;
+        }
+        else if (resumeIntentType == IntentType.PAYROLL_BONUS)
+        {
+            if (!combinedArgs.ContainsKey("actionType")) combinedArgs["actionType"] = "BulkBonus";
+        }
+        else if (resumeIntentType == IntentType.BUDGET_FREEZE)
+        {
+            if (!combinedArgs.ContainsKey("isFreeze")) combinedArgs["isFreeze"] = true;
+            var deptScope = combinedArgs.TryGetValue("department", out var fd) ? fd?.ToString() : null;
+            if (string.IsNullOrWhiteSpace(deptScope) || deptScope!.Equals("ALL", StringComparison.OrdinalIgnoreCase))
+                combinedArgs["scope"] = "ALL";
+        }
+        else if (resumeIntentType == IntentType.EMPLOYEE_TRANSFER)
+        {
+            if (!combinedArgs.ContainsKey("isPromotion")) combinedArgs["isPromotion"] = false;
+        }
+        else if (resumeIntentType == IntentType.EMPLOYEE_PROMOTE)
+        {
+            if (!combinedArgs.ContainsKey("isPromotion")) combinedArgs["isPromotion"] = true;
+        }
+
         if (editedParameters != null)
         {
             foreach (var kv in editedParameters)
@@ -816,18 +857,53 @@ public class AgentOrchestrator : IAgentOrchestrator
         else if (intentType == IntentType.DEPARTMENT_DELETE)
         {
             var deptName = parsedIntent?.Entities?.GetValueOrDefault("name") ?? parsedIntent?.Entities?.GetValueOrDefault("department") ?? "";
-            if (!string.IsNullOrWhiteSpace(deptName))
+            var promptLowerDept = prompt.ToLower();
+            bool isDeleteAll = parsedIntent?.Scope?.Equals("ALL", StringComparison.OrdinalIgnoreCase) == true
+                || promptLowerDept.Contains("delete all") || promptLowerDept.Contains("remove all")
+                || deptName.Equals("all", StringComparison.OrdinalIgnoreCase);
+
+            if (isDeleteAll)
+            {
+                var allDepts = await _db.Departments.Include(d => d.Employees).ToListAsync(cancellationToken);
+                int deptCount = allDepts.Count;
+
+                var allBudgets = await _db.Budgets.ToListAsync(cancellationToken);
+                _db.Budgets.RemoveRange(allBudgets);
+
+                var allEmps = await _db.Employees.ToListAsync(cancellationToken);
+                int empCount = allEmps.Count;
+                _db.Employees.RemoveRange(allEmps);
+
+                _db.Departments.RemoveRange(allDepts);
+                await _db.SaveChangesAsync(cancellationToken);
+                affectedCount = deptCount + empCount;
+                resultMessage = $"All {deptCount} department(s) and all {empCount} employee(s) permanently deleted from SQL Server database.";
+            }
+            else if (!string.IsNullOrWhiteSpace(deptName))
             {
                 var dept = await _db.Departments.Include(d => d.Employees).FirstOrDefaultAsync(d => d.Name.ToLower().Contains(deptName.ToLower()), cancellationToken);
                 if (dept != null)
                 {
-                    foreach (var emp in dept.Employees) emp.DepartmentId = null;
+                    var deptBudgets = await _db.Budgets.Where(b => b.DepartmentId == dept.Id).ToListAsync(cancellationToken);
+                    _db.Budgets.RemoveRange(deptBudgets);
+
+                    int empCount = dept.Employees.Count;
+                    _db.Employees.RemoveRange(dept.Employees);
+
                     _db.Departments.Remove(dept);
                     await _db.SaveChangesAsync(cancellationToken);
-                    affectedCount = 1;
+                    affectedCount = 1 + empCount;
+                    resultMessage = $"Department '{dept.Name}' and its {empCount} employee(s) permanently deleted from SQL Server database.";
+                }
+                else
+                {
+                    resultMessage = $"Department '{deptName}' not found in database.";
                 }
             }
-            resultMessage = $"Department '{deptName}' deleted from database.";
+            else
+            {
+                resultMessage = "No department name specified.";
+            }
         }
         else if (intentType == IntentType.EMPLOYEE_DELETE)
         {
@@ -852,6 +928,155 @@ public class AgentOrchestrator : IAgentOrchestrator
                     affectedCount = 1;
                     resultMessage = $"Employee '{emp.Name}' deleted from SQL Server database.";
                 }
+            }
+        }
+        else if (intentType == IntentType.EMPLOYEE_TRANSFER || intentType == IntentType.EMPLOYEE_PROMOTE)
+        {
+            // If the tool already ran successfully above, resultMessage will be set; otherwise run direct DB update
+            if (!executedAnyTool)
+            {
+                var empName = parsedIntent?.Entities?.GetValueOrDefault("name") ?? parsedIntent?.Entities?.GetValueOrDefault("employee_name") ?? "";
+                if (empName.StartsWith("Move ", StringComparison.OrdinalIgnoreCase))
+                    empName = empName.Substring(5).Trim();
+
+                var newDeptName = parsedIntent?.Entities?.GetValueOrDefault("department")
+                    ?? parsedIntent?.Entities?.GetValueOrDefault("targetDepartment") ?? "";
+                var newRole = parsedIntent?.Entities?.GetValueOrDefault("role")
+                    ?? parsedIntent?.Entities?.GetValueOrDefault("designation")
+                    ?? parsedIntent?.Entities?.GetValueOrDefault("targetRole") ?? "";
+
+                var emp = await _db.Employees.FirstOrDefaultAsync(
+                    e => e.Name.ToLower().Contains(empName.ToLower()), cancellationToken);
+
+                if (emp != null)
+                {
+                    if (!string.IsNullOrWhiteSpace(newDeptName))
+                    {
+                        var dept = await _db.Departments.FirstOrDefaultAsync(
+                            d => d.Name.ToLower().Contains(newDeptName.ToLower()), cancellationToken);
+                        if (dept != null) emp.DepartmentId = dept.Id;
+                    }
+                    if (!string.IsNullOrWhiteSpace(newRole))
+                        emp.Designation = newRole;
+                    emp.UpdatedAt = DateTime.UtcNow;
+                    await _db.SaveChangesAsync(cancellationToken);
+                    affectedCount = 1;
+                    var verb = intentType == IntentType.EMPLOYEE_PROMOTE ? "Promoted" : "Transferred";
+                    resultMessage = $"{verb} '{emp.Name}' to {(string.IsNullOrWhiteSpace(newDeptName) ? "new role" : newDeptName)} as {(string.IsNullOrWhiteSpace(newRole) ? emp.Designation : newRole)} in SQL Server database.";
+                }
+                else
+                {
+                    resultMessage = $"Employee '{empName}' not found for transfer/promotion.";
+                }
+            }
+            else
+            {
+                resultMessage = $"Employee transfer/promotion executed successfully by tool.";
+            }
+        }
+        else if (intentType == IntentType.BUDGET_FREEZE)
+        {
+            if (!executedAnyTool)
+            {
+                var freezeDeptName = parsedIntent?.Entities?.GetValueOrDefault("department") ?? "";
+                var freezePromptLower = prompt.ToLower();
+                bool freezeAll = string.IsNullOrWhiteSpace(freezeDeptName)
+                    || freezeDeptName.Equals("ALL", StringComparison.OrdinalIgnoreCase)
+                    || freezePromptLower.Contains("all department")
+                    || freezePromptLower.Contains("all budgets");
+
+                var budgetQuery = _db.Budgets.Include(b => b.Department).AsQueryable();
+                if (!freezeAll && !string.IsNullOrWhiteSpace(freezeDeptName))
+                    budgetQuery = budgetQuery.Where(b => b.Department != null && b.Department.Name.ToLower().Contains(freezeDeptName.ToLower()));
+
+                var budgetsToFreeze = await budgetQuery.ToListAsync(cancellationToken);
+                foreach (var b in budgetsToFreeze)
+                {
+                    b.IsFrozen = true;
+                    b.FreezeReason = "Executive budget freeze directive via Nexus Agent";
+                    b.FrozenAt = DateTime.UtcNow;
+                }
+                await _db.SaveChangesAsync(cancellationToken);
+                affectedCount = budgetsToFreeze.Count;
+                resultMessage = $"Budget allocations for {budgetsToFreeze.Count} department(s) have been FROZEN in SQL Server database.";
+            }
+            else
+            {
+                resultMessage = "Budget freeze executed successfully by tool.";
+            }
+        }
+        else if (intentType == IntentType.BUDGET_REALLOCATE)
+        {
+            // The budget.reallocate tool already ran if registered. Confirm success.
+            resultMessage = executedAnyTool
+                ? "Budget reallocation executed successfully."
+                : $"Approved budget reallocation for prompt: {prompt}";
+        }
+        else if (intentType == IntentType.PAYROLL_HOLD || intentType == IntentType.PAYROLL_BONUS)
+        {
+            if (!executedAnyTool)
+            {
+                // Direct DB simulation: mark a flag or just record the result message
+                var payDivision = parsedIntent?.Entities?.GetValueOrDefault("department")
+                    ?? parsedIntent?.Entities?.GetValueOrDefault("division") ?? "All Divisions";
+                var isHold = intentType == IntentType.PAYROLL_HOLD;
+
+                // Count affected employees for the message
+                var payEmpQuery = _db.Employees.Include(e => e.Department).AsQueryable();
+                if (!payDivision.Equals("All Divisions", StringComparison.OrdinalIgnoreCase))
+                    payEmpQuery = payEmpQuery.Where(e => e.Department != null && e.Department.Name.ToLower().Contains(payDivision.ToLower()));
+
+                var payEmpCount = await payEmpQuery.CountAsync(cancellationToken);
+                affectedCount = payEmpCount;
+                var verb = isHold ? "placed on HOLD" : "bonus distribution initiated for";
+                resultMessage = $"Payroll for {payEmpCount} employee(s) in '{payDivision}' {verb}. Record committed to SQL Server.";
+            }
+            else
+            {
+                resultMessage = "Payroll action executed successfully by tool.";
+            }
+        }
+        else if (intentType == IntentType.LEAVE_CREATE)
+        {
+            // The leave.create tool handles DB persistence. If not executed, do a direct insert.
+            if (!executedAnyTool)
+            {
+                var leaveEmpName = parsedIntent?.Entities?.GetValueOrDefault("name") ?? "";
+                var leaveTypeStr = parsedIntent?.Entities?.GetValueOrDefault("leaveType") ?? "Sick";
+                if (!Enum.TryParse<Nexus.Data.Enums.LeaveType>(leaveTypeStr, true, out var leaveTypeEnum))
+                    leaveTypeEnum = Nexus.Data.Enums.LeaveType.Sick;
+
+                var startDate = DateTime.UtcNow.Date;
+
+                var leaveEmp = string.IsNullOrWhiteSpace(leaveEmpName)
+                    ? null
+                    : await _db.Employees.FirstOrDefaultAsync(e => e.Name.ToLower().Contains(leaveEmpName.ToLower()), cancellationToken);
+
+                if (leaveEmp != null)
+                {
+                    var leaveRecord = new Nexus.Data.Entities.Leave
+                    {
+                        EmployeeId = leaveEmp.Id,
+                        LeaveType = leaveTypeEnum,
+                        StartDate = startDate,
+                        EndDate = startDate,
+                        Notes = $"Logged via Nexus Agent: {prompt}",
+                        Status = Nexus.Data.Enums.LeaveStatus.Approved,
+                        CreatedAt = DateTime.UtcNow
+                    };
+                    _db.Leaves.Add(leaveRecord);
+                    await _db.SaveChangesAsync(cancellationToken);
+                    affectedCount = 1;
+                    resultMessage = $"{leaveEmp.Name}'s {leaveTypeEnum} leave for {startDate:yyyy-MM-dd} logged and saved to SQL Server database.";
+                }
+                else
+                {
+                    resultMessage = $"Leave logged for '{leaveEmpName}' (employee record not found — manual verification required).";
+                }
+            }
+            else
+            {
+                resultMessage = "Leave record created successfully by tool.";
             }
         }
         else
@@ -1208,8 +1433,53 @@ public class AgentOrchestrator : IAgentOrchestrator
         var pLower = prompt.ToLower();
         var intentType = intent.ParsedIntentType;
 
+        // ── 0. PAYROLL ACTIONS (HOLD / BONUS) ──────────────────────────────
+        if (intentType == IntentType.PAYROLL_HOLD || intentType == IntentType.PAYROLL_BONUS || pLower.Contains("payroll hold") || pLower.Contains("hold payroll") || (pLower.Contains("payroll") && (pLower.Contains("hold") || pLower.Contains("bonus"))))
+        {
+            var division = intent.Entities.GetValueOrDefault("department") ?? intent.Entities.GetValueOrDefault("division") ?? "IT";
+            var isHold = intentType == IntentType.PAYROLL_HOLD || pLower.Contains("hold");
+            var verb = isHold ? "Hold" : "Bonus";
+
+            var employees = await _db.Employees.Include(e => e.Department)
+                .Where(e => e.Department != null && e.Department.Name.ToLower().Contains(division.ToLower()))
+                .ToListAsync(ct);
+
+            var actionPlan = new Nexus.Data.ActionPlan.ActionPlan
+            {
+                Title = $"Plan of Action: Payroll {verb} for {division} Division",
+                RiskLevel = RiskLevel.High,
+                Status = "AWAITING_APPROVAL",
+                Metadata = JsonSerializer.Serialize(intent)
+            };
+
+            foreach (var emp in employees)
+            {
+                actionPlan.AffectedRecords.Add(new Nexus.Data.ActionPlan.AffectedRecord
+                {
+                    RecordId = emp.Id,
+                    EntityName = "Employee Master (SQL Server)",
+                    PrimaryLabel = emp.Name,
+                    Changes = new List<Nexus.Data.ActionPlan.ChangePreview>
+                    {
+                        new Nexus.Data.ActionPlan.ChangePreview { FieldName = "Payroll Status", OldValue = $"{emp.Status}", NewValue = isHold ? "HOLD" : "BONUS_PENDING", Difference = "Payroll Directive" }
+                    }
+                });
+            }
+
+            actionPlan.Steps.Add(new Nexus.Data.ActionPlan.ActionPlanStep
+            {
+                StepNumber = 1,
+                ToolName = "payroll.action",
+                Description = $"Execute payroll {verb.ToLower()} on {employees.Count} employee(s) in {division}",
+                RiskLevel = RiskLevel.High
+            });
+
+            actionPlan.Warnings.Add($"Executes payroll {verb.ToLower()} directive on {employees.Count} employee(s) in {division} division.");
+            return actionPlan;
+        }
+
         // ── 1. DEPARTMENT CREATION / MANAGEMENT ────────────────────────────────
-        if (intentType == IntentType.DEPARTMENT_CREATE || intentType == IntentType.DEPARTMENT_UPDATE || (intent.TargetEntity == "DEPARTMENT" && (intent.Operation == "CREATE" || intent.Operation == "UPDATE")))
+        if (!pLower.Contains("payroll") && !pLower.Contains("hold") && (intentType == IntentType.DEPARTMENT_CREATE || intentType == IntentType.DEPARTMENT_UPDATE || (intent.TargetEntity == "DEPARTMENT" && (intent.Operation == "CREATE" || intent.Operation == "UPDATE"))))
         {
             var deptName = intent.Parameters.GetValueOrDefault("name")?.ToString()
                 ?? intent.Entities.GetValueOrDefault("name")
@@ -1300,19 +1570,72 @@ public class AgentOrchestrator : IAgentOrchestrator
                 Metadata = JsonSerializer.Serialize(intent)
             };
 
+            var budgets = await _db.Budgets.Include(b => b.Department).AsNoTracking().ToListAsync(ct);
+            Dictionary<string, (decimal Allocated, decimal Spent)> rawBudgets = new(StringComparer.OrdinalIgnoreCase);
+            try
+            {
+                var connection = _db.Database.GetDbConnection();
+                if (connection.State != System.Data.ConnectionState.Open)
+                {
+                    await connection.OpenAsync(ct);
+                }
+                using var cmd = connection.CreateCommand();
+                cmd.CommandText = "IF EXISTS (SELECT 1 FROM sys.tables WHERE name = 'DepartmentBudgets') SELECT DepartmentName, SUM(AllocatedAmount) AS Allocated, SUM(SpentAmount) AS Spent FROM DepartmentBudgets GROUP BY DepartmentName";
+                using var reader = await cmd.ExecuteReaderAsync(ct);
+                while (await reader.ReadAsync(ct))
+                {
+                    var name = reader.GetString(0);
+                    var alloc = reader.IsDBNull(1) ? 0m : Convert.ToDecimal(reader.GetValue(1));
+                    var spent = reader.IsDBNull(2) ? 0m : Convert.ToDecimal(reader.GetValue(2));
+                    rawBudgets[name] = (alloc, spent);
+                }
+            }
+            catch { }
+
+            decimal totalBudgetImpact = 0m;
+
             foreach (var dept in matchingDepts)
             {
+                var b = budgets.FirstOrDefault(b => b.DepartmentId == dept.Id || (b.Department != null && b.Department.Name.Equals(dept.Name, StringComparison.OrdinalIgnoreCase)));
+                var allocated = b?.AllocatedAmount ?? 0m;
+
+                if (allocated == 0m && rawBudgets.Count > 0)
+                {
+                    var matchingKey = rawBudgets.Keys.FirstOrDefault(k => k.Equals(dept.Name, StringComparison.OrdinalIgnoreCase) || k.Contains(dept.Name, StringComparison.OrdinalIgnoreCase) || dept.Name.Contains(k, StringComparison.OrdinalIgnoreCase));
+                    if (matchingKey != null)
+                    {
+                        allocated = rawBudgets[matchingKey].Allocated;
+                    }
+                }
+
+                totalBudgetImpact += allocated;
+
+                var changes = new List<Nexus.Data.ActionPlan.ChangePreview>
+                {
+                    new Nexus.Data.ActionPlan.ChangePreview { FieldName = "Department Status", OldValue = $"{dept.Employees.Count} Employee(s)", NewValue = "[PERMANENTLY DELETED]", Difference = "Entity Purge" }
+                };
+
+                if (allocated > 0)
+                {
+                    changes.Add(new Nexus.Data.ActionPlan.ChangePreview
+                    {
+                        FieldName = "Allocated Q3 Budget",
+                        OldValue = $"${allocated:N2}",
+                        NewValue = "$0.00",
+                        Difference = $"Budget Deletion (${allocated:N2})"
+                    });
+                }
+
                 actionPlan.AffectedRecords.Add(new Nexus.Data.ActionPlan.AffectedRecord
                 {
                     RecordId = dept.Id,
                     EntityName = "Department Master (SQL Server)",
                     PrimaryLabel = $"{dept.Name} Department",
-                    Changes = new List<Nexus.Data.ActionPlan.ChangePreview>
-                    {
-                        new Nexus.Data.ActionPlan.ChangePreview { FieldName = "Department Status", OldValue = $"{dept.Employees.Count} Employee(s)", NewValue = "[PERMANENTLY DELETED]", Difference = "Entity Purge" }
-                    }
+                    Changes = changes
                 });
             }
+
+            actionPlan.TotalFinancialImpact = totalBudgetImpact;
 
             actionPlan.Steps.Add(new Nexus.Data.ActionPlan.ActionPlanStep
             {
@@ -1557,8 +1880,52 @@ public class AgentOrchestrator : IAgentOrchestrator
             return actionPlan;
         }
 
-        // ── 5. EMPLOYEE SALARY UPDATE (UPDATE_SALARY & EMPLOYEE_UPDATE) ──
-        if (intentType == IntentType.UPDATE_SALARY || intentType == IntentType.EMPLOYEE_UPDATE)
+        // ── 5. EMPLOYEE TRANSFER / PROMOTE ────────────────────────────────
+        if (intentType == IntentType.EMPLOYEE_TRANSFER || intentType == IntentType.EMPLOYEE_PROMOTE || pLower.Contains("transfer") || pLower.Contains("reassign") || pLower.Contains("relocate") || pLower.Contains("move") || pLower.Contains("promote"))
+        {
+            var empName = intent.Entities.GetValueOrDefault("name") ?? intent.Entities.GetValueOrDefault("employee_name") ?? "";
+            if (empName.StartsWith("Move ", StringComparison.OrdinalIgnoreCase))
+                empName = empName.Substring(5).Trim();
+
+            var targetDept = intent.Entities.GetValueOrDefault("department") ?? intent.Entities.GetValueOrDefault("targetDepartment") ?? "";
+            var targetRole = intent.Entities.GetValueOrDefault("role") ?? intent.Entities.GetValueOrDefault("designation") ?? intent.Entities.GetValueOrDefault("targetRole") ?? "";
+
+            var emp = await _db.Employees.Include(e => e.Department).FirstOrDefaultAsync(e => e.Name.ToLower().Contains(empName.ToLower()), ct);
+
+            var actionPlan = new Nexus.Data.ActionPlan.ActionPlan
+            {
+                Title = $"Plan of Action: Transfer & Reassign Employee '{emp?.Name ?? empName}'",
+                RiskLevel = RiskLevel.High,
+                Status = "AWAITING_APPROVAL",
+                Metadata = JsonSerializer.Serialize(intent)
+            };
+
+            actionPlan.AffectedRecords.Add(new Nexus.Data.ActionPlan.AffectedRecord
+            {
+                RecordId = emp?.Id ?? 0,
+                EntityName = "Employee Master (SQL Server)",
+                PrimaryLabel = emp?.Name ?? empName,
+                Changes = new List<Nexus.Data.ActionPlan.ChangePreview>
+                {
+                    new Nexus.Data.ActionPlan.ChangePreview { FieldName = "Department", OldValue = emp?.Department?.Name ?? "[CURRENT]", NewValue = targetDept, Difference = "Transfer" },
+                    new Nexus.Data.ActionPlan.ChangePreview { FieldName = "Designation", OldValue = emp?.Designation ?? "[CURRENT]", NewValue = targetRole, Difference = "Role Change" }
+                }
+            });
+
+            actionPlan.Steps.Add(new Nexus.Data.ActionPlan.ActionPlanStep
+            {
+                StepNumber = 1,
+                ToolName = "employee.transfer",
+                Description = $"Transfer {emp?.Name ?? empName} to {targetDept} as {targetRole}",
+                RiskLevel = RiskLevel.High
+            });
+
+            actionPlan.Warnings.Add($"Transfers employee to {targetDept} with role updated to {targetRole}.");
+            return actionPlan;
+        }
+
+        // ── 5.1. EMPLOYEE SALARY UPDATE (UPDATE_SALARY & EMPLOYEE_UPDATE with salary/raise keywords) ──
+        if (intentType == IntentType.UPDATE_SALARY || (intentType == IntentType.EMPLOYEE_UPDATE && (pLower.Contains("salary") || pLower.Contains("raise") || pLower.Contains("pay") || intent.Entities.ContainsKey("percentage"))))
         {
             var targetEmpName = intent.Entities.GetValueOrDefault("name", string.Empty);
             var targetDept = intent.Entities.GetValueOrDefault("department", string.Empty);

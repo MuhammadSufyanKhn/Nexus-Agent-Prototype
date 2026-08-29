@@ -103,10 +103,8 @@ public class DepartmentService : IDepartmentService
         var spent = b?.SpentAmount ?? 0m;
         var remaining = allocated - spent;
 
-        string head = "Sarah Jenkins";
-        if (d.Name.Contains("Human", StringComparison.OrdinalIgnoreCase) || d.Name.Contains("HR", StringComparison.OrdinalIgnoreCase)) head = "Tariq Mahmood";
-        else if (d.Name.Contains("Marketing", StringComparison.OrdinalIgnoreCase)) head = "Ahmed Khan";
-        else if (d.Name.Contains("Operations", StringComparison.OrdinalIgnoreCase)) head = "Tariq Mahmood";
+        var managerEmp = d.Employees.FirstOrDefault(e => e.Designation.Contains("Head", StringComparison.OrdinalIgnoreCase) || e.Designation.Contains("Manager", StringComparison.OrdinalIgnoreCase) || e.Designation.Contains("Lead", StringComparison.OrdinalIgnoreCase) || e.Designation.Contains("Director", StringComparison.OrdinalIgnoreCase));
+        string head = managerEmp?.Name ?? d.Employees.FirstOrDefault(e => !string.IsNullOrWhiteSpace(e.ManagerName))?.ManagerName ?? d.Employees.FirstOrDefault()?.Name ?? "Unassigned";
 
         return new DepartmentDto
         {
