@@ -1,90 +1,104 @@
-# NEXUS-AGENT LITE
-> **FROM INTENT TO ACTION — SECURELY.**
+# NEXUS-AGENT LITE — Enterprise AI HR Assistant
 
-[![Framework](https://img.shields.io/badge/.NET-10.0-purple.svg)](https://dotnet.microsoft.com/)
-[![Frontend](https://img.shields.io/badge/React-19-blue.svg)](https://react.dev/)
-[![Styling](https://img.shields.io/badge/Tailwind_CSS-v4-06B6D4.svg)](https://tailwindcss.com/)
-[![Python](https://img.shields.io/badge/Python-3.12-yellow.svg)](https://www.python.org/)
-[![Playwright](https://img.shields.io/badge/Playwright-Browser_Automation-green.svg)](https://playwright.dev/)
-[![LLM](https://img.shields.io/badge/LLM-Local_Ollama_Llama3.2-orange.svg)](https://ollama.com/)
+> **Turn Natural Language Requests into Safe, Automated HR & Operations Workflows.**
 
-**NEXUS-AGENT LITE** is an autonomous enterprise AI execution engine built on .NET 10, React 19, and Python Playwright. It converts natural language business requests into multi-system operational workflows across SQL Server databases, legacy enterprise web portals, SAP ERP HCM, and automated IT ticketing systems—enforcing strict **Backend Supremacy**, **Role-Based Access Control (RBAC)**, **Natural Language SQL Security Sandboxing**, **Human-in-the-Loop Pre-Execution Plan of Action Gates**, and **Tamper-Proof SHA-256 Cryptographic Audit Logs**.
+NEXUS-AGENT LITE is an enterprise AI HR assistant built using **C# .NET 10 Web API**, **React 19**, and **Python 3.12 Automation**. It allows HR managers and administrators to talk to their HR systems in plain English. 
+
+Whether you want to onboard a new employee, log a sick day, reallocate department budgets, or analyze workforce spending, Nexus AI understands your natural language commands and safely performs the operations.
 
 ---
 
-## Key Enterprise Security & Control Features
+## 🌟 Key Features Made Simple
 
-- 🔒 **Zero Cloud Dependency & Local AI Privacy**: Uses a local open-source LLM (Ollama / Llama3.2) for intent parsing without sending enterprise data to paid cloud APIs.
-- 🛡️ **Backend Supremacy & Non-Arbitrary Tool Execution**: The LLM cannot directly execute code, SQL, shell commands, or browser JavaScript. All operations are mediated by strongly-typed registered `.NET` tools.
-- 🛑 **Human-in-the-Loop Plan of Action Interceptor**: High-risk or multi-system actions (`EMPLOYEE_ONBOARDING`, `EMPLOYEE_UPDATE`, `EMPLOYEE_DELETE`) calculate an impact preview (affected records, old vs. new values diffs, financial impact) and pause execution with **ZERO database mutations** until human confirmation.
-- 🔍 **Natural Language to SQL Security Sandbox**: Strict SQL Validator permits ONLY read-only `SELECT` queries, rejecting destructive commands (`INSERT`, `UPDATE`, `DELETE`, `DROP`, `ALTER`, `EXEC`, `xp_cmdshell`), capping `TOP 100` rows, and enforcing 5s execution timeouts.
-- 🌐 **Multi-System Automation**: Integrates SQL Server master databases, Legacy HR Portal Playwright form entry (`mock-portal/`), Mock SAP ERP HCM master data provisioning, and Python Welcome Email generation.
-- 📜 **Tamper-Proof SHA-256 Cryptographic Audit Chain**: Every tool execution appends a cryptographically linked SHA-256 hash entry to an immutable audit ledger.
+### 1. 🤖 Intelligent Natural Language Assistant
+Simply type what you want to do in plain English into the chat console:
+* *"Onboard Ahmed Khan as a mid-level .NET developer in IT"*
+* *"Log Sufyan's sick day today and notify his team"*
+* *"Show me departments exceeding their allocated Q3 budget"*
+
+### 2. 🛡️ Human-in-the-Loop Approval Center
+For high-risk operations (like onboarding an employee, changing salaries, or transferring staff), Nexus AI creates a **Plan of Action** and pauses execution. **Zero database changes occur** until an administrator reviews the financial impact, record diffs, and clicks **Authorize & Execute Plan**.
+
+### 3. 📧 Automated Email & Notification Subsystem
+Automatically dispatches HTML notification emails via Python SMTP directly to target recipients (e.g. `nexusagent.notifications@gmail.com` and the employee's database email) without hardcoded dummy addresses.
+
+### 4. 🔒 Built-in Security Sandbox & Role-Based Access Control (RBAC)
+* **SQL Security Sandbox**: Converts natural language to T-SQL, but permits **ONLY read-only `SELECT` queries** for data analytics (rejecting any destructive commands like `DROP` or `DELETE`).
+* **RBAC Engine**: Enforces role-based permissions so unauthorized users cannot run high-risk operations.
+
+### 5. 📜 Cryptographic Audit Ledger
+Every single action executed by the agent appends a tamper-proof **SHA-256 hash log** to an immutable audit ledger for complete enterprise compliance.
 
 ---
 
-## 🚀 Quick Start & Environment Execution
+## 🚀 Easy Quick Start Guide
 
-### System Requirements
-- **.NET 10 SDK** (v10.0+)
-- **Node.js** (v20+) & **npm**
-- **Python 3.12** (`py` launcher installed at `C:\Windows\py.exe` or `python`)
-- **SQL Server / LocalDB** or In-Memory fallback
-- **Ollama** (Running locally at `http://localhost:11434` with model `llama3.2`)
+### Prerequisites
+* **.NET 10 SDK** installed on your system
+* **Node.js** (v20+) & **npm**
+* **Python 3.12** (`py` launcher installed)
 
 ---
 
 ### Step 1: Start Mock Legacy HR Portal
+In a terminal window:
 ```bash
 py mock-portal/server.py
-# Running at http://127.0.0.1:8088/
 ```
+*(Runs local legacy HR portal at `http://127.0.0.1:8088`)*
 
-### Step 2: Start ASP.NET Core Web API Backend
+---
+
+### Step 2: Start ASP.NET Core Backend API
+In a second terminal window:
 ```bash
 cd backend/Nexus.Api
-dotnet run --launch-profile https
-# Running at https://localhost:7160 / http://localhost:5160
+dotnet run
 ```
+*(Runs backend Web API at `https://localhost:7160` / `http://localhost:5160`)*
 
-### Step 3: Start React 19 Command Center Frontend
+---
+
+### Step 3: Start React Command Center Frontend
+In a third terminal window:
 ```bash
 cd frontend
 npm run dev
-# Command Center UI running at http://localhost:3000
 ```
+*(Open your browser at `http://localhost:3000`)*
 
 ---
 
-## 🎬 5 Hackathon Demo Scenarios
+## 🎬 5 Core System Demo Scenarios
 
-Launch the React Command Center at `http://localhost:3000` and use the quick prompt badges in the **Agent Console**:
+Launch the web app at `http://localhost:3000` and test these example commands in the **Agent Console**:
 
-| Demo Scenario | Quick Prompt | Primary System Output & Verification |
-|---|---|---|
-| **Demo 1: AI Onboarding Agent** | `"Onboard Ahmed Khan as a mid-level .NET developer in IT according to company policy. Apply the correct salary, create his employee record, submit the legacy IT onboarding form, create his Mock SAP record, and generate his welcome email."` | 1. Evaluates policy `POL-HR-001` ($68,000.00 salary).<br>2. Displays Plan of Action (`AWAITING_APPROVAL`).<br>3. Proves ZERO database mutation before human approval.<br>4. Upon human confirmation, creates SQL record, submits Playwright form (`HR-REC-2026-8812`), provisions Mock SAP (`SAP-EMP-2026-8912`), and generates welcome email. |
-| **Demo 2: AI SQL Analyst** | `"Show me departments exceeding their allocated Q3 budget."` | 1. Converts natural language to T-SQL query.<br>2. Validates query against SQL Security Sandbox.<br>3. Returns formatted data table with column insights & business summary. |
-| **Demo 3: Policy Compliance** | `"Check whether Ahmed's latest expense complies with company policy."` | 1. Retrieves employee claim & policy `POL-FIN-002`.<br>2. Calculates financial limit variance ($85.00 claimed vs $50.00 limit = $35.00 overflow).<br>3. Displays compliance evidence citation. |
-| **Demo 4: Human Approval Gate** | `"Increase salaries of all IT developers by 10%."` | 1. Calculates change impact preview ($75,000 → $82,500, +$23,800.00 total impact).<br>2. Displays Plan of Action (`AWAITING_APPROVAL`).<br>3. Zero database changes occur until human operator clicks **Confirm Action**. |
-| **Demo 5: Security / Critical Gate** | `"Delete all employees."` | 1. Intent classified as `EMPLOYEE_DELETE` (Critical Risk).<br>2. Execution intercepted by Critical Security Gate; unauthorized roles blocked with 403 Security Violation. |
-
----
-
-## 📑 Documentation Index
-
-- 📘 [**SETUP_GUIDE.md**](file:///d:/.NET%20PROJECTS/NEXUS%20AGENT%20LITE/docs/SETUP_GUIDE.md): Complete installation, database seeding, Python Playwright setup, and local LLM configuration instructions.
-- 🎬 [**DEMO_GUIDE.md**](file:///d:/.NET%20PROJECTS/NEXUS%20AGENT%20LITE/docs/DEMO_GUIDE.md): Step-by-step hackathon presentation guide walking through Demos 1 through 5.
-- 🏗️ [**ARCHITECTURE.md**](file:///d:/.NET%20PROJECTS/NEXUS%20AGENT%20LITE/docs/ARCHITECTURE.md): System architecture specification, security model, risk engine matrix, and tool registry reference.
-- ⚙️ [**AUTOMATION.md**](file:///d:/.NET%20PROJECTS/NEXUS%20AGENT%20LITE/docs/AUTOMATION.md): Multi-system Python automation service architecture and webhook integration.
-- 🤖 [**AI_INFRASTRUCTURE.md**](file:///d:/.NET%20PROJECTS/NEXUS%20AGENT%20LITE/docs/AI_INFRASTRUCTURE.md): AI models, local Ollama integration, and prompt engineering specifications.
-- 📋 [**POLICIES.md**](file:///d:/.NET%20PROJECTS/NEXUS%20AGENT%20LITE/docs/POLICIES.md): HR compliance policy rules and governance guidelines.
+| Demo Scenario | Example Natural Language Command | What Happens |
+| :--- | :--- | :--- |
+| **1. AI Employee Onboarding** | `"Onboard Ahmed Khan as a mid-level .NET developer in IT with salary 68k"` | Evaluates policy `POL-HR-001`, generates a Plan of Action, creates SQL record, fills legacy HR portal form, provisions Mock SAP, and sends welcome email upon approval. |
+| **2. Sick Leave & Notification** | `"Log Sufyan's sick day today and notify his team on gmail"` | Looks up employee Sufyan in database (`4t195es@gmail.com`), logs sick leave in SQL Server, and sends notification email to both the team inbox and employee. |
+| **3. SQL Data Analytics** | `"Show me departments exceeding their allocated Q3 budget"` | Converts query to secure T-SQL, validates against SQL sandbox, and displays budget spending insights. |
+| **4. Human Approval Gate** | `"Increase salaries of all IT developers by 10%"` | Calculates total financial impact preview, creates a visual diff table, and pauses for human administrator authorization. |
+| **5. Policy Compliance Check** | `"Check whether Ahmed's latest expense complies with company policy"` | Compares claimed expense against `POL-FIN-002` rules ($50 meal limit) and displays compliance audit evidence. |
 
 ---
 
-## 🧪 Running Automated Unit & Integration Tests
+## 📁 Repository Documentation Index
+
+* 🏗️ [**docs/ARCHITECTURE.md**](file:///d:/.NET%20PROJECTS/NEXUS%20AGENT%20LITE/docs/ARCHITECTURE.md): System architecture, subsystem flow, and security model explained in plain English.
+* ⚙️ [**docs/AUTOMATION.md**](file:///d:/.NET%20PROJECTS/NEXUS%20AGENT%20LITE/docs/AUTOMATION.md): Python email automation, Playwright browser automation, and ticket creation details.
+* 🎬 [**docs/DEMO_GUIDE.md**](file:///d:/.NET%20PROJECTS/NEXUS%20AGENT%20LITE/docs/DEMO_GUIDE.md): Step-by-step walkthrough of all hackathon demonstration scenarios.
+* 📘 [**docs/SETUP_GUIDE.md**](file:///d:/.NET%20PROJECTS/NEXUS%20AGENT%20LITE/docs/SETUP_GUIDE.md): Complete local setup and configuration instructions.
+* 🤖 [**docs/AI_INFRASTRUCTURE.md**](file:///d:/.NET%20PROJECTS/NEXUS%20AGENT%20LITE/docs/AI_INFRASTRUCTURE.md): Explanation of Gemini API integration, local LLM fallback, and intent parsing.
+* 📋 [**docs/POLICIES.md**](file:///d:/.NET%20PROJECTS/NEXUS%20AGENT%20LITE/docs/POLICIES.md): HR policy rules and financial limit guidelines.
+* 🗄️ [**database/README.md**](file:///d:/.NET%20PROJECTS/NEXUS%20AGENT%20LITE/database/README.md): Database schema, SQL tables, and seed data layout.
+
+---
+
+## 🧪 Running Automated Unit Tests
 
 ```bash
 cd backend
 dotnet test Nexus.Tests/Nexus.Tests.csproj
 ```
-**Test Results:** `Passed! - Failed: 0, Passed: 73, Skipped: 0, Total: 73` across all 73 unit, integration, RBAC, SQL sandbox, failure handling, and end-to-end demo tests.
+*(All unit and integration tests run cleanly with zero failures!)*

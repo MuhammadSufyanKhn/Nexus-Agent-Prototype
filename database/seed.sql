@@ -13,8 +13,8 @@ GO
 SET IDENTITY_INSERT [dbo].[Users] ON;
 MERGE INTO [dbo].[Users] AS Target
 USING (VALUES
-    (1, N'System Admin', N'admin@nexus.local', N'Admin', '2026-01-01T00:00:00Z'),
-    (2, N'HR Manager', N'hr.manager@nexus.local', N'Manager', '2026-01-01T00:00:00Z')
+    (1, N'System Admin', N'admin@gmail.com', N'Admin', '2026-01-01T00:00:00Z'),
+    (2, N'HR Manager', N'hr.manager@gmail.com', N'Manager', '2026-01-01T00:00:00Z')
 ) AS Source ([Id], [Name], [Email], [Role], [CreatedAt])
 ON Target.[Id] = Source.[Id]
 WHEN NOT MATCHED THEN
@@ -43,7 +43,7 @@ GO
 SET IDENTITY_INSERT [dbo].[Budgets] ON;
 MERGE INTO [dbo].[Budgets] AS Target
 USING (VALUES
-    (1, 1, 2026, N'Q3', 50000.00, 58500.00), -- IT OVER BUDGET (Demo 2 Target)
+    (1, 1, 2026, N'Q3', 50000.00, 58500.00), -- IT OVER BUDGET (Demo 3 Target)
     (2, 2, 2026, N'Q3', 30000.00, 22000.00), -- HR Within Budget
     (3, 3, 2026, N'Q3', 45000.00, 41200.00), -- Marketing Within Budget
     (4, 4, 2026, N'Q3', 60000.00, 51000.00)  -- Operations Within Budget
@@ -59,10 +59,12 @@ GO
 SET IDENTITY_INSERT [dbo].[Employees] ON;
 MERGE INTO [dbo].[Employees] AS Target
 USING (VALUES
-    (1, N'Tariq Mahmood', N'tariq.mahmood@nexus.local', 1, N'Senior .NET Developer', 75000.00, 5, 1, '2025-03-15T00:00:00Z', '2026-01-01T00:00:00Z'),
-    (2, N'Sarah Jenkins', N'sarah.jenkins@nexus.local', 1, N'Lead IT Architect', 95000.00, 8, 1, '2024-06-01T00:00:00Z', '2026-01-01T00:00:00Z'),
-    (3, N'Maria Garcia', N'maria.garcia@nexus.local', 2, N'HR Specialist', 65000.00, 4, 1, '2025-01-10T00:00:00Z', '2026-01-01T00:00:00Z'),
-    (4, N'Bilal Ahmed', N'bilal.ahmed@nexus.local', 4, N'Operations Lead', 70000.00, 6, 1, '2024-11-20T00:00:00Z', '2026-01-01T00:00:00Z')
+    (1, N'Tariq Mahmood', N'tariq.mahmood@gmail.com', 1, N'Senior .NET Developer', 75000.00, 5, 1, '2025-03-15T00:00:00Z', '2026-01-01T00:00:00Z'),
+    (2, N'Sarah Jenkins', N'sarah.jenkins@gmail.com', 1, N'Lead IT Architect', 95000.00, 8, 1, '2024-06-01T00:00:00Z', '2026-01-01T00:00:00Z'),
+    (3, N'Maria Garcia', N'maria.garcia@gmail.com', 2, N'HR Specialist', 65000.00, 4, 1, '2025-01-10T00:00:00Z', '2026-01-01T00:00:00Z'),
+    (4, N'Bilal Ahmed', N'bilal.ahmed@gmail.com', 4, N'Operations Lead', 70000.00, 6, 1, '2024-11-20T00:00:00Z', '2026-01-01T00:00:00Z'),
+    (5, N'Employee Sufyan', N'4t195es@gmail.com', 2, N'HR Officer', 800000.00, 3, 1, '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z'),
+    (6, N'Employee Ali', N'sufyankhankhattak33@gmail.com', 1, N'Junior .NET Developer', 80000.00, 2, 1, '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')
 ) AS Source ([Id], [Name], [Email], [DepartmentId], [Designation], [Salary], [ExperienceYears], [Status], [CreatedAt], [UpdatedAt])
 ON Target.[Id] = Source.[Id]
 WHEN NOT MATCHED THEN
@@ -76,7 +78,7 @@ SET IDENTITY_INSERT [dbo].[Expenses] ON;
 MERGE INTO [dbo].[Expenses] AS Target
 USING (VALUES
     (1, 1, 4, 150.00, '2026-07-10T00:00:00Z', 4, N'Visual Studio Pro Subscription'),
-    (2, 1, 2, 350.00, '2026-08-05T00:00:00Z', 5, N'Team Lunch Expense (Exceeds $50 per person limit)'), -- NonCompliant for Demo 3
+    (2, 1, 2, 350.00, '2026-08-05T00:00:00Z', 5, N'Team Lunch Expense (Exceeds $50 per person limit)'),
     (3, 3, 5, 400.00, '2026-07-22T00:00:00Z', 4, N'HR Compliance Certification Course')
 ) AS Source ([Id], [EmployeeId], [ExpenseType], [Amount], [ExpenseDate], [Status], [Description])
 ON Target.[Id] = Source.[Id]
