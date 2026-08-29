@@ -252,16 +252,19 @@ Output: FALLBACK_TRIGGERED
     {
         var q = question.ToLower();
 
-        if (q.Contains("exceeding") || q.Contains("over budget"))
-            return "SELECT DISTINCT DepartmentName FROM DepartmentBudgets WHERE SpentAmount > AllocatedAmount";
+        if (q.Contains("exceeding") || q.Contains("over budget") || q.Contains("overbudget") || q.Contains("exceed"))
+            return "SELECT DepartmentName, SUM(AllocatedAmount) AS TotalAllocated, SUM(SpentAmount) AS TotalSpent FROM DepartmentBudgets GROUP BY DepartmentName HAVING SUM(SpentAmount) > SUM(AllocatedAmount)";
+
+        if (q.Contains("overview") || q.Contains("allocated funds") || q.Contains("actual spend") || q.Contains("versus") || q.Contains("vs") || q.Contains("spend") || q.Contains("summary"))
+            return "SELECT DepartmentName, SUM(AllocatedAmount) AS TotalAllocated, SUM(SpentAmount) AS TotalSpent FROM DepartmentBudgets GROUP BY DepartmentName";
 
         if (q.Contains("department") && (q.Contains("name") || q.Contains("list") || q.Contains("show") || q.Contains("give")))
             return "SELECT DISTINCT DepartmentName FROM DepartmentBudgets";
 
-        if (q.Contains("budget") && (q.Contains("all") || q.Contains("total")))
-            return "SELECT DepartmentName, SUM(AllocatedAmount) AS TotalAllocated FROM DepartmentBudgets GROUP BY DepartmentName";
+        if (q.Contains("budget") || q.Contains("funds"))
+            return "SELECT DepartmentName, SUM(AllocatedAmount) AS TotalAllocated, SUM(SpentAmount) AS TotalSpent FROM DepartmentBudgets GROUP BY DepartmentName";
 
-        return "SELECT DISTINCT DepartmentName FROM DepartmentBudgets";
+        return "SELECT DepartmentName, SUM(AllocatedAmount) AS TotalAllocated, SUM(SpentAmount) AS TotalSpent FROM DepartmentBudgets GROUP BY DepartmentName";
     }
 
     // ── Execution ────────────────────────────────────────────────────────────

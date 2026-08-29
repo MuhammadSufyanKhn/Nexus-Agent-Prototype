@@ -53,11 +53,11 @@ public class EmployeeTransferTool : IAgentTool
     public Task<ValidationResult> ValidateInputAsync(ToolExecutionContext context)
     {
         var empId = context.GetArgument<int?>("employeeId");
-        var empName = context.GetArgument<string>("employeeName");
-        var targetDept = context.GetArgument<string>("targetDepartment");
-        var targetRole = context.GetArgument<string>("targetRole");
-        var targetManager = context.GetArgument<string>("targetManager");
-        var targetLocation = context.GetArgument<string>("targetLocation");
+        var empName = context.GetArgument<string>("employeeName") ?? context.GetArgument<string>("name");
+        var targetDept = context.GetArgument<string>("targetDepartment") ?? context.GetArgument<string>("department");
+        var targetRole = context.GetArgument<string>("targetRole") ?? context.GetArgument<string>("role") ?? context.GetArgument<string>("designation");
+        var targetManager = context.GetArgument<string>("targetManager") ?? context.GetArgument<string>("manager");
+        var targetLocation = context.GetArgument<string>("targetLocation") ?? context.GetArgument<string>("location");
 
         if (!empId.HasValue && string.IsNullOrWhiteSpace(empName))
             return Task.FromResult(ValidationResult.Failure("Please specify the employee name or ID to transfer."));
@@ -79,12 +79,12 @@ public class EmployeeTransferTool : IAgentTool
         try
         {
             var empId = context.GetArgument<int?>("employeeId");
-            var empName = context.GetArgument<string>("employeeName");
-            var targetDept = context.GetArgument<string>("targetDepartment");
+            var empName = context.GetArgument<string>("employeeName") ?? context.GetArgument<string>("name");
+            var targetDept = context.GetArgument<string>("targetDepartment") ?? context.GetArgument<string>("department");
             var sourceDept = context.GetArgument<string>("sourceDepartment");
-            var targetRole = context.GetArgument<string>("targetRole");
-            var targetManager = context.GetArgument<string>("targetManager");
-            var targetLocation = context.GetArgument<string>("targetLocation");
+            var targetRole = context.GetArgument<string>("targetRole") ?? context.GetArgument<string>("role") ?? context.GetArgument<string>("designation");
+            var targetManager = context.GetArgument<string>("targetManager") ?? context.GetArgument<string>("manager");
+            var targetLocation = context.GetArgument<string>("targetLocation") ?? context.GetArgument<string>("location");
             var isPromotion = context.GetArgument<bool?>("isPromotion") ?? false;
 
             Nexus.Data.Entities.Employee? employee = null;

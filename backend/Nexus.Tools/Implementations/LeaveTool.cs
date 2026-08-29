@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Diagnostics;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
@@ -47,8 +47,8 @@ public class LeaveTool : IAgentTool
 
     public Task<ValidationResult> ValidateInputAsync(ToolExecutionContext context)
     {
-        var empName = context.GetArgument<string>("employeeName");
-        var empId   = context.GetArgument<int?>("employeeId");
+        var empName = context.GetArgument<string>("employeeName") ?? context.GetArgument<string>("name");
+        var empId   = context.GetArgument<int?>("employeeId") ?? context.GetArgument<int?>("id");
         if (string.IsNullOrWhiteSpace(empName) && !empId.HasValue)
             return Task.FromResult(ValidationResult.Failure("Employee name or ID is required."));
         return Task.FromResult(ValidationResult.Success());
@@ -63,8 +63,8 @@ public class LeaveTool : IAgentTool
         var sw = Stopwatch.StartNew();
         try
         {
-            var empName   = context.GetArgument<string>("employeeName");
-            var empId     = context.GetArgument<int?>("employeeId");
+            var empName   = context.GetArgument<string>("employeeName") ?? context.GetArgument<string>("name");
+            var empId     = context.GetArgument<int?>("employeeId") ?? context.GetArgument<int?>("id");
             var typeStr   = context.GetArgument<string>("leaveType") ?? "Sick";
             var startStr  = context.GetArgument<string>("startDate");
             var endStr    = context.GetArgument<string>("endDate");
@@ -103,8 +103,20 @@ public class LeaveTool : IAgentTool
                 ProcessedAt = DateTime.UtcNow
             };
 
-            _db.Leaves.Add(leave);
-            await _db.SaveChangesAsync();
+            try
+            {
+                _db.Leaves.Add(leave);
+                await _db.SaveChangesAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Standard EF Core Leave insert failed, using resilient SQL fallback.");
+                _db.Entry(leave).State = EntityState.Detached;
+                await _db.Database.ExecuteSqlRawAsync(
+                    "INSERT INTO Leaves (EmployeeId, LeaveType, StartDate, EndDate, Status, ApprovedBy, Notes, CreatedAt) VALUES ({0}, {1}, {2}, {3}, {4}, {5}, {6}, GETUTCDATE())",
+                    employee.Id, (int)lType, start, end, (int)LeaveStatus.Approved, "Nexus AI (Auto-Approved)", notes
+                );
+            }
             sw.Stop();
 
             var days = (leave.EndDate - leave.StartDate).Days + 1;

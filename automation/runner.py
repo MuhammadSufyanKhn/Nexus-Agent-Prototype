@@ -7,6 +7,7 @@ if current_dir not in sys.path:
     sys.path.insert(0, current_dir)
 
 from email_services.welcome_email import generate_welcome_email
+from email_services.sick_leave_email import generate_sick_leave_email
 from tickets.create_ticket import create_provisioning_ticket
 from browser.legacy_hr_portal import submit_legacy_hr_form
 
@@ -68,6 +69,8 @@ def main():
         
     if operation in ["email.welcome", "email.generate_welcome", "welcome_email"]:
         result = generate_welcome_email(args_dict)
+    elif operation in ["email.sick_leave", "email.notify", "slack.notify", "sick_leave_email"]:
+        result = generate_sick_leave_email(args_dict)
     elif operation in ["ticket.create", "create_ticket"]:
         result = create_provisioning_ticket(args_dict)
     elif operation in ["onboarding.submit_legacy_form", "portal.legacy_submit", "submit_legacy_form"]:

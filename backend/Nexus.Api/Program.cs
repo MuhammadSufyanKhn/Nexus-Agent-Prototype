@@ -179,128 +179,129 @@ using (var scope = app.Services.CreateScope())
         var db = scope.ServiceProvider.GetRequiredService<NexusDbContext>();
         db.Database.EnsureCreated();
 
-        var sql = @"
-            IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Employees') AND name = 'Location')
-                ALTER TABLE Employees ADD Location NVARCHAR(255) NULL;
-            IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Employees') AND name = 'ManagerName')
-                ALTER TABLE Employees ADD ManagerName NVARCHAR(255) NULL;
-            IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Employees') AND name = 'StartDate')
-                ALTER TABLE Employees ADD StartDate DATETIME2 NULL;
-
-            IF EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Employees') AND name = 'DepartmentId' AND is_nullable = 0)
-                ALTER TABLE Employees ALTER COLUMN DepartmentId INT NULL;
-
-            IF EXISTS (SELECT 1 FROM sys.tables WHERE name = 'Departments')
-            BEGIN
-                DECLARE @defItId INT = (SELECT TOP 1 Id FROM Departments WHERE Name = 'IT');
-                IF @defItId IS NOT NULL
-                    UPDATE Employees SET DepartmentId = @defItId WHERE DepartmentId IN (SELECT Id FROM Departments WHERE Name IN ('Q3', '1000000', 'Named', 'ALL'));
-                DELETE FROM Budgets WHERE DepartmentId IN (SELECT Id FROM Departments WHERE Name IN ('Q3', '1000000', 'Named', 'ALL'));
-                DELETE FROM Departments WHERE Name IN ('Q3', '1000000', 'Named', 'ALL');
-            END;
-
-            IF EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Employees') AND name = 'UpdatedAt')
-            BEGIN
-                IF NOT EXISTS (SELECT * FROM sys.default_constraints WHERE parent_object_id = OBJECT_ID('Employees') AND name = 'DF_Employees_UpdatedAt')
-                    ALTER TABLE Employees ADD CONSTRAINT DF_Employees_UpdatedAt DEFAULT GETUTCDATE() FOR UpdatedAt;
-            END;
-
-            IF EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Employees') AND name = 'CreatedAt')
-            BEGIN
-                IF NOT EXISTS (SELECT * FROM sys.default_constraints WHERE parent_object_id = OBJECT_ID('Employees') AND name = 'DF_Employees_CreatedAt')
-                    ALTER TABLE Employees ADD CONSTRAINT DF_Employees_CreatedAt DEFAULT GETUTCDATE() FOR CreatedAt;
-            END;
-
-            IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Budgets') AND name = 'IsFrozen')
-                ALTER TABLE Budgets ADD IsFrozen BIT NOT NULL DEFAULT 0;
-            IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Budgets') AND name = 'FreezeReason')
-                ALTER TABLE Budgets ADD FreezeReason NVARCHAR(500) NULL;
-            IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Budgets') AND name = 'FrozenAt')
-                ALTER TABLE Budgets ADD FrozenAt DATETIME2 NULL;
-
-            IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'Leaves')
-            BEGIN
-                CREATE TABLE Leaves (
-                    Id INT IDENTITY(1,1) PRIMARY KEY,
-                    EmployeeId INT NOT NULL FOREIGN KEY REFERENCES Employees(Id) ON DELETE CASCADE,
-                    LeaveType INT NOT NULL,
-                    StartDate DATETIME2 NOT NULL,
-                    EndDate DATETIME2 NOT NULL,
-                    Status INT NOT NULL DEFAULT 1,
-                    Reason NVARCHAR(500) NULL,
-                    Notes NVARCHAR(500) NULL,
-                    ApprovedBy NVARCHAR(255) NULL,
-                    CreatedAt DATETIME2 NOT NULL DEFAULT GETUTCDATE()
-                );
-            END;
-
-            IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'Tickets')
-            BEGIN
-                CREATE TABLE Tickets (
-                    Id INT IDENTITY(1,1) PRIMARY KEY,
-                    TicketId NVARCHAR(50) NOT NULL,
-                    EmployeeName NVARCHAR(150) NOT NULL,
-                    Department NVARCHAR(100) NOT NULL,
-                    RequestType NVARCHAR(150) NOT NULL,
-                    Priority NVARCHAR(50) NOT NULL DEFAULT 'High',
-                    Status NVARCHAR(50) NOT NULL DEFAULT 'Open',
-                    Details NVARCHAR(MAX) NOT NULL,
-                    CreatedAt DATETIME2 NOT NULL DEFAULT GETUTCDATE()
-                );
-            END;
-
-            IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'MasterBudgets')
-            BEGIN
-                CREATE TABLE MasterBudgets (
-                    Id INT IDENTITY(1,1) PRIMARY KEY,
-                    Year INT NOT NULL DEFAULT 2026,
-                    FiscalYear NVARCHAR(50) NOT NULL DEFAULT '2026-2027',
-                    TotalBudgetPool DECIMAL(18,2) NOT NULL DEFAULT 1000000000.00,
-                    UpdatedAt DATETIME2 NOT NULL DEFAULT GETUTCDATE()
-                );
-                INSERT INTO MasterBudgets (Year, FiscalYear, TotalBudgetPool, UpdatedAt)
-                VALUES (2026, '2026-2027', 1000000000.00, GETUTCDATE());
-            END;
-        ";
-        db.Database.ExecuteSqlRaw(sql);
-
-        // Auto-reseed defaults if database tables were purged
-        if (!db.Departments.Any())
+        try
         {
-            db.Departments.AddRange(
-                new Nexus.Data.Entities.Department { Name = "IT", Description = "Information Technology and Systems Software Development" },
-                new Nexus.Data.Entities.Department { Name = "HR", Description = "Human Resources & Talent Management" },
-                new Nexus.Data.Entities.Department { Name = "Marketing", Description = "Brand Strategy, Growth & Digital Marketing" },
-                new Nexus.Data.Entities.Department { Name = "Operations", Description = "Business Operations, Logistics & Maintenance" }
-            );
-            db.SaveChanges();
-        }
+            db.Database.ExecuteSqlRaw(@"
+                IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Employees') AND name = 'Location')
+                    ALTER TABLE Employees ADD Location NVARCHAR(255) NULL;
+                IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Employees') AND name = 'ManagerName')
+                    ALTER TABLE Employees ADD ManagerName NVARCHAR(255) NULL;
+                IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Employees') AND name = 'StartDate')
+                    ALTER TABLE Employees ADD StartDate DATETIME2 NULL;
 
-        if (!db.Employees.Any())
+                IF EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Employees') AND name = 'DepartmentId' AND is_nullable = 0)
+                    ALTER TABLE Employees ALTER COLUMN DepartmentId INT NULL;
+
+                IF EXISTS (SELECT 1 FROM sys.tables WHERE name = 'Departments')
+                BEGIN
+                    DECLARE @defItId INT = (SELECT TOP 1 Id FROM Departments WHERE Name = 'IT');
+                    IF @defItId IS NOT NULL
+                        UPDATE Employees SET DepartmentId = @defItId WHERE DepartmentId IN (SELECT Id FROM Departments WHERE Name IN ('Q3', '1000000', 'Named', 'ALL'));
+                    DELETE FROM Budgets WHERE DepartmentId IN (SELECT Id FROM Departments WHERE Name IN ('Q3', '1000000', 'Named', 'ALL'));
+                    DELETE FROM Departments WHERE Name IN ('Q3', '1000000', 'Named', 'ALL');
+                END;
+            ");
+        } catch { }
+
+        try
         {
-            var itDept = db.Departments.FirstOrDefault(d => d.Name == "IT") ?? db.Departments.First();
-            var hrDept = db.Departments.FirstOrDefault(d => d.Name == "HR") ?? db.Departments.First();
-            var opsDept = db.Departments.FirstOrDefault(d => d.Name == "Operations") ?? db.Departments.First();
+            db.Database.ExecuteSqlRaw(@"
+                IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Budgets') AND name = 'IsFrozen')
+                    ALTER TABLE Budgets ADD IsFrozen BIT NOT NULL DEFAULT 0;
+                IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Budgets') AND name = 'FreezeReason')
+                    ALTER TABLE Budgets ADD FreezeReason NVARCHAR(500) NULL;
+                IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Budgets') AND name = 'FrozenAt')
+                    ALTER TABLE Budgets ADD FrozenAt DATETIME2 NULL;
+            ");
+        } catch { }
 
-            db.Employees.AddRange(
-                new Nexus.Data.Entities.Employee { Name = "Tariq Mahmood", Email = "tariq.mahmood@nexus.local", DepartmentId = itDept.Id, Designation = "Senior .NET Developer", Salary = 75000.00m, ExperienceYears = 5, Status = Nexus.Data.Enums.EmployeeStatus.Active, CreatedAt = DateTime.UtcNow },
-                new Nexus.Data.Entities.Employee { Name = "Sarah Jenkins", Email = "sarah.jenkins@nexus.local", DepartmentId = itDept.Id, Designation = "Lead IT Architect", Salary = 95000.00m, ExperienceYears = 8, Status = Nexus.Data.Enums.EmployeeStatus.Active, CreatedAt = DateTime.UtcNow },
-                new Nexus.Data.Entities.Employee { Name = "Maria Garcia", Email = "maria.garcia@nexus.local", DepartmentId = hrDept.Id, Designation = "HR Specialist", Salary = 65000.00m, ExperienceYears = 4, Status = Nexus.Data.Enums.EmployeeStatus.Active, CreatedAt = DateTime.UtcNow },
-                new Nexus.Data.Entities.Employee { Name = "Bilal Ahmed", Email = "bilal.ahmed@nexus.local", DepartmentId = opsDept.Id, Designation = "Operations Lead", Salary = 70000.00m, ExperienceYears = 6, Status = Nexus.Data.Enums.EmployeeStatus.Active, CreatedAt = DateTime.UtcNow }
-            );
-            db.SaveChanges();
-        }
-
-        if (!db.Tickets.Any())
+        try
         {
-            db.Tickets.AddRange(
-                new Nexus.Data.Entities.Ticket { TicketId = "TCK-2026-4829", EmployeeName = "Tariq Mahmood", Department = "IT", RequestType = "Hardware & Software Provisioning", Priority = "High", Status = "Resolved", Details = "Workstation laptop, Visual Studio Pro, VPN access provisioned.", CreatedAt = DateTime.UtcNow.AddDays(-20) },
-                new Nexus.Data.Entities.Ticket { TicketId = "TCK-2026-5102", EmployeeName = "Sarah Jenkins", Department = "IT", RequestType = "Security Clearance & Admin Access", Priority = "High", Status = "Resolved", Details = "Elevated admin privileges and cloud infrastructure access granted.", CreatedAt = DateTime.UtcNow.AddDays(-10) },
-                new Nexus.Data.Entities.Ticket { TicketId = "TCK-2026-6941", EmployeeName = "Ahmed Khan", Department = "IT", RequestType = "Hardware Provisioning", Priority = "High", Status = "Open", Details = "MacBook Pro M3 Max 32GB, Dual 4K Monitors, YubiKey setup.", CreatedAt = DateTime.UtcNow.AddDays(-2) }
-            );
-            db.SaveChanges();
-        }
+            db.Database.ExecuteSqlRaw(@"
+                IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'Leaves')
+                BEGIN
+                    CREATE TABLE Leaves (
+                        Id INT IDENTITY(1,1) PRIMARY KEY,
+                        EmployeeId INT NOT NULL FOREIGN KEY REFERENCES Employees(Id) ON DELETE CASCADE,
+                        LeaveType INT NOT NULL,
+                        StartDate DATETIME2 NOT NULL,
+                        EndDate DATETIME2 NOT NULL,
+                        Status INT NOT NULL DEFAULT 1,
+                        Reason NVARCHAR(500) NULL,
+                        Notes NVARCHAR(500) NULL,
+                        ApprovedBy NVARCHAR(255) NULL,
+                        AgentRunId UNIQUEIDENTIFIER NULL,
+                        ProcessedAt DATETIME2 NULL,
+                        CreatedAt DATETIME2 NOT NULL DEFAULT GETUTCDATE()
+                    );
+                END;
+            ");
+        } catch { }
 
+        try
+        {
+            db.Database.ExecuteSqlRaw(@"
+                IF EXISTS (SELECT * FROM sys.tables WHERE name = 'Leaves')
+                BEGIN
+                    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Leaves') AND name = 'AgentRunId')
+                        ALTER TABLE Leaves ADD AgentRunId UNIQUEIDENTIFIER NULL;
+                    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Leaves') AND name = 'ProcessedAt')
+                        ALTER TABLE Leaves ADD ProcessedAt DATETIME2 NULL;
+                END;
+            ");
+        } catch { }
+
+        try
+        {
+            db.Database.ExecuteSqlRaw(@"
+                IF EXISTS (SELECT 1 FROM sys.tables WHERE name = 'Budgets')
+                BEGIN
+                    DECLARE @itDeptId INT = (SELECT TOP 1 Id FROM Departments WHERE Name = 'IT');
+                    IF @itDeptId IS NOT NULL
+                        UPDATE Budgets SET AllocatedAmount = 50000.00, SpentAmount = 58500.00 WHERE DepartmentId = @itDeptId AND Year = 2026 AND Quarter = 'Q3';
+                END;
+            ");
+        } catch { }
+
+        try
+        {
+            db.Database.ExecuteSqlRaw(@"
+                IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'Tickets')
+                BEGIN
+                    CREATE TABLE Tickets (
+                        Id INT IDENTITY(1,1) PRIMARY KEY,
+                        TicketId NVARCHAR(50) NOT NULL,
+                        EmployeeName NVARCHAR(150) NOT NULL,
+                        Department NVARCHAR(100) NOT NULL,
+                        RequestType NVARCHAR(150) NOT NULL,
+                        Priority NVARCHAR(50) NOT NULL DEFAULT 'High',
+                        Status NVARCHAR(50) NOT NULL DEFAULT 'Open',
+                        Details NVARCHAR(MAX) NOT NULL,
+                        CreatedAt DATETIME2 NOT NULL DEFAULT GETUTCDATE()
+                    );
+                END;
+            ");
+        } catch { }
+
+        try
+        {
+            db.Database.ExecuteSqlRaw(@"
+                IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'MasterBudgets')
+                BEGIN
+                    CREATE TABLE MasterBudgets (
+                        Id INT IDENTITY(1,1) PRIMARY KEY,
+                        Year INT NOT NULL DEFAULT 2026,
+                        FiscalYear NVARCHAR(50) NOT NULL DEFAULT '2026-2027',
+                        TotalBudgetPool DECIMAL(18,2) NOT NULL DEFAULT 1000000000.00,
+                        UpdatedAt DATETIME2 NOT NULL DEFAULT GETUTCDATE()
+                    );
+                    INSERT INTO MasterBudgets (Year, FiscalYear, TotalBudgetPool, UpdatedAt)
+                    VALUES (2026, '2026-2027', 1000000000.00, GETUTCDATE());
+                END;
+            ");
+        } catch { }
+
+        // Auto-reseed defaults on startup removed so deleted entities stay deleted across app restarts.
     }
     catch (Exception ex)
     {

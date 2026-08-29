@@ -142,7 +142,7 @@ public class ApprovalController : ControllerBase
         registry.RegisterTool(new EmployeeTransferTool(db, NullLogger<EmployeeTransferTool>.Instance));
         registry.RegisterTool(new EmployeeOffboardTool(db, NullLogger<EmployeeOffboardTool>.Instance));
         registry.RegisterTool(new LeaveTool(db, NullLogger<LeaveTool>.Instance));
-        registry.RegisterTool(new SlackNotifyTool(new HttpClient(), new Microsoft.Extensions.Configuration.ConfigurationBuilder().Build(), NullLogger<SlackNotifyTool>.Instance));
+        registry.RegisterTool(new SlackNotifyTool(new HttpClient(), new Microsoft.Extensions.Configuration.ConfigurationBuilder().Build(), pythonService, NullLogger<SlackNotifyTool>.Instance));
         registry.RegisterTool(new BudgetReallocateTool(db, NullLogger<BudgetReallocateTool>.Instance));
         registry.RegisterTool(new BudgetFreezeTool(db, NullLogger<BudgetFreezeTool>.Instance));
         registry.RegisterTool(new PayrollActionTool(db, NullLogger<PayrollActionTool>.Instance));

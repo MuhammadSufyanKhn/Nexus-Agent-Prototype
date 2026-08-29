@@ -60,7 +60,7 @@ public class IntentParser : IIntentParser
             result = RuleBasedFallbackParse(userPrompt);
             result.LlmError = llmError;
         }
-        else if (string.IsNullOrWhiteSpace(result.Intent) || result.Intent.Equals("UNKNOWN", StringComparison.OrdinalIgnoreCase))
+        else if (string.IsNullOrWhiteSpace(result.Intent) || result.Intent.Equals("UNKNOWN", StringComparison.OrdinalIgnoreCase) || result.ParsedIntentType == IntentType.UNKNOWN)
         {
             var rulesResult = RuleBasedFallbackParse(userPrompt);
             if (rulesResult.Intent != "UNKNOWN" && rulesResult.Confidence >= 0.8)
