@@ -928,8 +928,8 @@ User: ""hello"" or ""what can you do?""
 
         if (!isDeptIntent && (!entities.ContainsKey("name") || string.IsNullOrWhiteSpace(entities.GetValueOrDefault("name")) || entities["name"].Equals("In It", StringComparison.OrdinalIgnoreCase) || entities["name"].StartsWith("Move ", StringComparison.OrdinalIgnoreCase)))
         {
-            // Priority 1: Check transfer, promote, onboard, and log actions with explicit employee name
-            var actionVerbNameMatch = Regex.Match(prompt, @"\b(?:move|transfer|promote|reassign|relocate|shift|onboard|hire)\s+([A-Za-z]+(?:\s+[A-Za-z]+)?)\s+(?:to|from|as|in|into|for)\b", RegexOptions.IgnoreCase);
+            // Priority 1: Check transfer, promote, onboard, leave, and log actions with explicit employee name
+            var actionVerbNameMatch = Regex.Match(prompt, @"\b(?:move|transfer|promote|reassign|relocate|shift|onboard|hire|log|record|register)\s+(?:employee\s+)?([A-Za-z]+(?:\s+[A-Za-z]+)?)\s+(?:to|from|as|in|into|for|sick|leave|pto|today)\b", RegexOptions.IgnoreCase);
             if (actionVerbNameMatch.Success)
             {
                 var parsedName = actionVerbNameMatch.Groups[1].Value.Trim();
@@ -943,7 +943,7 @@ User: ""hello"" or ""what can you do?""
 
             if (!entities.ContainsKey("name") || string.IsNullOrWhiteSpace(entities.GetValueOrDefault("name")))
             {
-                var knownNames = new[] { "Umar Danish", "John Smith", "Jane Doe", "Michael Johnson", "David Lee", "Robert Chen", "Sarah Jenkins", "Tariq Mahmood", "Maria Garcia", "Ahmed Khan", "Sufyan Khan", "Alex", "Amanda", "Sarah", "Jim", "Pam", "Marcus", "Ali", "Sara", "Ahmed", "Umar" };
+                var knownNames = new[] { "Employee Sufyan", "Employee Ali", "Umar Danish", "John Smith", "Jane Doe", "Michael Johnson", "David Lee", "Robert Chen", "Sarah Jenkins", "Tariq Mahmood", "Maria Garcia", "Ahmed Khan", "Sufyan Khan", "Sufyan", "Alex", "Amanda", "Sarah", "Jim", "Pam", "Marcus", "Ali", "Sara", "Ahmed", "Umar" };
                 foreach (var kn in knownNames)
                 {
                     if (Regex.IsMatch(prompt, $@"\b{kn}\b", RegexOptions.IgnoreCase))
@@ -962,7 +962,8 @@ User: ""hello"" or ""what can you do?""
                 {
                     "Move", "Transfer", "Promote", "Onboard", "Delete", "Add", "Update", "Freeze", "Place", "Hold", "Set",
                     "Increase", "Reduce", "Give", "Assign", "Cut", "Drop", "Remove", "Change", "Shift", "Show", "List",
-                    "Get", "Create", "Hire", "Plan", "Department", "Office", "Branch", "Team", "Senior", "Junior", "Lead"
+                    "Get", "Create", "Hire", "Plan", "Department", "Office", "Branch", "Team", "Senior", "Junior", "Lead",
+                    "Log", "Record", "Register", "Submit", "Enter", "Track", "Save", "Employee", "Log Employee", "Notify", "Report"
                 };
 
                 foreach (Match m in capMatches)

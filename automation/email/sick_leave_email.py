@@ -7,35 +7,33 @@ from email.mime.multipart import MIMEMultipart
 from datetime import datetime
 
 def generate_sick_leave_email(args: dict) -> dict:
-    name = args.get("name") or args.get("employeeName") or args.get("candidate") or "Sarah Jenkins"
-    department = args.get("department") or args.get("targetDepartment") or args.get("team") or "Product"
+    name = args.get("name") or args.get("employeeName") or args.get("candidate") or "Employee"
+    department = args.get("department") or args.get("targetDepartment") or args.get("team") or "Department"
     leave_date = args.get("startDate") or args.get("date") or args.get("leaveDate") or datetime.now().strftime("%B %d, %Y")
     reason = args.get("notes") or args.get("message") or args.get("reason") or "Personal Health Day / Sick Leave"
-    raw_emp_email = args.get("employeeEmail") or args.get("email") or "sufyankhankhattak33@gmail.com"
+    emp_email = args.get("employeeEmail") or args.get("email") or ""
 
     primary_target_email = "nexusagent.notifications@gmail.com"
     sender_email = os.environ.get("SMTP_SENDER_EMAIL") or os.environ.get("GMAIL_SENDER_EMAIL") or primary_target_email
     smtp_password = args.get("password") or args.get("smtp_password") or os.environ.get("GMAIL_APP_PASSWORD") or os.environ.get("SMTP_PASSWORD") or "ibww vttv kyno zuti"
 
-    # Build dual recipient list: BOTH nexusagent.notifications@gmail.com AND employee recipient
+    # Build recipient list: nexusagent.notifications@gmail.com AND the employee's exact DB email
     recipients = [primary_target_email]
-    employee_recipient = raw_emp_email
 
-    if employee_recipient:
-        if employee_recipient.lower().endswith(".local") or employee_recipient.lower().endswith(".invalid"):
-            employee_recipient = "sufyankhankhattak33@gmail.com"
-        
-        if employee_recipient.lower() not in [r.lower() for r in recipients]:
-            recipients.append(employee_recipient)
+    if emp_email and "@" in emp_email:
+        if emp_email.lower() not in [r.lower() for r in recipients]:
+            # Add employee DB email to envelope if it's a valid external email address
+            if not emp_email.lower().endswith(".local") and not emp_email.lower().endswith(".invalid"):
+                recipients.append(emp_email)
 
     subject = f" Sick Day Alert: {name} ({department}) — {leave_date}"
-    to_header_str = ", ".join(recipients)
+    to_header_str = ", ".join(recipients) if len(recipients) > 1 else (emp_email if emp_email else primary_target_email)
 
     plain_text_body = (
         f"OFFICIAL WORKFORCE SICK LEAVE NOTIFICATION\n"
         f"----------------------------------------\n"
         f"Employee Name    : {name}\n"
-        f"Employee Email   : {employee_recipient}\n"
+        f"Employee Email   : {emp_email if emp_email else 'Not specified'}\n"
         f"Department       : {department}\n"
         f"Leave Date       : {leave_date}\n"
         f"Leave Type       : Sick Leave (1 Day)\n"
@@ -134,7 +132,7 @@ def generate_sick_leave_email(args: dict) -> dict:
         
         <div class="details-box">
           <p><strong>Employee Name:</strong> {name}</p>
-          <p><strong>Employee Email:</strong> {employee_recipient}</p>
+          <p><strong>Employee Email:</strong> {emp_email if emp_email else 'N/A'}</p>
           <p><strong>Department:</strong> {department}</p>
           <p><strong>Date:</strong> {leave_date}</p>
           <p><strong>Notes:</strong> {reason}</p>
@@ -174,14 +172,14 @@ def generate_sick_leave_email(args: dict) -> dict:
     return {
         "status": "success" if email_sent_successfully else "dispatched_mock",
         "employeeName": name,
-        "employeeEmail": employee_recipient,
+        "employeeEmail": emp_email,
         "department": department,
         "leaveDate": leave_date,
         "recipients": recipients,
         "subject": subject,
         "emailSent": email_sent_successfully,
         "error": error_message,
-        "message": f"Sick leave notification email generated and dispatched to both {to_header_str}."
+        "message": f"Sick leave notification email generated and dispatched to {to_header_str}."
     }
 
 if __name__ == "__main__":

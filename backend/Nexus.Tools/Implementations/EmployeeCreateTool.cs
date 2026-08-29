@@ -71,7 +71,7 @@ public class EmployeeCreateTool : IAgentTool
                 }
                 else
                 {
-                    email = $"{name.Trim().ToLower().Replace(" ", ".")}@nexus.local";
+                    email = $"{name.Trim().ToLower().Replace(" ", ".")}@gmail.com";
                 }
             }
 

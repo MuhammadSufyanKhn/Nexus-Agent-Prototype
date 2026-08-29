@@ -77,9 +77,24 @@ public class LeaveTool : IAgentTool
             }
             else if (!string.IsNullOrWhiteSpace(empName))
             {
+                var cleanName = empName.Replace("Log", "", StringComparison.OrdinalIgnoreCase)
+                                       .Replace("Employee", "", StringComparison.OrdinalIgnoreCase)
+                                       .Trim();
+
                 employee = await _db.Employees
                     .Include(e => e.Department)
-                    .FirstOrDefaultAsync(e => e.Name.ToLower().Contains(empName.ToLower()));
+                    .Where(e => e.Name.ToLower().Contains(empName.ToLower()) ||
+                                (!string.IsNullOrWhiteSpace(cleanName) && e.Name.ToLower().Contains(cleanName.ToLower())) ||
+                                empName.ToLower().Contains(e.Name.ToLower()))
+                    .OrderByDescending(e => e.Id)
+                    .FirstOrDefaultAsync();
+
+                if (employee == null && !string.IsNullOrWhiteSpace(cleanName))
+                {
+                    employee = await _db.Employees
+                        .Include(e => e.Department)
+                        .FirstOrDefaultAsync(e => cleanName.ToLower().Contains(e.Name.ToLower()));
+                }
             }
 
             if (employee == null)

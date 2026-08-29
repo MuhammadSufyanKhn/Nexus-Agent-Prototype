@@ -113,7 +113,7 @@ public class CvAnalysisTool : IAgentTool
         }
 
         // 2. Email Extraction
-        string email = $"{candidateName.ToLower().Replace(" ", ".")}@nexus.local";
+        string email = $"{candidateName.ToLower().Replace(" ", ".")}@gmail.com";
         var emailMatch = Regex.Match(cvText, @"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b");
         if (emailMatch.Success)
         {

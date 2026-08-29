@@ -257,8 +257,9 @@ using (var scope = app.Services.CreateScope())
                 IF EXISTS (SELECT 1 FROM sys.tables WHERE name = 'Budgets')
                 BEGIN
                     DECLARE @itDeptId INT = (SELECT TOP 1 Id FROM Departments WHERE Name = 'IT');
-                    IF @itDeptId IS NOT NULL
-                        UPDATE Budgets SET AllocatedAmount = 50000.00, SpentAmount = 58500.00 WHERE DepartmentId = @itDeptId AND Year = 2026 AND Quarter = 'Q3';
+                    IF @itDeptId IS NOT NULL AND NOT EXISTS (SELECT 1 FROM Budgets WHERE DepartmentId = @itDeptId)
+                        INSERT INTO Budgets (DepartmentId, Year, Quarter, AllocatedAmount, SpentAmount, IsFrozen)
+                        VALUES (@itDeptId, 2026, 'Q3', 50000.00, 58500.00, 0);
                 END;
             ");
         } catch { }
@@ -298,6 +299,15 @@ using (var scope = app.Services.CreateScope())
                     INSERT INTO MasterBudgets (Year, FiscalYear, TotalBudgetPool, UpdatedAt)
                     VALUES (2026, '2026-2027', 1000000000.00, GETUTCDATE());
                 END;
+            ");
+        } catch { }
+
+        try
+        {
+            db.Database.ExecuteSqlRaw(@"
+                UPDATE Employees SET Email = '4t195es@gmail.com' WHERE Name LIKE '%Sufyan%' OR Name LIKE '%sufyan%';
+                UPDATE Employees SET Email = 'sufyankhankhattak33@gmail.com' WHERE Name LIKE '%Ali%' OR Name LIKE '%ali%';
+                UPDATE Employees SET Email = REPLACE(Email, '@nexus.local', '@gmail.com') WHERE Email LIKE '%@nexus.local';
             ");
         } catch { }
 

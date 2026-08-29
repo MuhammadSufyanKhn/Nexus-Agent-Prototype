@@ -14,13 +14,9 @@ import {
   UserCheck, 
   ShieldCheck, 
   Lock, 
-  ArrowRight,
-  TrendingUp,
   FileSpreadsheet,
   AlertCircle,
-  Database,
-  ArrowUpRight,
-  Check
+  Database
 } from 'lucide-react';
 
 interface ApprovalsViewProps {
@@ -210,8 +206,19 @@ export const ApprovalsView: React.FC<ApprovalsViewProps> = ({
           </button>
         </div>
 
-        {/* Search & Refresh */}
+        {/* Search, Risk Filter & Refresh */}
         <div className="flex items-center gap-3">
+          <select
+            value={filterRisk}
+            onChange={(e) => setFilterRisk(e.target.value)}
+            className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 focus:outline-none focus:border-purple-500 transition-all cursor-pointer"
+          >
+            <option value="ALL">All Risk Levels</option>
+            <option value="HIGH">High Risk Gate</option>
+            <option value="MEDIUM">Medium Risk</option>
+            <option value="LOW">Low Risk</option>
+          </select>
+
           <div className="relative flex-1 sm:w-64">
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
@@ -262,7 +269,7 @@ export const ApprovalsView: React.FC<ApprovalsViewProps> = ({
           {filteredApprovals.map((app) => {
             const parsedPlan = parseApprovalReason(app.reason);
             const planTitle = parsedPlan?.title || (typeof app.reason === 'string' && !app.reason.startsWith('{') ? app.reason : `Workforce Action Plan #${app.id.substring(0, 8)}`);
-            const finImpact = parsedPlan?.totalFinancialImpact ?? app.totalFinancialImpact ?? 0;
+            const finImpact = parsedPlan?.totalFinancialImpact ?? (app as any).totalFinancialImpact ?? 0;
             const steps = parsedPlan?.steps || [];
             const records = parsedPlan?.affectedRecords || [];
             const warnings = parsedPlan?.warnings || [];
