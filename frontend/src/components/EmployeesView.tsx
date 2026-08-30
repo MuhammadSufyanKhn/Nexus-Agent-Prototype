@@ -47,7 +47,7 @@ export const EmployeesView: React.FC = () => {
           </div>
           <div>
             <h3 className="text-sm font-bold text-slate-900">Workforce Directory ({employees.length})</h3>
-            <p className="text-xs text-slate-500">Master database records across all corporate departments.</p>
+            <p className="text-xs text-slate-500">Official employee profiles across all corporate departments.</p>
           </div>
         </div>
 

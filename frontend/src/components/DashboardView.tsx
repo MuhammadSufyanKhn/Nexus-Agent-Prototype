@@ -64,9 +64,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       color: 'emerald'
     },
     {
-      label: 'System Status',
-      value: '100% Online',
-      change: 'SQL Server & Local AI active',
+      label: 'System Health',
+      value: '100% Operational',
+      change: 'All HR modules active',
       isPositive: true,
       icon: ShieldCheck,
       color: 'indigo'

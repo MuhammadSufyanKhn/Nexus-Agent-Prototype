@@ -442,4 +442,133 @@ export async function updateTicketStatus(id: number, status: string): Promise<Ti
   return res.json();
 }
 
+export async function triageTicketWithAI(id: number): Promise<TicketItem> {
+  const res = await fetch(`${API_BASE}/ticket/${id}/triage`, {
+    method: 'POST'
+  });
+  if (!res.ok) throw new Error('Failed to AI triage ticket');
+  return res.json();
+}
+
+export async function createTicketWithAI(prompt: string): Promise<TicketItem> {
+  const res = await fetch(`${API_BASE}/ticket/ai-create`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ prompt })
+  });
+  if (!res.ok) throw new Error('Failed to create AI ticket');
+  return res.json();
+}
+
+// ── Expense Compliance & Audit ─────────────────────────────────────────────
+export async function auditExpensesWithAI(): Promise<{
+  totalAudited: number;
+  compliantCount: number;
+  violationCount: number;
+  flaggedClaims: any[];
+  summary: string;
+}> {
+  const res = await fetch(`${API_BASE}/expenses/audit`, {
+    method: 'POST'
+  });
+  if (!res.ok) throw new Error('Failed to run AI expense audit');
+  return res.json();
+}
+
+export async function updateExpenseStatus(id: number, status: string, reason?: string): Promise<Expense> {
+  const res = await fetch(`${API_BASE}/expenses/${id}/status`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status, reason })
+  });
+  if (!res.ok) throw new Error('Failed to update expense status');
+  return res.json();
+}
+
+export async function createExpenseClaim(data: { employeeId: number; expenseType: number; amount: number; description: string }): Promise<Expense> {
+  const res = await fetch(`${API_BASE}/expenses`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      employeeId: data.employeeId,
+      expenseType: data.expenseType,
+      amount: data.amount,
+      expenseDate: new Date().toISOString(),
+      description: data.description
+    })
+  });
+  if (!res.ok) throw new Error('Failed to submit expense claim');
+  return res.json();
+}
+
+// ── Automation Workflows & Subsystem Health ─────────────────────────────────
+export interface WorkflowDefinition {
+  id: string;
+  title: string;
+  subsystem: string;
+  description: string;
+  defaultPrompt: string;
+  icon: string;
+  steps: string[];
+}
+
+export interface SubsystemStatus {
+  name: string;
+  type: string;
+  status: string;
+  target: string;
+  metrics: string;
+  isHealthy: boolean;
+}
+
+export interface AutomationHistoryItem {
+  runId: string;
+  originalPrompt: string;
+  intent: string;
+  status: string;
+  startedAt: string;
+  completedAt?: string;
+  actionCount: number;
+  auditLogs: {
+    action: string;
+    target: string;
+    result: string;
+    currentHash: string;
+    timestamp: string;
+  }[];
+}
+
+export async function fetchWorkflows(): Promise<WorkflowDefinition[]> {
+  const res = await fetch(`${API_BASE}/automation/workflows`);
+  if (!res.ok) return [];
+  return res.json();
+}
+
+export async function executeWorkflow(workflowId: string, prompt?: string, userRole = 'Admin'): Promise<AgentResult> {
+  const res = await fetch(`${API_BASE}/automation/execute`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ workflowId, prompt, userRole })
+  });
+  if (!res.ok) throw new Error('Failed to execute workflow');
+  return res.json();
+}
+
+export async function fetchSubsystems(): Promise<SubsystemStatus[]> {
+  const res = await fetch(`${API_BASE}/automation/subsystems`);
+  if (!res.ok) return [];
+  return res.json();
+}
+
+export async function fetchAutomationHistory(): Promise<AutomationHistoryItem[]> {
+  const res = await fetch(`${API_BASE}/automation/history`);
+  if (!res.ok) return [];
+  return res.json();
+}
+
+export async function triggerOnboardingWorkflow(prompt: string, userRole = 'Admin'): Promise<AgentResult> {
+  return executeAgentPrompt(prompt, userRole);
+}
+
+
 

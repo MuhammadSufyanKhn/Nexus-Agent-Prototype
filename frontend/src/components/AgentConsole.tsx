@@ -609,7 +609,7 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
           onClick={() => setFeedExpanded(v => !v)}
           className="w-full flex items-center justify-between px-4 py-3 text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors"
         >
-          <span>Execution Timeline ({feed.length} steps)</span>
+          <span>Action Processing Progress ({feed.length} steps)</span>
           {feedExpanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
         </button>
         {feedExpanded && (

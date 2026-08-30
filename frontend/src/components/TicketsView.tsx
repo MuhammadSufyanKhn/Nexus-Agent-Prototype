@@ -1,12 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { Ticket, Search, Plus, X, CheckCircle2, Clock, AlertCircle, User, RefreshCw } from 'lucide-react';
-import { fetchTickets, createTicket, updateTicketStatus, type TicketItem } from '../services/api';
+import { Ticket, Search, Plus, X, CheckCircle2, Clock, AlertCircle, User, RefreshCw, Sparkles, ArrowRight } from 'lucide-react';
+import { fetchTickets, createTicket, updateTicketStatus, triageTicketWithAI, createTicketWithAI, type TicketItem } from '../services/api';
 
 export const TicketsView: React.FC = () => {
   const [tickets, setTickets] = useState<TicketItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [selectedStatus, setSelectedStatus] = useState<string>('ALL');
+
+  // AI Assistant State
+  const [aiPrompt, setAiPrompt] = useState('');
+  const [aiCreating, setAiCreating] = useState(false);
+  const [triagingId, setTriagingId] = useState<number | null>(null);
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -32,6 +37,34 @@ export const TicketsView: React.FC = () => {
   useEffect(() => {
     loadTickets();
   }, [selectedStatus]);
+
+  const handleAiCreateTicket = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!aiPrompt.trim()) return;
+
+    setAiCreating(true);
+    try {
+      await createTicketWithAI(aiPrompt);
+      setAiPrompt('');
+      await loadTickets();
+    } catch (err) {
+      console.error('Failed to create AI ticket:', err);
+    } finally {
+      setAiCreating(false);
+    }
+  };
+
+  const handleAiTriage = async (ticketId: number) => {
+    setTriagingId(ticketId);
+    try {
+      await triageTicketWithAI(ticketId);
+      await loadTickets();
+    } catch (err) {
+      console.error('Failed to AI triage ticket:', err);
+    } finally {
+      setTriagingId(null);
+    }
+  };
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearch(e.target.value);
@@ -90,9 +123,14 @@ export const TicketsView: React.FC = () => {
             <Ticket className="w-7 h-7" />
           </div>
           <div>
-            <h2 className="text-xl font-bold tracking-tight">IT Provisioning & Service Tickets</h2>
+            <div className="flex items-center gap-2">
+              <h2 className="text-xl font-bold tracking-tight">Workplace Service Desk</h2>
+              <span className="text-[10px] bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 font-mono font-bold px-2 py-0.5 rounded">
+                AI SMART ASSIST ACTIVE
+              </span>
+            </div>
             <p className="text-xs text-indigo-200/80 mt-1">
-              Automated hardware, software credentials, and IT access ticket workflow.
+              Report workplace issues, hardware requests, account credentials, and track resolution progress.
             </p>
           </div>
         </div>
@@ -109,13 +147,52 @@ export const TicketsView: React.FC = () => {
 
           <button
             onClick={() => setIsModalOpen(true)}
-            className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-xl transition text-xs flex items-center gap-2 shadow-lg shadow-indigo-600/30"
+            className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-xl transition text-xs flex items-center gap-2 shadow-lg shadow-indigo-600/30 cursor-pointer"
           >
             <Plus className="w-4 h-4" />
-            <span>Create New Ticket</span>
+            <span>New Service Request</span>
           </button>
         </div>
       </div>
+
+      {/* Quick Natural Language AI Service Desk Assistant Bar */}
+      <div className="bg-white p-4 rounded-2xl border border-indigo-100 shadow-xs space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 text-xs font-bold text-slate-800">
+            <Sparkles className="w-4 h-4 text-indigo-600" />
+            <span>Ask Nexus Agent to Create &amp; Categorize Service Request</span>
+          </div>
+          <span className="text-[11px] text-slate-400 font-medium">Example: "Need MacBook Pro M3 and AWS VPN access for new hire Sarah in DevOps"</span>
+        </div>
+
+        <form onSubmit={handleAiCreateTicket} className="flex gap-2">
+          <input
+            type="text"
+            placeholder="Type request details in natural language..."
+            value={aiPrompt}
+            onChange={(e) => setAiPrompt(e.target.value)}
+            className="flex-1 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 font-medium transition"
+          />
+          <button
+            type="submit"
+            disabled={aiCreating || !aiPrompt.trim()}
+            className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl transition text-xs flex items-center gap-2 disabled:opacity-50 shadow-md shadow-indigo-600/20 cursor-pointer"
+          >
+            {aiCreating ? (
+              <>
+                <RefreshCw className="w-4 h-4 animate-spin" />
+                <span>Processing...</span>
+              </>
+            ) : (
+              <>
+                <span>Submit Request</span>
+                <ArrowRight className="w-4 h-4" />
+              </>
+            )}
+          </button>
+        </form>
+      </div>
+
 
       {/* Metric Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -278,15 +355,27 @@ export const TicketsView: React.FC = () => {
                       </td>
 
                       <td className="py-3.5 px-4 text-right">
-                        <select
-                          value={ticket.status}
-                          onChange={(e) => handleStatusChange(ticket.id, e.target.value)}
-                          className="bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold px-2 py-1 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                        >
-                          <option value="Open">Open</option>
-                          <option value="In Progress">In Progress</option>
-                          <option value="Resolved">Resolved</option>
-                        </select>
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            onClick={() => handleAiTriage(ticket.id)}
+                            disabled={triagingId === ticket.id}
+                            className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-lg text-xs font-semibold transition flex items-center gap-1 shadow-2xs"
+                            title="Intelligent AI Auto-Triaging & Provisioning"
+                          >
+                            <Sparkles className={`w-3.5 h-3.5 text-indigo-600 ${triagingId === ticket.id ? 'animate-spin' : ''}`} />
+                            <span>{triagingId === ticket.id ? 'Triaging...' : 'AI Auto-Triage'}</span>
+                          </button>
+
+                          <select
+                            value={ticket.status}
+                            onChange={(e) => handleStatusChange(ticket.id, e.target.value)}
+                            className="bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold px-2 py-1 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                          >
+                            <option value="Open">Open</option>
+                            <option value="In Progress">In Progress</option>
+                            <option value="Resolved">Resolved</option>
+                          </select>
+                        </div>
                       </td>
                     </tr>
                   );

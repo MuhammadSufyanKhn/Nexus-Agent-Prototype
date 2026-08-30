@@ -21,23 +21,27 @@ export const Header: React.FC<HeaderProps> = ({
       case 'dashboard':
         return { title: 'Executive HR Dashboard', desc: 'Workforce overview, pending approvals, and operational health metrics.' };
       case 'console':
-        return { title: 'Nexus AI Assistant', desc: 'Ask Nexus to analyze data, manage employee profiles, or execute HR actions.' };
+        return { title: 'Nexus AI Assistant', desc: 'Ask Nexus to analyze workforce data, manage employee profiles, or execute HR actions.' };
       case 'employees':
         return { title: 'Employee Directory', desc: 'Manage workforce profiles, designations, compensation bands, and status.' };
       case 'departments':
-        return { title: 'Department Operations', desc: 'Department headcounts, allocation, and headcount variance tracking.' };
+        return { title: 'Department Operations', desc: 'Department headcounts, budget allocations, and organizational structure.' };
       case 'policies':
         return { title: 'Policy Center', desc: 'Corporate handbook guidelines, salary bands, and expense compliance limits.' };
       case 'approvals':
-        return { title: 'Approval Center', desc: 'Review, authorize, or reject pre-execution action plans.' };
+        return { title: 'HR Approval Center', desc: 'Review, authorize, or decline proposed workforce actions.' };
       case 'expenses':
-        return { title: 'Expense Auditing', desc: 'Review employee claims against corporate policy limits.' };
+        return { title: 'Expense Review & Compliance', desc: 'Review employee expense claims against corporate policy limits.' };
+      case 'tickets':
+        return { title: 'Workplace Service Desk', desc: 'Report workplace or technical issues and track resolution progress.' };
       case 'onboarding':
-        return { title: 'Onboarding Tracker', desc: 'Multi-system employee directory provisioning progress.' };
+        return { title: 'Employee Onboarding Hub', desc: 'Automated employee provisioning, documents, and welcome communications.' };
       case 'automation':
-        return { title: 'System Automation', desc: 'Status of Legacy HR Portal, Mock SAP Connector, Email, and IT Ticket systems.' };
+        return { title: 'Automated Workflows', desc: 'Catalog of automated business processes managed by Nexus AI Assistant.' };
       case 'audit':
-        return { title: 'Security Audit Logs', desc: 'Cryptographically linked SHA-256 ledger of all enterprise system actions.' };
+        return { title: 'Enterprise Activity History', desc: 'Verified record of all workforce management actions.' };
+      case 'cv':
+        return { title: 'Candidate CV Screening', desc: 'AI-assisted resume screening and candidate qualification evaluation.' };
       default:
         return { title: 'NEXUS HR Platform', desc: 'Enterprise workforce management.' };
     }

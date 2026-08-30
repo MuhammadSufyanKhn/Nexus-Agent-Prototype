@@ -65,7 +65,7 @@ export const DepartmentsView: React.FC = () => {
                 <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 bg-indigo-500/30 text-indigo-200 rounded border border-indigo-400/30">
                   Fiscal Year {masterBudget?.fiscalYear || '2026-2027'}
                 </span>
-                <span className="text-xs text-indigo-300 font-medium">• Live SQL Server Sync</span>
+                <span className="text-xs text-indigo-300 font-medium">• Real-Time HR Sync</span>
               </div>
               <h3 className="text-xl font-extrabold tracking-tight text-white mt-1">
                 Master Corporate Budget Pool
