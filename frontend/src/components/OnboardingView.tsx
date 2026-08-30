@@ -224,12 +224,12 @@ export const OnboardingView: React.FC = () => {
           {employees.map((emp) => {
             const deptName = getDeptName(emp);
             const steps = [
-              { title: 'Information & Identity Parsed', status: 'COMPLETED', detail: `${emp.designation} profile verified` },
-              { title: 'Policy Validation (POL-HR-001)', status: 'COMPLETED', detail: `Salary Band Verified ($${emp.salary.toLocaleString()})` },
-              { title: 'SQL Master Record Creation', status: 'COMPLETED', detail: `Master ID #EMP-${emp.id} Created` },
-              { title: 'Legacy HR Portal Sync (Playwright)', status: 'COMPLETED', detail: `HR-REC-2026-${8800 + emp.id} Submitted` },
-              { title: 'Mock SAP ERP HCM Provisioning', status: 'COMPLETED', detail: `Personnel ID SAP-EMP-2026-${8900 + emp.id}` },
-              { title: 'Welcome Email Generation', status: 'COMPLETED', detail: `Dispatched to ${emp.email}` }
+              { title: 'Employee Profile Verified', status: 'COMPLETED', detail: `${emp.designation} role verified` },
+              { title: 'Compensation Audit (POL-HR-001)', status: 'COMPLETED', detail: `Salary Band Verified ($${emp.salary.toLocaleString()})` },
+              { title: 'Master HR Record Created', status: 'COMPLETED', detail: `HR Employee ID #${emp.id}` },
+              { title: 'Corporate HR Portal Synced', status: 'COMPLETED', detail: `Employee Profile Active` },
+              { title: 'Enterprise Resource Provisioning', status: 'COMPLETED', detail: `Resource Profile Provisioned` },
+              { title: 'Welcome Email & Credentials Issued', status: 'COMPLETED', detail: `Dispatched to ${emp.email}` }
             ];
 
             return (

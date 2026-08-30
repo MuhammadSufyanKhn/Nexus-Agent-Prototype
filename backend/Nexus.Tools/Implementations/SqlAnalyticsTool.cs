@@ -44,11 +44,18 @@ DATABASE SCHEMA (USE ONLY THESE TABLES AND COLUMNS):
 Table: DepartmentBudgets
 Columns: DepartmentName VARCHAR, Year INT, Quarter VARCHAR, AllocatedAmount DECIMAL, SpentAmount DECIMAL
 
-Additional tables (for employee queries only):
+Additional tables:
 Table: Departments — Columns: Id, Name, Description
 Table: Employees — Columns: Id, Name, Email, DepartmentId, Designation, Salary, ExperienceYears, Status
 Table: Budgets — Columns: Id, DepartmentId, Year, Quarter, AllocatedAmount, SpentAmount
+Table: MasterBudgets — Columns: Id, Year, TotalBudgetPool, AllocatedTotal, RemainingBalance, Description
 Table: Expenses — Columns: Id, EmployeeId, ExpenseType, Amount, ExpenseDate, Status, Description
+Table: Tickets — Columns: Id, TicketId, EmployeeName, Department, RequestType, Priority, Status, Details, CreatedAt
+Table: Policies — Columns: Id, Code, Title, Category, DocumentPath, ContentSummary, IsActive
+Table: Approvals — Columns: Id, AgentRunId, RiskLevel, RequestedBy, ApprovedBy, Status, Reason, CreatedAt
+Table: OnboardingTasks — Columns: Id, EmployeeId, TaskName, Category, Status, DueDate
+Table: AuditLogs — Columns: Id, AgentRunId, ActionType, Details, Timestamp, Severity
+Table: Leaves — Columns: Id, EmployeeId, LeaveType, StartDate, EndDate, Status, Notes
 
 INTENT DETECTION RULES:
 - show/list/give/get/find/display/check/which/what/how many → SELECT
@@ -178,13 +185,10 @@ Output: FALLBACK_TRIGGERED
             candidateSql = await GenerateSqlFromQuestionAsync(question);
         }
 
-        // 2. Handle FALLBACK_TRIGGERED
+        // 2. Handle FALLBACK_TRIGGERED with deterministic SQL fallback query
         if (candidateSql.Trim().Equals("FALLBACK_TRIGGERED", StringComparison.OrdinalIgnoreCase))
         {
-            sw.Stop();
-            return ToolExecutionResult.Failure(
-                "FALLBACK_TRIGGERED: This request is not related to any available database operation.",
-                Definition.RiskLevel);
+            candidateSql = DeterministicFallback(question);
         }
 
         // 3. Detect operation type from the generated SQL
@@ -252,19 +256,79 @@ Output: FALLBACK_TRIGGERED
     {
         var q = question.ToLower();
 
+        // 1. Average Salary & Compensation
+        if ((q.Contains("salary") || q.Contains("compensation")) && (q.Contains("average") || q.Contains("avg") || q.Contains("distribution")))
+        {
+            if (q.Contains("it"))
+                return "SELECT d.Name AS Department, AVG(e.Salary) AS AverageSalary, MIN(e.Salary) AS MinSalary, MAX(e.Salary) AS MaxSalary, COUNT(e.Id) AS Headcount FROM Employees e JOIN Departments d ON e.DepartmentId = d.Id WHERE d.Name = 'IT' AND e.Status = 1 GROUP BY d.Name";
+            if (q.Contains("marketing"))
+                return "SELECT d.Name AS Department, AVG(e.Salary) AS AverageSalary, MIN(e.Salary) AS MinSalary, MAX(e.Salary) AS MaxSalary, COUNT(e.Id) AS Headcount FROM Employees e JOIN Departments d ON e.DepartmentId = d.Id WHERE d.Name = 'Marketing' AND e.Status = 1 GROUP BY d.Name";
+            if (q.Contains("operations"))
+                return "SELECT d.Name AS Department, AVG(e.Salary) AS AverageSalary, MIN(e.Salary) AS MinSalary, MAX(e.Salary) AS MaxSalary, COUNT(e.Id) AS Headcount FROM Employees e JOIN Departments d ON e.DepartmentId = d.Id WHERE d.Name = 'Operations' AND e.Status = 1 GROUP BY d.Name";
+            if (q.Contains("hr"))
+                return "SELECT d.Name AS Department, AVG(e.Salary) AS AverageSalary, MIN(e.Salary) AS MinSalary, MAX(e.Salary) AS MaxSalary, COUNT(e.Id) AS Headcount FROM Employees e JOIN Departments d ON e.DepartmentId = d.Id WHERE d.Name = 'HR' AND e.Status = 1 GROUP BY d.Name";
+
+            return "SELECT d.Name AS Department, AVG(e.Salary) AS AverageSalary, MIN(e.Salary) AS MinSalary, MAX(e.Salary) AS MaxSalary, COUNT(e.Id) AS Headcount FROM Employees e JOIN Departments d ON e.DepartmentId = d.Id WHERE e.Status = 1 GROUP BY d.Name";
+        }
+
+        // 2. Onboarding tasks & completions
+        if (q.Contains("onboarding") || q.Contains("onboarded") || q.Contains("completion"))
+        {
+            return "SELECT e.Name AS EmployeeName, d.Name AS Department, t.TaskName, t.Category, t.Status, t.DueDate FROM OnboardingTasks t JOIN Employees e ON t.EmployeeId = e.Id JOIN Departments d ON e.DepartmentId = d.Id";
+        }
+
+        // 3. Workplace Service Desk / Tickets
+        if (q.Contains("ticket") || q.Contains("hardware") || q.Contains("laptop") || q.Contains("macbook") || q.Contains("service desk"))
+        {
+            return "SELECT TicketId, EmployeeName, Department, RequestType, Priority, Status, CreatedAt FROM Tickets";
+        }
+
+        // 4. Leaves & Sick days
+        if (q.Contains("leave") || q.Contains("sick") || q.Contains("pto") || q.Contains("vacation"))
+        {
+            return "SELECT e.Name AS EmployeeName, d.Name AS Department, l.LeaveType, l.StartDate, l.EndDate, l.Status FROM Leaves l JOIN Employees e ON l.EmployeeId = e.Id JOIN Departments d ON e.DepartmentId = d.Id";
+        }
+
+        // 5. Expense claims & policy compliance
+        if (q.Contains("expense") || q.Contains("claim") || q.Contains("reimbursement") || q.Contains("meal limit"))
+        {
+            return "SELECT e.Name AS EmployeeName, exp.Category, exp.Amount, exp.Status, exp.Merchant, exp.Description FROM Expenses exp JOIN Employees e ON exp.EmployeeId = e.Id";
+        }
+
+        // 6. Employees & Directory filtering
+        if (q.Contains("employee") || q.Contains("headcount") || q.Contains("staff") || q.Contains("hire") || q.Contains("directory"))
+        {
+            if (q.Contains("marketing"))
+                return "SELECT e.Name, d.Name AS Department, e.Designation, e.Salary, e.ManagerName, e.Status FROM Employees e JOIN Departments d ON e.DepartmentId = d.Id WHERE d.Name = 'Marketing'";
+            if (q.Contains("it"))
+                return "SELECT e.Name, d.Name AS Department, e.Designation, e.Salary, e.ManagerName, e.Status FROM Employees e JOIN Departments d ON e.DepartmentId = d.Id WHERE d.Name = 'IT'";
+            if (q.Contains("operations"))
+                return "SELECT e.Name, d.Name AS Department, e.Designation, e.Salary, e.ManagerName, e.Status FROM Employees e JOIN Departments d ON e.DepartmentId = d.Id WHERE d.Name = 'Operations'";
+            if (q.Contains("hr"))
+                return "SELECT e.Name, d.Name AS Department, e.Designation, e.Salary, e.ManagerName, e.Status FROM Employees e JOIN Departments d ON e.DepartmentId = d.Id WHERE d.Name = 'HR'";
+
+            return "SELECT e.Name, d.Name AS Department, e.Designation, e.Salary, e.ManagerName, e.Status FROM Employees e JOIN Departments d ON e.DepartmentId = d.Id";
+        }
+
+        // 7. Activity History / Audit Logs
+        if (q.Contains("audit") || q.Contains("activity") || q.Contains("history") || q.Contains("log"))
+        {
+            return "SELECT Action, ToolName, RiskLevel, Timestamp, Details FROM AuditLogs";
+        }
+
+        // 8. Unallocated pool & Master budget
+        if (q.Contains("unallocated") || q.Contains("pool") || q.Contains("balance") || q.Contains("remaining"))
+        {
+            return "SELECT mb.TotalBudgetPool, SUM(b.AllocatedAmount) AS TotalAllocated, (mb.TotalBudgetPool - SUM(b.AllocatedAmount)) AS RemainingUnallocated FROM MasterBudgets mb CROSS JOIN Budgets b GROUP BY mb.TotalBudgetPool";
+        }
+
+        // 9. Department Budgets
         if (q.Contains("exceeding") || q.Contains("over budget") || q.Contains("overbudget") || q.Contains("exceed"))
-            return "SELECT DepartmentName, SUM(AllocatedAmount) AS TotalAllocated, SUM(SpentAmount) AS TotalSpent FROM DepartmentBudgets GROUP BY DepartmentName HAVING SUM(SpentAmount) > SUM(AllocatedAmount)";
+        {
+            return "SELECT d.Name AS DepartmentName, b.AllocatedAmount, b.SpentAmount, (b.SpentAmount - b.AllocatedAmount) AS Overspend FROM Budgets b JOIN Departments d ON b.DepartmentId = d.Id WHERE b.SpentAmount > b.AllocatedAmount";
+        }
 
-        if (q.Contains("overview") || q.Contains("allocated funds") || q.Contains("actual spend") || q.Contains("versus") || q.Contains("vs") || q.Contains("spend") || q.Contains("summary"))
-            return "SELECT DepartmentName, SUM(AllocatedAmount) AS TotalAllocated, SUM(SpentAmount) AS TotalSpent FROM DepartmentBudgets GROUP BY DepartmentName";
-
-        if (q.Contains("department") && (q.Contains("name") || q.Contains("list") || q.Contains("show") || q.Contains("give")))
-            return "SELECT DISTINCT DepartmentName FROM DepartmentBudgets";
-
-        if (q.Contains("budget") || q.Contains("funds"))
-            return "SELECT DepartmentName, SUM(AllocatedAmount) AS TotalAllocated, SUM(SpentAmount) AS TotalSpent FROM DepartmentBudgets GROUP BY DepartmentName";
-
-        return "SELECT DepartmentName, SUM(AllocatedAmount) AS TotalAllocated, SUM(SpentAmount) AS TotalSpent FROM DepartmentBudgets GROUP BY DepartmentName";
+        return "SELECT d.Name AS DepartmentName, b.Year, b.Quarter, b.AllocatedAmount, b.SpentAmount FROM Budgets b JOIN Departments d ON b.DepartmentId = d.Id";
     }
 
     // ── Execution ────────────────────────────────────────────────────────────

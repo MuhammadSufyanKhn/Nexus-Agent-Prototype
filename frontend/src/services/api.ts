@@ -4,6 +4,16 @@ export interface ConfirmationDetails {
   requiresUserAction: boolean;
 }
 
+export interface NextActionChoice {
+  id: string;
+  label: string;
+  actionType: 'NAVIGATE' | 'EXECUTE_PROMPT' | 'OPEN_URL' | 'MODAL';
+  targetTab?: string;
+  promptToExecute?: string;
+  url?: string;
+  context?: Record<string, string>;
+}
+
 export interface AgentResult {
   runId: string;
   originalPrompt: string;
@@ -17,6 +27,7 @@ export interface AgentResult {
   /** Set when the Gemini API itself failed — distinct from a business error */
   llmError?: string;
   executionTimeMs: number;
+  choices?: NextActionChoice[];
 
   // ── Spec-aligned Workflow State Machine fields ────────────────────────────
   /** One of: CONFIRMATION_REQUIRED | CLARIFICATION_REQUIRED | READY_TO_EXECUTE | ANSWER_DIRECT */

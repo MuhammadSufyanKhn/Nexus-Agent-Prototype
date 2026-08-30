@@ -36,8 +36,6 @@ export const Header: React.FC<HeaderProps> = ({
         return { title: 'Workplace Service Desk', desc: 'Report workplace or technical issues and track resolution progress.' };
       case 'onboarding':
         return { title: 'Employee Onboarding Hub', desc: 'Automated employee provisioning, documents, and welcome communications.' };
-      case 'automation':
-        return { title: 'Automated Workflows', desc: 'Catalog of automated business processes managed by Nexus AI Assistant.' };
       case 'audit':
         return { title: 'Enterprise Activity History', desc: 'Verified record of all workforce management actions.' };
       case 'cv':

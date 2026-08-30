@@ -133,6 +133,109 @@ public class IntentParserTests
         Assert.Equal(IntentType.BUDGET_ANALYSIS, overviewResult.ParsedIntentType);
     }
 
+    [Fact]
+    public async Task IntentParser_Parses_Department_Create_With_Head_And_Budget()
+    {
+        var mockLlm = new MockLLMService(null);
+        var parser = new IntentParser(mockLlm, NullLogger<IntentParser>.Instance);
+
+        var result = await parser.ParseIntentAsync("Create Finance department with head Sufyan and budget 500000");
+        Assert.Equal(IntentType.DEPARTMENT_CREATE, result.ParsedIntentType);
+        Assert.Equal("Finance", result.Entities["name"]);
+        Assert.Equal("Sufyan", result.Entities["head"]);
+        Assert.Equal("500000", result.Entities["budgetAmount"]);
+    }
+
+    [Theory]
+    [InlineData("Log Ali sick day today and notify his team on gmail")]
+    [InlineData("Log a sick day for Ali and notify on gmail")]
+    public async Task IntentParser_Parses_Leave_Create_Correctly(string prompt)
+    {
+        var mockLlm = new MockLLMService(null);
+        var parser = new IntentParser(mockLlm, NullLogger<IntentParser>.Instance);
+
+        var result = await parser.ParseIntentAsync(prompt);
+        Assert.Equal(IntentType.LEAVE_CREATE, result.ParsedIntentType);
+        Assert.Equal("Ali", result.Entities["name"]);
+    }
+
+    [Fact]
+    public async Task IntentParser_Parses_Average_Salary_Command()
+    {
+        var mockLlm = new MockLLMService(null);
+        var parser = new IntentParser(mockLlm, NullLogger<IntentParser>.Instance);
+
+        var result = await parser.ParseIntentAsync("Calculate average employee salary in the IT department");
+        Assert.Equal(IntentType.BUDGET_ANALYSIS, result.ParsedIntentType);
+        Assert.Equal("IT", result.Entities["department"]);
+        Assert.Equal("AVERAGE_SALARY", result.Parameters["query"]?.ToString());
+    }
+
+    [Fact]
+    public async Task IntentParser_Parses_Filter_Employee_Directory()
+    {
+        var mockLlm = new MockLLMService(null);
+        var parser = new IntentParser(mockLlm, NullLogger<IntentParser>.Instance);
+
+        var result = await parser.ParseIntentAsync("Filter employee directory by Marketing department and show assigned managers");
+        Assert.Equal(IntentType.EMPLOYEE_READ, result.ParsedIntentType);
+        Assert.Equal("Marketing", result.Entities["department"]);
+    }
+
+    [Fact]
+    public async Task IntentParser_Parses_Salary_Increase_Review()
+    {
+        var mockLlm = new MockLLMService(null);
+        var parser = new IntentParser(mockLlm, NullLogger<IntentParser>.Instance);
+
+        var result = await parser.ParseIntentAsync("Review proposed salary increase for Ali Khan from $80,000 to $90,000");
+        Assert.Equal(IntentType.UPDATE_SALARY, result.ParsedIntentType);
+        Assert.Equal("Ali Khan", result.Entities["name"]);
+        Assert.Equal("80000", result.Entities["old_salary"]);
+        Assert.Equal("90000", result.Entities["salary"]);
+    }
+
+    [Fact]
+    public async Task IntentParser_Parses_Policy_Delete_Command()
+    {
+        var mockLlm = new MockLLMService(null);
+        var parser = new IntentParser(mockLlm, NullLogger<IntentParser>.Instance);
+
+        var result = await parser.ParseIntentAsync("Delete policy POL-FIN-002");
+        Assert.Equal(IntentType.POLICY_DELETE, result.ParsedIntentType);
+        Assert.Equal("POL-FIN-002", result.Entities["policyCode"]);
+    }
+
+    [Fact]
+    public async Task IntentParser_Parses_Appoint_Acting_Head()
+    {
+        var mockLlm = new MockLLMService(null);
+        var parser = new IntentParser(mockLlm, NullLogger<IntentParser>.Instance);
+
+        var result = await parser.ParseIntentAsync("Appoint Ali as Acting Head of Admission department");
+        Assert.Equal(IntentType.EMPLOYEE_PROMOTE, result.ParsedIntentType);
+        Assert.Equal("EMPLOYEE", result.TargetEntity);
+        Assert.Equal("UPDATE", result.Operation);
+        Assert.Equal("Ali", result.Entities["name"]);
+        Assert.Equal("Admission", result.Entities["department"]);
+        Assert.Equal("Acting Head of Admission", result.Entities["designation"]);
+        Assert.Equal("Leadership Appointment", result.Entities["appointment_type"]);
+    }
+
+    [Fact]
+    public async Task IntentParser_Parses_Show_Active_Employees_Engineering()
+    {
+        var mockLlm = new MockLLMService(null);
+        var parser = new IntentParser(mockLlm, NullLogger<IntentParser>.Instance);
+
+        var result = await parser.ParseIntentAsync("Show all active employees in the Engineering department");
+        Assert.Equal(IntentType.EMPLOYEE_READ, result.ParsedIntentType);
+        Assert.Equal("EMPLOYEE", result.TargetEntity);
+        Assert.Equal("READ", result.Operation);
+        Assert.Equal("Engineering", result.Entities["department"]);
+        Assert.Equal("Active", result.Entities["status"]);
+    }
+
     private class MockLLMService : ILLMService
     {
         private readonly object? _responseObject;

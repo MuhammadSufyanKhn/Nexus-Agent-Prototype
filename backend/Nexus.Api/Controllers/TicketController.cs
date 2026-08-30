@@ -157,15 +157,22 @@ public class TicketController : ControllerBase
         var year = DateTime.UtcNow.Year;
         var num = Random.Shared.Next(1000, 9999);
 
-        // Simple extraction fallback from prompt
+        // Extract employee name and department from prompt
         var prompt = request.Prompt;
-        string empName = "Workforce Member";
+        string empName = "Employee";
         string dept = "IT";
         string priority = "High";
+
+        var nameMatch = System.Text.RegularExpressions.Regex.Match(prompt, @"(?:for|hire|employee|user|member|under)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)");
+        if (nameMatch.Success && nameMatch.Groups[1].Value.Length > 2)
+        {
+            empName = nameMatch.Groups[1].Value;
+        }
 
         if (prompt.Contains("in HR", StringComparison.OrdinalIgnoreCase)) dept = "HR";
         else if (prompt.Contains("in Marketing", StringComparison.OrdinalIgnoreCase)) dept = "Marketing";
         else if (prompt.Contains("in DevOps", StringComparison.OrdinalIgnoreCase) || prompt.Contains("in Engineering", StringComparison.OrdinalIgnoreCase)) dept = "Engineering";
+        else if (prompt.Contains("in R&D", StringComparison.OrdinalIgnoreCase)) dept = "R&D";
 
         var ticket = new Ticket
         {

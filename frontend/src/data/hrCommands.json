@@ -1,5 +1,55 @@
 [
   {
+    "id": "appoint_leadership",
+    "intent": "EMPLOYEE_PROMOTE",
+    "category": "Employee Management",
+    "label": "Appoint Department Leadership",
+    "keywords": [
+      "appoint",
+      "acting head",
+      "interim head",
+      "leadership appointment",
+      "head of department",
+      "assign head"
+    ],
+    "aliases": [
+      "Appoint Ali as Acting Head of Admission department",
+      "appoint acting head",
+      "designate department head",
+      "assign department lead"
+    ],
+    "examples": [
+      "Appoint Ali as Acting Head of Admission department",
+      "Appoint Sarah Jenkins as Acting Head of IT department",
+      "Appoint Umar as Interim Head of Engineering department"
+    ],
+    "template": "Appoint {employeeName} as Acting Head of {department} department"
+  },
+  {
+    "id": "filter_active_employees",
+    "intent": "EMPLOYEE_READ",
+    "category": "Employee Directory",
+    "label": "Filter Active Employees by Department",
+    "keywords": [
+      "show active employees",
+      "active staff",
+      "active employees in",
+      "engineering employees",
+      "active staff in department"
+    ],
+    "aliases": [
+      "Show all active employees in the Engineering department",
+      "list active employees in engineering",
+      "show active staff in it department"
+    ],
+    "examples": [
+      "Show all active employees in the Engineering department",
+      "Show all active employees in the IT department",
+      "Show all active employees in the Finance department"
+    ],
+    "template": "Show all active employees in the {department} department"
+  },
+  {
     "id": "onboard_general",
     "intent": "EMPLOYEE_ONBOARDING",
     "category": "Employee Management",

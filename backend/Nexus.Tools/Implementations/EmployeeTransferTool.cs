@@ -142,6 +142,14 @@ public class EmployeeTransferTool : IAgentTool
                 var oldRole = employee.Designation;
                 employee.Designation = targetRole;
                 changes.Add($"Role: {oldRole} → {targetRole}");
+
+                // Dual-Entity: If this is a department leadership role, note leadership designation
+                if (targetRole.Contains("Head", StringComparison.OrdinalIgnoreCase) ||
+                    targetRole.Contains("Lead", StringComparison.OrdinalIgnoreCase) ||
+                    targetRole.Contains("Director", StringComparison.OrdinalIgnoreCase))
+                {
+                    changes.Add($"Department Leadership: Designated {employee.Name} as {targetRole}");
+                }
             }
 
             if (!string.IsNullOrWhiteSpace(targetManager))

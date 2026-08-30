@@ -150,18 +150,28 @@ CRITICAL DISAMBIGUATION RULES:
    - '80k', '80,000', '80000', '80 thousand' → 80000
 
 4. INTENT → INTERNAL CANONICAL NAMES (use EXACTLY these strings):
-   ONBOARD_EMPLOYEE  → ""EMPLOYEE_ONBOARDING""
-   UPDATE_SALARY     → ""UPDATE_SALARY""
-   ANALYZE_BUDGET    → ""BUDGET_ANALYSIS""
-   CHECK_POLICY      → ""POLICY_READ""
-   SECURITY_TEST     → ""SECURITY_TEST""
-   EXECUTE_AUTOMATION→ ""EXECUTE_AUTOMATION""
-   GENERAL_QUERY     → ""GENERAL_CONVERSATION""
-   (All other CRUD intents keep their existing format: CREATE_EMPLOYEE, EMPLOYEE_READ, CREATE_DEPARTMENT, etc.)
+   ONBOARD_EMPLOYEE   → ""EMPLOYEE_ONBOARDING""
+   UPDATE_SALARY      → ""UPDATE_SALARY""
+   ANALYZE_BUDGET     → ""BUDGET_ANALYSIS""
+   CHECK_POLICY       → ""POLICY_READ""
+   SECURITY_TEST      → ""SECURITY_TEST""
+   EXECUTE_AUTOMATION → ""WORKFLOW_EXECUTE""
+   TICKET_CREATE      → ""TICKET_CREATE""
+   TICKET_READ        → ""TICKET_READ""
+   TICKET_TRIAGE      → ""TICKET_TRIAGE""
+   TICKET_UPDATE      → ""TICKET_UPDATE""
+   SCREEN_CV          → ""CV_SCREEN""
+   APPROVAL_ACTION    → ""APPROVAL_ACTION""
+   APPROVAL_READ      → ""APPROVAL_READ""
+   GENERAL_QUERY      → ""GENERAL_CONVERSATION""
 
-5. TARGET SYSTEM CLASSIFICATION:
+5. STRICT ANALYTICAL GUARD:
+   - Queries asking to 'Calculate', 'What is average...', 'How much do employees earn...', 'Show variance', 'Overview' are ALWAYS Operation=""ANALYZE"" or ""READ"", NEVER ""CREATE"".
+   - Verbs like 'Calculate', 'Show', 'Find', 'Update', 'Onboard', 'Promote', 'Screen', 'Audit', 'Review' must NEVER be extracted as an employee or department name!
+
+6. TARGET SYSTEM CLASSIFICATION:
    Determine which backend system the action targets:
-   - ""SQL_SERVER"" — any employee, department, budget, policy, expense, or audit data query/mutation
+   - ""SQL_SERVER"" — any employee, department, budget, policy, expense, ticket, or audit data query/mutation
    - ""N8N_WORKFLOW"" — when user mentions n8n, workflow automation, or scheduling
    - ""ZAPIER"" — when user mentions Zapier or webhook triggers
    - ""UNKNOWN"" — security tests, health checks, or ambiguous automation
@@ -171,13 +181,18 @@ Return ONLY a valid raw JSON object matching this EXACT structure (no markdown, 
 
 {
   ""intent"": ""INTENT_NAME"",
-  ""targetEntity"": ""EMPLOYEE|DEPARTMENT|DEPARTMENT_BUDGET|POLICY|EXPENSE|ONBOARDING|APPROVAL|AUDIT_LOG|SYSTEM"",
+  ""targetEntity"": ""EMPLOYEE|DEPARTMENT|DEPARTMENT_BUDGET|POLICY|EXPENSE|ONBOARDING|APPROVAL|AUDIT_LOG|TICKET|CV_CANDIDATE|WORKFLOW|SYSTEM"",
   ""operation"": ""CREATE|READ|LIST|SEARCH|UPDATE|DELETE|ANALYZE|ALLOCATE|APPROVE|REJECT|EXECUTE"",
   ""scope"": ""SINGLE|ALL|FILTERED|NONE"",
   ""parameters"": {
     ""target_system"": ""SQL_SERVER|N8N_WORKFLOW|ZAPIER|UNKNOWN"",
     ""employee_name"": null,
     ""department"": null,
+    ""designation"": null,
+    ""salary"": null,
+    ""ticket_id"": null,
+    ""request_type"": null,
+    ""hardware"": null,
     ""new_salary"": null,
     ""effective_date"": null,
     ""amount"": null,
@@ -312,6 +327,263 @@ User: ""hello"" or ""what can you do?""
   ""state"": ""ANSWER_DIRECT"",
   ""userMessage"": ""Hello! I am Nexus AI, your enterprise workforce intelligence assistant."",
   ""confirmationDetails"": { ""proposedAction"": """", ""actionSummary"": """", ""requiresUserAction"": false }
+}
+
+Example 6 — Onboarding Read / Report (READY_TO_EXECUTE — READ ONLY, NO DATA CREATION):
+User: ""Show recent employee onboarding completions from this week""
+{
+  ""intent"": ""ONBOARDING_READ"",
+  ""targetEntity"": ""ONBOARDING"",
+  ""operation"": ""READ"",
+  ""scope"": ""FILTERED"",
+  ""parameters"": { ""target_system"": ""SQL_SERVER"", ""date_range"": ""this_week"" },
+  ""filters"": { ""status"": ""completed"", ""period"": ""this_week"" }, ""missingFields"": [], ""requiresPolicyLookup"": false, ""requiresApproval"": false,
+  ""confidence"": 0.99, ""requiresClarification"": false, ""clarificationPrompt"": null,
+  ""conversationalResponse"": null,
+  ""state"": ""READY_TO_EXECUTE"",
+  ""userMessage"": ""Fetching recent onboarding completions from the past week..."",
+  ""confirmationDetails"": { ""proposedAction"": ""Retrieve onboarding completion records"", ""actionSummary"": ""Period: This Week | Status: Completed"", ""requiresUserAction"": false }
+}
+
+Example 7 — Employee Record Lookup (READY_TO_EXECUTE — READ ONLY, NO DATA CREATION):
+User: ""Find employee records for Umar and show current designation and salary""
+{
+  ""intent"": ""EMPLOYEE_READ"",
+  ""targetEntity"": ""EMPLOYEE"",
+  ""operation"": ""READ"",
+  ""scope"": ""SINGLE"",
+  ""parameters"": { ""target_system"": ""SQL_SERVER"", ""employee_name"": ""Umar"" },
+  ""filters"": { ""name"": ""Umar"" }, ""missingFields"": [], ""requiresPolicyLookup"": false, ""requiresApproval"": false,
+  ""confidence"": 0.99, ""requiresClarification"": false, ""clarificationPrompt"": null,
+  ""conversationalResponse"": null,
+  ""state"": ""READY_TO_EXECUTE"",
+  ""userMessage"": ""Retrieving employee profile for Umar..."",
+  ""confirmationDetails"": { ""proposedAction"": ""Look up employee record"", ""actionSummary"": ""Employee: Umar | Fields: designation, salary"", ""requiresUserAction"": false }
+}
+
+Example 8 — Designation / Title Update (CONFIRMATION_REQUIRED):
+User: ""Update Designation for Umar to Senior .NET Developer""
+{
+  ""intent"": ""EMPLOYEE_UPDATE"",
+  ""targetEntity"": ""EMPLOYEE"",
+  ""operation"": ""UPDATE"",
+  ""scope"": ""SINGLE"",
+  ""parameters"": { ""target_system"": ""SQL_SERVER"", ""employee_name"": ""Umar"", ""designation"": ""Senior .NET Developer"" },
+  ""filters"": {}, ""missingFields"": [], ""requiresPolicyLookup"": false, ""requiresApproval"": true,
+  ""confidence"": 0.99, ""requiresClarification"": false, ""clarificationPrompt"": null,
+  ""conversationalResponse"": null,
+  ""state"": ""CONFIRMATION_REQUIRED"",
+  ""userMessage"": ""I have prepared an update to Umar's job title. Please review the change before I apply it:"",
+  ""confirmationDetails"": { ""proposedAction"": ""Update employee job title"", ""actionSummary"": ""Employee: Umar | Current Title: Officer | New Title: Senior .NET Developer"", ""requiresUserAction"": true }
+}
+
+Example 9 — Analytics / Average Salary (READY_TO_EXECUTE — READ ONLY):
+User: ""Calculate average employee salary in the Engineering department"" (or ""What is the average salary of Engineering employees?"")
+{
+  ""intent"": ""BUDGET_ANALYSIS"",
+  ""targetEntity"": ""DEPARTMENT_BUDGET"",
+  ""operation"": ""ANALYZE"",
+  ""scope"": ""FILTERED"",
+  ""parameters"": { ""target_system"": ""SQL_SERVER"", ""department"": ""Engineering"", ""metric"": ""average_salary"" },
+  ""filters"": { ""department"": ""Engineering"" }, ""missingFields"": [], ""requiresPolicyLookup"": false, ""requiresApproval"": false,
+  ""confidence"": 0.98, ""requiresClarification"": false, ""clarificationPrompt"": null,
+  ""conversationalResponse"": null,
+  ""state"": ""READY_TO_EXECUTE"",
+  ""userMessage"": ""Calculating average salary for the Engineering department..."",
+  ""confirmationDetails"": { ""proposedAction"": ""Analyze department compensation data"", ""actionSummary"": ""Department: Engineering | Metric: Average Salary"", ""requiresUserAction"": false }
+}
+
+Example 10 — Workplace Service Desk (READY_TO_EXECUTE):
+User: ""Need MacBook Pro M3 and AWS VPN access for new hire Sarah in DevOps""
+{
+  ""intent"": ""TICKET_CREATE"",
+  ""targetEntity"": ""TICKET"",
+  ""operation"": ""CREATE"",
+  ""scope"": ""SINGLE"",
+  ""parameters"": { ""target_system"": ""SQL_SERVER"", ""employee_name"": ""Sarah"", ""department"": ""DevOps"", ""request_type"": ""Hardware & Access Provisioning"", ""hardware"": ""MacBook Pro M3, AWS VPN"" },
+  ""filters"": {}, ""missingFields"": [], ""requiresPolicyLookup"": false, ""requiresApproval"": false,
+  ""confidence"": 0.98, ""requiresClarification"": false, ""clarificationPrompt"": null,
+  ""conversationalResponse"": null,
+  ""state"": ""READY_TO_EXECUTE"",
+  ""userMessage"": ""Creating IT provisioning ticket for Sarah in DevOps..."",
+  ""confirmationDetails"": { ""proposedAction"": ""Create service desk provisioning ticket"", ""actionSummary"": ""Employee: Sarah | Hardware: MacBook Pro M3 | Access: AWS VPN"", ""requiresUserAction"": false }
+}
+
+Example 11 — Candidate CV Screening (READY_TO_EXECUTE):
+User: ""Screen candidate CV against Senior Full-Stack Engineer requirements""
+{
+  ""intent"": ""CV_SCREEN"",
+  ""targetEntity"": ""CV_CANDIDATE"",
+  ""operation"": ""ANALYZE"",
+  ""scope"": ""SINGLE"",
+  ""parameters"": { ""target_system"": ""SQL_SERVER"", ""job_title"": ""Senior Full-Stack Engineer"" },
+  ""filters"": {}, ""missingFields"": [], ""requiresPolicyLookup"": false, ""requiresApproval"": false,
+  ""confidence"": 0.98, ""requiresClarification"": false, ""clarificationPrompt"": null,
+  ""conversationalResponse"": null,
+  ""state"": ""READY_TO_EXECUTE"",
+  ""userMessage"": ""Evaluating candidate qualifications against Senior Full-Stack Engineer profile..."",
+  ""confirmationDetails"": { ""proposedAction"": ""Analyze candidate resume"", ""actionSummary"": ""Target Position: Senior Full-Stack Engineer"", ""requiresUserAction"": false }
+}
+
+Example 12 — Approval Action (CONFIRMATION_REQUIRED):
+User: ""Approve and apply proposed employee transfer for Alex to Product""
+{
+  ""intent"": ""APPROVAL_ACTION"",
+  ""targetEntity"": ""APPROVAL"",
+  ""operation"": ""APPROVE"",
+  ""scope"": ""SINGLE"",
+  ""parameters"": { ""target_system"": ""SQL_SERVER"", ""employee_name"": ""Alex"", ""action_type"": ""TRANSFER"", ""department"": ""Product"", ""decision"": ""APPROVED"" },
+  ""filters"": {}, ""missingFields"": [], ""requiresPolicyLookup"": false, ""requiresApproval"": true,
+  ""confidence"": 0.99, ""requiresClarification"": false, ""clarificationPrompt"": null,
+  ""conversationalResponse"": null,
+  ""state"": ""CONFIRMATION_REQUIRED"",
+  ""userMessage"": ""Please confirm executing authorized employee transfer for Alex to Product:"",
+  ""confirmationDetails"": { ""proposedAction"": ""Execute approved employee transfer"", ""actionSummary"": ""Employee: Alex | Target: Product | Decision: Approve"", ""requiresUserAction"": true }
+}
+
+Example 13 — Automated Workflow (READY_TO_EXECUTE):
+User: ""Execute Automated Employee Onboarding Pipeline""
+{
+  ""intent"": ""WORKFLOW_EXECUTE"",
+  ""targetEntity"": ""WORKFLOW"",
+  ""operation"": ""EXECUTE"",
+  ""scope"": ""SINGLE"",
+  ""parameters"": { ""target_system"": ""SQL_SERVER"", ""workflow_name"": ""EMPLOYEE_ONBOARDING_PIPELINE"" },
+  ""filters"": {}, ""missingFields"": [], ""requiresPolicyLookup"": false, ""requiresApproval"": false,
+  ""confidence"": 0.98, ""requiresClarification"": false, ""clarificationPrompt"": null,
+  ""conversationalResponse"": null,
+  ""state"": ""READY_TO_EXECUTE"",
+  ""userMessage"": ""Triggering automated employee onboarding pipeline..."",
+  ""confirmationDetails"": { ""proposedAction"": ""Execute automated multi-system workflow"", ""actionSummary"": ""Workflow: Employee Onboarding Pipeline"", ""requiresUserAction"": false }
+}
+
+Example 14 — Unallocated Corporate Budget Pool (READY_TO_EXECUTE):
+User: ""Check remaining unallocated corporate budget pool balance""
+{
+  ""intent"": ""BUDGET_ANALYSIS"",
+  ""targetEntity"": ""DEPARTMENT_BUDGET"",
+  ""operation"": ""ANALYZE"",
+  ""scope"": ""ALL"",
+  ""parameters"": { ""target_system"": ""SQL_SERVER"", ""query"": ""UNALLOCATED_POOL"" },
+  ""filters"": {}, ""missingFields"": [], ""requiresPolicyLookup"": false, ""requiresApproval"": false,
+  ""confidence"": 0.98, ""requiresClarification"": false, ""clarificationPrompt"": null,
+  ""conversationalResponse"": null,
+  ""state"": ""READY_TO_EXECUTE"",
+  ""userMessage"": ""Calculating remaining unallocated corporate budget pool balance..."",
+  ""confirmationDetails"": { ""proposedAction"": ""Calculate master budget unallocated balance"", ""actionSummary"": ""Scope: Enterprise Corporate Pool"", ""requiresUserAction"": false }
+}
+
+Example 15 — Executive Overview / Dashboard Analytics (READY_TO_EXECUTE):
+User: ""Show an executive overview of active workforce metrics and department headcount""
+{
+  ""intent"": ""DASHBOARD_ANALYTICS"",
+  ""targetEntity"": ""EMPLOYEE"",
+  ""operation"": ""READ"",
+  ""scope"": ""ALL"",
+  ""parameters"": { ""target_system"": ""SQL_SERVER"", ""report"": ""EXECUTIVE_OVERVIEW"" },
+  ""filters"": {}, ""missingFields"": [], ""requiresPolicyLookup"": false, ""requiresApproval"": false,
+  ""confidence"": 0.99, ""requiresClarification"": false, ""clarificationPrompt"": null,
+  ""conversationalResponse"": null,
+  ""state"": ""READY_TO_EXECUTE"",
+  ""userMessage"": ""Generating executive overview of workforce metrics..."",
+  ""confirmationDetails"": { ""proposedAction"": ""Aggregate workforce KPI metrics and headcount"", ""actionSummary"": ""Scope: All Departments | Metrics: Active Staff, Headcount, Budget"", ""requiresUserAction"": false }
+}
+
+Example 16 — Create Department with Head & Budget (CONFIRMATION_REQUIRED):
+User: ""Create Finance department with head Sufyan and budget 500000""
+{
+  ""intent"": ""DEPARTMENT_CREATE"",
+  ""targetEntity"": ""DEPARTMENT"",
+  ""operation"": ""CREATE"",
+  ""scope"": ""SINGLE"",
+  ""parameters"": { ""target_system"": ""SQL_SERVER"", ""name"": ""Finance"", ""department"": ""Finance"", ""head"": ""Sufyan"", ""budgetAmount"": 500000 },
+  ""filters"": {}, ""missingFields"": [], ""requiresPolicyLookup"": false, ""requiresApproval"": true,
+  ""confidence"": 0.99, ""requiresClarification"": false, ""clarificationPrompt"": null,
+  ""conversationalResponse"": null,
+  ""state"": ""CONFIRMATION_REQUIRED"",
+  ""userMessage"": ""I have drafted a request to create the Finance department with manager Sufyan and a $500,000 budget. Please review the details:"",
+  ""confirmationDetails"": { ""proposedAction"": ""Create new corporate department and budget"", ""actionSummary"": ""Department: Finance | Head: Sufyan | Initial Budget: $500,000"", ""requiresUserAction"": true }
+}
+
+Example 17 — Log Sick Day / Leave with Notification (READY_TO_EXECUTE):
+User: ""Log Ali sick day today and notify his team on gmail""
+{
+  ""intent"": ""LEAVE_CREATE"",
+  ""targetEntity"": ""EMPLOYEE"",
+  ""operation"": ""CREATE"",
+  ""scope"": ""SINGLE"",
+  ""parameters"": { ""target_system"": ""SQL_SERVER"", ""name"": ""Ali"", ""employee_name"": ""Ali"", ""leave_type"": ""Sick Leave"", ""notify_channel"": ""Email"" },
+  ""filters"": {}, ""missingFields"": [], ""requiresPolicyLookup"": false, ""requiresApproval"": false,
+  ""confidence"": 0.99, ""requiresClarification"": false, ""clarificationPrompt"": null,
+  ""conversationalResponse"": null,
+  ""state"": ""READY_TO_EXECUTE"",
+  ""userMessage"": ""Logging sick day leave for Ali and dispatching notification email..."",
+  ""confirmationDetails"": { ""proposedAction"": ""Record employee sick leave and send alert email"", ""actionSummary"": ""Employee: Ali | Type: Sick Leave | Notification: Email Dispatched"", ""requiresUserAction"": false }
+}
+
+Example 18 — Policy Deletion / Modification (CONFIRMATION_REQUIRED):
+User: ""Delete policy POL-FIN-002""
+{
+  ""intent"": ""POLICY_DELETE"",
+  ""targetEntity"": ""POLICY"",
+  ""operation"": ""DELETE"",
+  ""scope"": ""SINGLE"",
+  ""parameters"": { ""target_system"": ""SQL_SERVER"", ""policyCode"": ""POL-FIN-002"", ""operation"": ""DELETE"" },
+  ""filters"": { ""policyCode"": ""POL-FIN-002"" }, ""missingFields"": [], ""requiresPolicyLookup"": false, ""requiresApproval"": true,
+  ""confidence"": 0.99, ""requiresClarification"": false, ""clarificationPrompt"": null,
+  ""conversationalResponse"": null,
+  ""state"": ""CONFIRMATION_REQUIRED"",
+  ""userMessage"": ""I have prepared a request to deactivate corporate policy POL-FIN-002. Please review and confirm:"",
+  ""confirmationDetails"": { ""proposedAction"": ""Deactivate corporate policy record"", ""actionSummary"": ""Policy: POL-FIN-002 | Action: Soft Delete / Deactivate"", ""requiresUserAction"": true }
+}
+
+Example 19 — Salary Adjustment Review (CONFIRMATION_REQUIRED):
+User: ""Review proposed salary increase for Ali Khan from $80,000 to $90,000""
+{
+  ""intent"": ""UPDATE_SALARY"",
+  ""targetEntity"": ""EMPLOYEE"",
+  ""operation"": ""UPDATE"",
+  ""scope"": ""SINGLE"",
+  ""parameters"": { ""target_system"": ""SQL_SERVER"", ""name"": ""Ali Khan"", ""employee_name"": ""Ali Khan"", ""old_salary"": 80000, ""new_salary"": 90000, ""salary"": 90000 },
+  ""filters"": {}, ""missingFields"": [], ""requiresPolicyLookup"": false, ""requiresApproval"": true,
+  ""confidence"": 0.99, ""requiresClarification"": false, ""clarificationPrompt"": null,
+  ""conversationalResponse"": null,
+  ""state"": ""CONFIRMATION_REQUIRED"",
+  ""userMessage"": ""I have prepared the salary adjustment review for Ali Khan from $80,000 to $90,000. Please confirm to apply:"",
+  ""confirmationDetails"": { ""proposedAction"": ""Update employee compensation"", ""actionSummary"": ""Employee: Ali Khan | Current: $80,000 | Proposed: $90,000 (+12.5%)"", ""requiresUserAction"": true }
+}
+
+Example 20 — Leadership Role Appointment (CONFIRMATION_REQUIRED):
+User: ""Appoint Ali as Acting Head of Admission department""
+{
+  ""intent"": ""EMPLOYEE_PROMOTE"",
+  ""targetEntity"": ""EMPLOYEE"",
+  ""operation"": ""UPDATE"",
+  ""scope"": ""SINGLE"",
+  ""parameters"": { ""target_system"": ""SQL_SERVER"", ""name"": ""Ali"", ""employee_name"": ""Ali"", ""designation"": ""Acting Head of Admission"", ""role"": ""Acting Head"", ""department"": ""Admission"", ""appointment_type"": ""Leadership Appointment"" },
+  ""filters"": {}, ""missingFields"": [], ""requiresPolicyLookup"": false, ""requiresApproval"": true,
+  ""confidence"": 0.99, ""requiresClarification"": false, ""clarificationPrompt"": null,
+  ""conversationalResponse"": null,
+  ""state"": ""CONFIRMATION_REQUIRED"",
+  ""userMessage"": ""I have prepared the leadership appointment action to assign Ali as Acting Head of Admission department. Please review and confirm:"",
+  ""confirmationDetails"": { ""proposedAction"": ""Appoint employee to department leadership role"", ""actionSummary"": ""Employee: Ali | Role: Acting Head | Department: Admission"", ""requiresUserAction"": true }
+}
+
+Example 21 — Filtered Active Employee Search (READY_TO_EXECUTE):
+User: ""Show all active employees in the Engineering department""
+{
+  ""intent"": ""EMPLOYEE_READ"",
+  ""targetEntity"": ""EMPLOYEE"",
+  ""operation"": ""READ"",
+  ""scope"": ""DEPARTMENT"",
+  ""parameters"": { ""target_system"": ""SQL_SERVER"", ""department"": ""Engineering"", ""status"": ""Active"" },
+  ""filters"": { ""department"": ""Engineering"", ""status"": ""Active"" },
+  ""missingFields"": [], ""requiresPolicyLookup"": false, ""requiresApproval"": false,
+  ""confidence"": 0.99, ""requiresClarification"": false, ""clarificationPrompt"": null,
+  ""conversationalResponse"": null,
+  ""state"": ""READY_TO_EXECUTE"",
+  ""userMessage"": ""Filtering employee directory for active staff in Engineering..."",
+  ""confirmationDetails"": null
 }";
     }
 
@@ -423,6 +695,42 @@ User: ""hello"" or ""what can you do?""
                 case IntentType.POLICY_DELETE:
                     result.TargetEntity = "POLICY";
                     result.Operation = "DELETE";
+                    break;
+                case IntentType.TICKET_CREATE:
+                    result.TargetEntity = "TICKET";
+                    result.Operation = "CREATE";
+                    break;
+                case IntentType.TICKET_READ:
+                    result.TargetEntity = "TICKET";
+                    result.Operation = "READ";
+                    break;
+                case IntentType.TICKET_TRIAGE:
+                    result.TargetEntity = "TICKET";
+                    result.Operation = "UPDATE";
+                    break;
+                case IntentType.TICKET_UPDATE:
+                    result.TargetEntity = "TICKET";
+                    result.Operation = "UPDATE";
+                    break;
+                case IntentType.CV_SCREEN:
+                    result.TargetEntity = "CV_CANDIDATE";
+                    result.Operation = "ANALYZE";
+                    break;
+                case IntentType.APPROVAL_ACTION:
+                    result.TargetEntity = "APPROVAL";
+                    result.Operation = "APPROVE";
+                    break;
+                case IntentType.APPROVAL_READ:
+                    result.TargetEntity = "APPROVAL";
+                    result.Operation = "READ";
+                    break;
+                case IntentType.WORKFLOW_EXECUTE:
+                    result.TargetEntity = "WORKFLOW";
+                    result.Operation = "EXECUTE";
+                    break;
+                case IntentType.DASHBOARD_ANALYTICS:
+                    result.TargetEntity = "EMPLOYEE";
+                    result.Operation = "READ";
                     break;
             }
         }
@@ -611,35 +919,248 @@ User: ""hello"" or ""what can you do?""
             return result;
         }
 
-        // Check Employee creation/onboarding verbs FIRST
-        bool isEmployeeCreation = p.Contains("add employee") || p.Contains("create employee") || p.Contains("new employee") ||
-                                  p.Contains("onboard") || p.Contains("onboarding") || p.Contains("hire") || p.Contains("new hire") ||
-                                  p.Contains("paperwork") || p.Contains("orientation schedule") || p.Contains("new interns") ||
-                                  p.Contains("provision software") || p.Contains("laptop for") || p.Contains("new data analyst") ||
-                                  p.Contains("staff mein daal") || p.Contains("employee bana do") || p.Contains("employee add karo") ||
-                                  p.Contains("ko employee") || p.Contains("as an employee") || p.Contains("as employee") ||
-                                  (p.Contains("employee") && (p.Contains("salary") || p.Contains("designation") || p.Contains("salary is") || p.Contains("department is"))) ||
-                                  Regex.IsMatch(p, @"\badd\s+[a-z0-9\s]+as\s+(?:an?\s+)?employee\b|\bemployee\s+add\b|\b[a-z0-9]+\s+ko\s+employee\b");
+        bool isLeaveAction = p.Contains("sick day") || p.Contains("sick leave") || p.Contains("pto") ||
+                             p.Contains("vacation") || p.Contains("medical appointment") ||
+                             p.Contains("appointment leave") || p.Contains("half-day") || p.Contains("half day") ||
+                             (p.Contains("sick") && (p.Contains("log") || p.Contains("today")));
 
-        bool isEmployeeUpdate = (p.Contains("reporting manager") || p.Contains("manager to") || p.Contains("job title") || p.Contains("title for") || p.Contains("update job title") || (p.Contains("employee") || p.Contains("salary") || p.Contains("developer"))) &&
-                                (p.Contains("update") || p.Contains("change") || p.Contains("change salary") || p.Contains("increase salary") || p.Contains("raise") || p.Contains("move him") || p.Contains("move her"));
+        bool isSalaryReviewAction = (p.Contains("salary increase") || p.Contains("proposed salary")) &&
+                                    (p.Contains("from") || p.Contains("to") || p.Contains("for") || p.Contains("increase"));
 
-        bool isEmployeeDelete = (p.Contains("employee") || p.Contains("staff")) &&
+        bool isPolicyDeleteAction = (p.Contains("policy") || p.Contains("policies") || p.Contains("pol-")) &&
+                                    (p.Contains("delete") || p.Contains("remove") || p.Contains("archive") || p.Contains("revoke") || p.Contains("deactivate"));
+
+        bool isPolicyUpdateAction = (p.Contains("policy") || p.Contains("policies") || p.Contains("pol-")) &&
+                                    (p.Contains("update") || p.Contains("edit") || p.Contains("modify") || p.Contains("revise") || p.Contains("change"));
+
+        bool isDeptCreateAction = Regex.IsMatch(p, @"\b(?:create|add|new|make|setup)\s+(?:a\s+|the\s+)?([A-Za-z0-9\&]+)\s+(?:department|dept)\b", RegexOptions.IgnoreCase) ||
+                                  Regex.IsMatch(p, @"\b(?:create|add|new|make|setup)\s+(?:department|dept)\s+([A-Za-z0-9\&]+)\b", RegexOptions.IgnoreCase) ||
+                                  (p.Contains("department") && (p.Contains("create") || p.Contains("bana do") || p.Contains("banao") || p.Contains("add karo")));
+
+        // Leadership Appointment Action Guard (e.g. "Appoint Ali as Acting Head of Admission department")
+        bool isAppointmentAction = p.Contains("appoint") || p.Contains("acting head") || p.Contains("interim head") ||
+                                   (p.Contains("head of") && (p.Contains("make") || p.Contains("assign") || p.Contains("appoint") || p.Contains("set")));
+
+        // ══ PRIMARY READ GUARD — prevents any CREATE/UPDATE from firing on read/search/analytics prompts ══
+        bool isReadQuery = !isLeaveAction && !isSalaryReviewAction && !isPolicyDeleteAction && !isPolicyUpdateAction && !isDeptCreateAction && !isAppointmentAction && (
+                           Regex.IsMatch(p, @"\b(show|find|search|list|get|display|view|check|see|lookup)\b") ||
+                           p.Contains("recent") || p.Contains("completions") ||
+                           p.Contains("this week") || p.Contains("last week") ||
+                           p.Contains("calculate") || p.Contains("average") || p.Contains("avg") ||
+                           p.Contains("how many") || p.Contains("what is") || p.Contains("tell me") ||
+                           p.Contains("look up") || p.Contains("records for") ||
+                           p.Contains("details for") || p.Contains("information for") || p.Contains("profile"));
+
+        // ══ SPECIALIZED MODULE INTENT FLAGS ══
+
+        // Workplace Service Desk / IT Tickets
+        bool isTicketRelated = p.Contains("tck-") || p.Contains("ticket") || p.Contains("service desk") ||
+                               p.Contains("macbook") || p.Contains("laptop") || p.Contains("monitor") ||
+                               p.Contains("vpn access") || p.Contains("aws vpn") || p.Contains("software license") ||
+                               p.Contains("account credentials") || p.Contains("hardware replacement") ||
+                               p.Contains("hardware request") || (p.Contains("provisioning") && (p.Contains("it") || p.Contains("hardware") || p.Contains("laptop")));
+
+        // Candidate CV Screening
+        bool isCvRelated = p.Contains("screen candidate") || p.Contains("candidate cv") || p.Contains("candidate resume") ||
+                           p.Contains("resume fit score") || p.Contains("candidate qualifications") ||
+                           p.Contains("interview question") || p.Contains("candidate technical skills") ||
+                           p.Contains("screen candidate resume") || (p.Contains("candidate") && (p.Contains("cv") || p.Contains("resume") || p.Contains("fit score") || p.Contains("applicant")));
+
+        // Approval Actions
+        bool isApprovalAction = p.Contains("approve and apply") || p.Contains("confirm and execute") ||
+                                p.Contains("decline pending") || p.Contains("reject pending");
+
+        // Automated Workflows
+        bool isWorkflowAction = p.Contains("execute automated") || p.Contains("workflow pipeline") ||
+                                p.Contains("workforce synchronization") || p.Contains("compliance sweep") ||
+                                p.Contains("it provisioning & access setup workflow") || p.Contains("live progress stream") ||
+                                p.Contains("automated workflow");
+
+        // Unallocated Corporate Budget Pool
+        bool isUnallocatedPool = (p.Contains("unallocated") || p.Contains("remaining")) && (p.Contains("pool") || p.Contains("corporate budget") || p.Contains("budget balance"));
+
+        // Department Average Salary / Earnings
+        bool isDepartmentAverageSalary = (p.Contains("average") || p.Contains("avg") || p.Contains("earn on average")) &&
+                                         (p.Contains("salary") || p.Contains("compensation") || p.Contains("earn"));
+
+        // ══ HIGH PRIORITY READ INTENTS — evaluated BEFORE any write/create logic ══
+
+        // Onboarding READ (e.g. "Show recent employee onboarding completions from this week")
+        bool isOnboardingRead = isReadQuery && (p.Contains("onboarding") || p.Contains("onboarded") ||
+                                 p.Contains("completion") || p.Contains("completed onboarding") ||
+                                 p.Contains("onboarding status") || p.Contains("onboarding hub") ||
+                                 p.Contains("new hire") && p.Contains("status"));
+
+        // Employee Directory Filtering & Active Employee Read
+        // (e.g. "Show all active employees in the Engineering department")
+        bool isFilteredEmployeeRead = isReadQuery && (
+            p.Contains("employees in") || p.Contains("staff in") || p.Contains("employees of") ||
+            p.Contains("active employees") || p.Contains("employee directory") ||
+            Regex.IsMatch(p, @"\b(?:show|list|filter|display|get|find|see)\s+(?:all\s+)?(?:active\s+)?(?:employees|staff)\b", RegexOptions.IgnoreCase)
+        );
+
+        // Employee SEARCH/READ (e.g. "Find employee records for Umar and show current designation and salary")
+        bool isEmployeeSearch = isReadQuery && (
+            isFilteredEmployeeRead ||
+            p.Contains("employee") || p.Contains("staff") ||
+            p.Contains("designation") || p.Contains("salary") ||
+            (p.Contains("find") && (p.Contains("for") || p.Contains("named"))) ||
+            p.Contains("records for") || p.Contains("profile for") ||
+            p.Contains("details for") || p.Contains("information for"));
+
+        // Analytics/Analysis READ (e.g. "Calculate average employee salary in the Engineering department")
+        bool isAnalyticsRead = !isFilteredEmployeeRead && isReadQuery && (p.Contains("calculate") || p.Contains("average") ||
+                                p.Contains("avg") || p.Contains("workforce") || p.Contains("headcount") ||
+                                p.Contains("analytics") ||
+                                p.Contains("distribution") || p.Contains("breakdown") ||
+                                (p.Contains("department") && p.Contains("salary")));
+
+        // Dashboard READ (e.g. "Show executive overview of active workforce metrics")
+        bool isDashboardRead = !isFilteredEmployeeRead && isReadQuery && (
+                                p.Contains("executive overview") || p.Contains("dashboard") ||
+                                (p.Contains("workforce") && p.Contains("metrics")) ||
+                                (p.Contains("overview") && !p.Contains("employee")));
+
+        // DESIGNATION UPDATE — dedicated high-priority pattern match
+        // (e.g. "Update Designation for Umar to Senior .NET Developer")
+        bool isDesignationUpdate = (p.Contains("update designation") || p.Contains("change designation") ||
+                                    p.Contains("set designation") || p.Contains("update title") ||
+                                    p.Contains("change title") || p.Contains("change role") ||
+                                    p.Contains("update role")) &&
+                                   !isReadQuery;
+
+        // ══ MUTATION INTENT FLAGS ══
+
+        // Employee creation — only when explicit creation verbs present AND NOT a read query
+        bool isEmployeeCreation = !isReadQuery && !isDesignationUpdate && (
+                                   p.Contains("add employee") || p.Contains("create employee") ||
+                                   p.Contains("new employee") ||
+                                   (p.Contains("onboard") && !p.Contains("onboarding status") && !p.Contains("recent") && !p.Contains("completion") && !p.Contains("this week")) ||
+                                   p.Contains("hire ") || p.Contains("new hire") ||
+                                   p.Contains("paperwork") || p.Contains("orientation schedule") ||
+                                   p.Contains("staff mein daal") || p.Contains("employee bana do") ||
+                                   p.Contains("employee add karo") || p.Contains("ko employee") ||
+                                   p.Contains("as an employee") || p.Contains("as employee") ||
+                                   Regex.IsMatch(p, @"\badd\s+[a-z0-9\s]+as\s+(?:an?\s+)?employee\b|\bemployee\s+add\b|\b[a-z0-9]+\s+ko\s+employee\b"));
+
+        // Employee update — only when explicit field-change verbs present AND NOT a read query
+        bool isEmployeeUpdate = !isReadQuery && !isDesignationUpdate && (
+                                 p.Contains("reporting manager") || p.Contains("manager to") ||
+                                 p.Contains("update job title") || p.Contains("title for")) &&
+                                (p.Contains("update") || p.Contains("change") || p.Contains("increase salary") ||
+                                 p.Contains("raise") || p.Contains("move him") || p.Contains("move her"));
+
+        bool isEmployeeDelete = !isReadQuery && (p.Contains("employee") || p.Contains("staff")) &&
                                 (p.Contains("delete") || p.Contains("remove") || p.Contains("fire") || p.Contains("terminate"));
 
         // Department deletion check (priority over general transfer)
-        bool isDeptDelete = (p.Contains("department") || p.Contains("dept")) && (p.Contains("delete") || p.Contains("remove") || p.Contains("purge"));
+        bool isDeptDelete = !isReadQuery && (p.Contains("department") || p.Contains("dept")) &&
+                             (p.Contains("delete") || p.Contains("remove") || p.Contains("purge"));
 
-        // Transfer / Promote intents
-        bool isTransfer = !isDeptDelete && (p.Contains("transfer") || p.Contains("reassign") || p.Contains("relocate") || p.Contains("move employee") || p.Contains("swap the roles") || p.Contains("swap roles") || (p.Contains("shift") && (p.Contains("payroll") || p.Contains("contractor") || p.Contains("team"))) || (p.Contains("move") && !p.Contains("move him to inactive")));
-        bool isPromote  = p.Contains("promote") || p.Contains("promotion");
-        bool isOffboard = p.Contains("offboard") || p.Contains("offboarding") || p.Contains("exit clearance") || p.Contains("cancel onboarding") || (p.Contains("terminate") && !isDeptDelete);
-        bool isLeave    = p.Contains("sick day") || p.Contains("sick leave") || p.Contains("pto") || p.Contains("vacation") || p.Contains("time off") || (p.Contains("sick") && p.Contains("today"));
-        bool isPayroll  = p.Contains("payroll hold") || p.Contains("hold payroll") || p.Contains("halt payroll") || p.Contains("bulk bonus") || p.Contains("distribute bonus") || p.Contains("performance bonus") || p.Contains("bonus");
-        bool isReallocate = p.Contains("reallocate budget") || p.Contains("transfer budget") || p.Contains("reallocate") || (p.Contains("shift") && p.Contains("budget")) || (p.Contains("cut") && p.Contains("budget"));
-        bool isFreeze     = p.Contains("freeze budget") || p.Contains("budget freeze") || p.Contains("freeze all");
+        // Transfer / Promote / Leadership Appointment intents
+        bool isAppointment = (p.Contains("appoint") || p.Contains("acting head") || p.Contains("interim head") ||
+                              Regex.IsMatch(p, @"\b(?:appoint|assign|designate|name|make)\s+([A-Za-z]+)\s+(?:as\s+)?(?:acting\s+|interim\s+)?(?:head|lead|manager|director)\b", RegexOptions.IgnoreCase) ||
+                              (p.Contains("head of") && (p.Contains("appoint") || p.Contains("assign") || p.Contains("make") || p.Contains("set"))));
 
-        if (isDeptDelete)
+        bool isTransfer = !isDeptDelete && !isReadQuery && (p.Contains("transfer") || p.Contains("reassign") || p.Contains("relocate") || p.Contains("move employee") || p.Contains("swap the roles") || p.Contains("swap roles") || (p.Contains("shift") && (p.Contains("payroll") || p.Contains("contractor") || p.Contains("team"))) || (p.Contains("move") && !p.Contains("move him to inactive") && !isReadQuery));
+        bool isPromote  = !isReadQuery && (isAppointment || p.Contains("promote") || p.Contains("promotion"));
+        bool isOffboard = !isReadQuery && (p.Contains("offboard") || p.Contains("offboarding") || p.Contains("exit clearance") || p.Contains("cancel onboarding") || (p.Contains("terminate") && !isDeptDelete));
+        bool isLeave    = !isReadQuery && (p.Contains("sick day") || p.Contains("sick leave") || p.Contains("pto") || p.Contains("vacation") || p.Contains("time off") || (p.Contains("sick") && p.Contains("today")));
+        bool isPayroll  = !isReadQuery && (p.Contains("payroll hold") || p.Contains("hold payroll") || p.Contains("halt payroll") || p.Contains("bulk bonus") || p.Contains("distribute bonus") || p.Contains("performance bonus") || p.Contains("bonus"));
+        bool isReallocate = !isReadQuery && (p.Contains("reallocate budget") || p.Contains("transfer budget") || p.Contains("reallocate") || (p.Contains("shift") && p.Contains("budget")) || (p.Contains("cut") && p.Contains("budget")));
+        bool isFreeze     = !isReadQuery && (p.Contains("freeze budget") || p.Contains("budget freeze") || p.Contains("freeze all") || p.Contains("freeze q"));
+
+        // ══ INTENT ROUTING — highest priority first ══
+
+        if (isCvRelated)
+        {
+            result.Intent = IntentType.CV_SCREEN.ToString();
+            result.TargetEntity = "CV_CANDIDATE";
+            result.Operation = "ANALYZE";
+        }
+        else if (isTicketRelated)
+        {
+            result.TargetEntity = "TICKET";
+            if (p.Contains("triage") || p.Contains("technician") || p.Contains("smart triage"))
+            {
+                result.Intent = IntentType.TICKET_TRIAGE.ToString();
+                result.Operation = "UPDATE";
+            }
+            else if (p.Contains("resolved") || p.Contains("status to resolved") || p.Contains("close ticket"))
+            {
+                result.Intent = IntentType.TICKET_UPDATE.ToString();
+                result.Operation = "UPDATE";
+            }
+            else if (isReadQuery)
+            {
+                result.Intent = IntentType.TICKET_READ.ToString();
+                result.Operation = "READ";
+            }
+            else
+            {
+                result.Intent = IntentType.TICKET_CREATE.ToString();
+                result.Operation = "CREATE";
+            }
+        }
+        else if (isApprovalAction)
+        {
+            result.Intent = IntentType.APPROVAL_ACTION.ToString();
+            result.TargetEntity = "APPROVAL";
+            result.Operation = (p.Contains("decline") || p.Contains("reject")) ? "REJECT" : "APPROVE";
+        }
+        else if (isWorkflowAction)
+        {
+            result.Intent = IntentType.WORKFLOW_EXECUTE.ToString();
+            result.TargetEntity = "WORKFLOW";
+            result.Operation = "EXECUTE";
+        }
+        else if (isUnallocatedPool)
+        {
+            result.Intent = IntentType.BUDGET_ANALYSIS.ToString();
+            result.TargetEntity = "DEPARTMENT_BUDGET";
+            result.Operation = "ANALYZE";
+            result.Parameters["query"] = "UNALLOCATED_POOL";
+        }
+        else if (isDepartmentAverageSalary)
+        {
+            result.Intent = IntentType.BUDGET_ANALYSIS.ToString();
+            result.TargetEntity = "DEPARTMENT_BUDGET";
+            result.Operation = "ANALYZE";
+            result.Parameters["query"] = "AVERAGE_SALARY";
+        }
+        // READ/ANALYSIS intents always first — NEVER modify data
+        else if (isOnboardingRead)
+        {
+            result.Intent = "ONBOARDING_READ";
+            result.TargetEntity = "ONBOARDING";
+            result.Operation = "READ";
+        }
+        else if (isEmployeeSearch)
+        {
+            result.Intent = IntentType.EMPLOYEE_READ.ToString();
+            result.TargetEntity = "EMPLOYEE";
+            result.Operation = "READ";
+        }
+        else if (isAnalyticsRead && p.Contains("department"))
+        {
+            result.Intent = IntentType.BUDGET_ANALYSIS.ToString();
+            result.TargetEntity = "DEPARTMENT_BUDGET";
+            result.Operation = "ANALYZE";
+        }
+        else if (isAnalyticsRead || isDashboardRead)
+        {
+            result.Intent = IntentType.DASHBOARD_ANALYTICS.ToString();
+            result.TargetEntity = "EMPLOYEE";
+            result.Operation = "READ";
+        }
+        // WRITE intents below — only fire when NOT a read query
+        else if (isDesignationUpdate)
+        {
+            result.Intent = IntentType.EMPLOYEE_UPDATE.ToString();
+            result.TargetEntity = "EMPLOYEE";
+            result.Operation = "UPDATE";
+        }
+        else if (isDeptDelete)
         {
             result.Intent = IntentType.DEPARTMENT_DELETE.ToString();
             result.TargetEntity = "DEPARTMENT";
@@ -687,17 +1208,17 @@ User: ""hello"" or ""what can you do?""
             result.TargetEntity = "DEPARTMENT_BUDGET";
             result.Operation = "UPDATE";
         }
-        else if (isEmployeeCreation)
-        {
-            result.Intent = p.Contains("onboard") ? IntentType.EMPLOYEE_ONBOARDING.ToString() : IntentType.EMPLOYEE_CREATE.ToString();
-            result.TargetEntity = "EMPLOYEE";
-            result.Operation = "CREATE";
-        }
         else if (isEmployeeUpdate)
         {
             result.Intent = IntentType.EMPLOYEE_UPDATE.ToString();
             result.TargetEntity = "EMPLOYEE";
             result.Operation = "UPDATE";
+        }
+        else if (isEmployeeCreation)
+        {
+            result.Intent = p.Contains("onboard") ? IntentType.EMPLOYEE_ONBOARDING.ToString() : IntentType.EMPLOYEE_CREATE.ToString();
+            result.TargetEntity = "EMPLOYEE";
+            result.Operation = "CREATE";
         }
         else if (isEmployeeDelete)
         {
@@ -705,24 +1226,44 @@ User: ""hello"" or ""what can you do?""
             result.TargetEntity = "EMPLOYEE";
             result.Operation = "DELETE";
         }
-        // Policy intents
+        // ── 1. Department Creation & Management (Evaluated BEFORE generic budget checks!) ──
+        else if (isDeptCreateAction)
+        {
+            result.Intent = IntentType.DEPARTMENT_CREATE.ToString();
+            result.TargetEntity = "DEPARTMENT";
+            result.Operation = "CREATE";
+        }
+        else if (isDeptDelete)
+        {
+            result.Intent = IntentType.DEPARTMENT_DELETE.ToString();
+            result.TargetEntity = "DEPARTMENT";
+            result.Operation = "DELETE";
+        }
+        // ── 2. Salary Review & Compensation Adjustment ──
+        else if (isSalaryReviewAction)
+        {
+            result.Intent = IntentType.UPDATE_SALARY.ToString();
+            result.TargetEntity = "EMPLOYEE";
+            result.Operation = "UPDATE";
+        }
+        // ── 3. Policy CRUD ──
         else if (p.Contains("policy") || p.Contains("policies") || p.Contains("pol-"))
         {
             result.TargetEntity = "POLICY";
-            if (p.Contains("upload") || p.Contains("create") || p.Contains("add") || p.Contains("write") || p.Contains("new policy"))
-            {
-                result.Intent = IntentType.POLICY_CREATE.ToString();
-                result.Operation = "CREATE";
-            }
-            else if (p.Contains("delete") || p.Contains("remove") || p.Contains("archive") || p.Contains("revoke"))
+            if (p.Contains("delete") || p.Contains("remove") || p.Contains("archive") || p.Contains("revoke") || p.Contains("deactivate"))
             {
                 result.Intent = IntentType.POLICY_DELETE.ToString();
                 result.Operation = "DELETE";
             }
-            else if (p.Contains("update") || p.Contains("edit") || p.Contains("change") || p.Contains("modify") || p.Contains("revise"))
+            else if (p.Contains("update") || p.Contains("edit") || p.Contains("modify") || p.Contains("revise") || p.Contains("change"))
             {
                 result.Intent = IntentType.POLICY_UPDATE.ToString();
                 result.Operation = "UPDATE";
+            }
+            else if (!isReadQuery && (p.Contains("upload") || p.Contains("create") || p.Contains("add") || p.Contains("write") || p.Contains("new policy")))
+            {
+                result.Intent = IntentType.POLICY_CREATE.ToString();
+                result.Operation = "CREATE";
             }
             else
             {
@@ -730,56 +1271,11 @@ User: ""hello"" or ""what can you do?""
                 result.Operation = "READ";
             }
         }
-        // Budget intents (Priority over general department read)
-        else if (p.Contains("budget") || p.Contains("allocate") || p.Contains("allocated") || p.Contains("reallocate") || p.Contains("allocated funds") || p.Contains("actual spend") || p.Contains("total allocated"))
-        {
-            result.TargetEntity = "DEPARTMENT_BUDGET";
-            if (p.Contains("reallocate") || (p.Contains("transfer") && p.Contains("budget")))
-            {
-                result.Intent = IntentType.BUDGET_REALLOCATE.ToString();
-                result.Operation = "ALLOCATE";
-            }
-            else if (p.Contains("freeze"))
-            {
-                result.Intent = IntentType.BUDGET_FREEZE.ToString();
-                result.Operation = "UPDATE";
-            }
-            else if (p.Contains("overall") || p.Contains("master") || p.Contains("company budget") || p.Contains("corporate budget") || p.Contains("1 billion") || p.Contains("1b"))
-            {
-                result.Intent = IntentType.BUDGET_UPDATE.ToString();
-                result.Operation = "ALLOCATE";
-            }
-            else if ((Regex.IsMatch(p, @"\bover\b|\bover-budget\b") && !p.Contains("overall")) || p.Contains("exceeding") || p.Contains("exceed") || p.Contains("crossed") || p.Contains("analysis") || p.Contains("compare") || p.Contains("overview") || p.Contains("versus") || p.Contains("vs") || p.Contains("actual spend") || p.Contains("allocated funds") || p.Contains("kis department ne"))
-            {
-                result.Intent = IntentType.BUDGET_ANALYSIS.ToString();
-                result.Operation = "ANALYZE";
-            }
-            else if (p.Contains("allocate") || p.Contains("increase") || p.Contains("add budget") || p.Contains("set budget") || p.Contains("set") || p.Contains("update budget") || p.Contains("give"))
-            {
-                result.Intent = IntentType.BUDGET_UPDATE.ToString();
-                result.Operation = "ALLOCATE";
-            }
-            else
-            {
-                result.Intent = IntentType.BUDGET_READ.ToString();
-                result.Operation = "READ";
-            }
-        }
-        // Department intents (ONLY if explicit department creation/management and NOT employee/budget/allocate)
-        else if ((p.Contains("department") || p.Contains("dept") || p.Contains("daprtment") || p.Contains("depatment") || p.Contains("deptment")) && !p.Contains("employee") && !p.Contains("salary") && !p.Contains("budget") && !p.Contains("allocate"))
+        // ── 4. Department Update / Read ──
+        else if ((p.Contains("department") || p.Contains("dept") || p.Contains("daprtment") || p.Contains("depatment")) && !p.Contains("budget") && !p.Contains("employee") && !p.Contains("salary"))
         {
             result.TargetEntity = "DEPARTMENT";
-            if (p.Contains("add") || p.Contains("create") || p.Contains("new") || p.Contains("bana do") || p.Contains("banao") || p.Contains("add karo"))
-            {
-                result.Intent = IntentType.DEPARTMENT_CREATE.ToString();
-                result.Operation = "CREATE";
-            }
-            else if (p.Contains("delete") || p.Contains("remove"))
-            {
-                result.Intent = IntentType.DEPARTMENT_DELETE.ToString();
-                result.Operation = "DELETE";
-            }
-            else if (p.Contains("update") || p.Contains("rename"))
+            if (!isReadQuery && (p.Contains("update") || p.Contains("rename")))
             {
                 result.Intent = IntentType.DEPARTMENT_UPDATE.ToString();
                 result.Operation = "UPDATE";
@@ -787,6 +1283,41 @@ User: ""hello"" or ""what can you do?""
             else
             {
                 result.Intent = IntentType.DEPARTMENT_READ.ToString();
+                result.Operation = "READ";
+            }
+        }
+        // ── 5. Budget intents (Evaluated AFTER Department & Policy CRUD) ──
+        else if (p.Contains("budget") || p.Contains("allocate") || p.Contains("allocated") || p.Contains("unallocated") || p.Contains("reallocate") || p.Contains("pool") || p.Contains("balance"))
+        {
+            result.TargetEntity = "DEPARTMENT_BUDGET";
+            if (!isReadQuery && (p.Contains("reallocate") || (p.Contains("transfer") && p.Contains("budget"))))
+            {
+                result.Intent = IntentType.BUDGET_REALLOCATE.ToString();
+                result.Operation = "ALLOCATE";
+            }
+            else if (!isReadQuery && p.Contains("freeze"))
+            {
+                result.Intent = IntentType.BUDGET_FREEZE.ToString();
+                result.Operation = "UPDATE";
+            }
+            else if (p.Contains("unallocated") || p.Contains("pool") || p.Contains("balance") || p.Contains("analysis") || p.Contains("compare") || p.Contains("overview") || p.Contains("versus") || p.Contains("exceeding") || p.Contains("across all"))
+            {
+                result.Intent = IntentType.BUDGET_ANALYSIS.ToString();
+                result.Operation = "ANALYZE";
+            }
+            else if (p.Contains("overall") || p.Contains("master") || p.Contains("company budget") || p.Contains("corporate budget"))
+            {
+                result.Intent = IntentType.BUDGET_ANALYSIS.ToString();
+                result.Operation = "ANALYZE";
+            }
+            else if (!isReadQuery && (p.Contains("allocate") || p.Contains("increase") || p.Contains("add budget") || p.Contains("set budget") || p.Contains("update budget") || p.Contains("give")))
+            {
+                result.Intent = IntentType.BUDGET_UPDATE.ToString();
+                result.Operation = "ALLOCATE";
+            }
+            else
+            {
+                result.Intent = IntentType.BUDGET_READ.ToString();
                 result.Operation = "READ";
             }
         }
@@ -799,7 +1330,7 @@ User: ""hello"" or ""what can you do?""
                 result.Intent = IntentType.EXPENSE_COMPLIANCE.ToString();
                 result.Operation = "READ";
             }
-            else if (p.Contains("submit") || p.Contains("create") || p.Contains("add") || p.Contains("record"))
+            else if (!isReadQuery && (p.Contains("submit") || p.Contains("create") || p.Contains("add") || p.Contains("record")))
             {
                 result.Intent = IntentType.EXPENSE_CREATE.ToString();
                 result.Operation = "CREATE";
@@ -816,17 +1347,17 @@ User: ""hello"" or ""what can you do?""
             result.Intent = IntentType.GENERAL_CONVERSATION.ToString();
             result.TargetEntity = "AUDIT_LOG";
             result.Operation = "READ";
-            result.ConversationalResponse = "🛡️ SECURITY & AUTHORIZATION TEST REPORT\n\n✅ Enterprise Role Lock: Admin ('HR Administrator', Full System Access)\n✅ Cryptographic Ledger: SHA-256 Hash Chain Intact & Sealed\n✅ RBAC Policy Engine: All 12 Tool Registries Active\n✅ Action Plan Interceptor: Risk Level Enforcement Operational\n\nSecurity Test Status: PASSED (Zero vulnerabilities detected)";
+            result.ConversationalResponse = "Security & Authorization Audit Complete\n\n✅ Enterprise Role Lock: HR Administrator — Full Access\n✅ Audit Trail: All actions verified and recorded\n✅ Access Control Engine: All modules active\n✅ Action Safety Interceptor: Approval enforcement operational\n\nSecurity Status: All systems operational.";
             result.Confidence = 1.0;
         }
-        else if (p.Contains("audit") || p.Contains("log") || p.Contains("activity") || p.Contains("history"))
+        else if (p.Contains("audit") || p.Contains("activity") || p.Contains("history") || (p.Contains("log") && !p.Contains("log sick") && !p.Contains("log leave")))
         {
             result.Intent = IntentType.AUDIT_READ.ToString();
             result.TargetEntity = "AUDIT_LOG";
             result.Operation = "READ";
         }
         // Approval
-        else if (p.Contains("approval") || p.Contains("pending") || p.Contains("approve") || p.Contains("reject"))
+        else if (p.Contains("approval") || p.Contains("pending") || (p.Contains("approve") && isReadQuery) || (p.Contains("reject") && isReadQuery))
         {
             result.Intent = IntentType.APPROVAL_READ.ToString();
             result.TargetEntity = "APPROVAL";
@@ -840,7 +1371,7 @@ User: ""hello"" or ""what can you do?""
             result.Operation = "READ";
         }
         // Fallback read
-        else if (p.Contains("show") || p.Contains("list") || p.Contains("get") || p.Contains("search") || p.Contains("find") || p.Contains("view"))
+        else if (isReadQuery)
         {
             result.Intent = IntentType.EMPLOYEE_READ.ToString();
             result.TargetEntity = "EMPLOYEE";
@@ -892,6 +1423,19 @@ User: ""hello"" or ""what can you do?""
 
         if (isDeptIntent)
         {
+            var deptCreateMatch = Regex.Match(prompt, @"\b(?:create|add|new|make|setup)\s+(?:a\s+|the\s+)?([A-Za-z0-9\&]+)\s+(?:department|dept)\b", RegexOptions.IgnoreCase);
+            if (deptCreateMatch.Success)
+            {
+                var dName = CleanDepartmentName(deptCreateMatch.Groups[1].Value);
+                if (!string.IsNullOrWhiteSpace(dName) && !dName.Equals("a", StringComparison.OrdinalIgnoreCase) && !dName.Equals("the", StringComparison.OrdinalIgnoreCase) && !dName.Equals("new", StringComparison.OrdinalIgnoreCase))
+                {
+                    entities["name"] = dName;
+                    entities["department"] = dName;
+                    parameters["name"] = dName;
+                    parameters["department"] = dName;
+                }
+            }
+
             string? deptVal = entities.GetValueOrDefault("department") ?? parameters.GetValueOrDefault("department")?.ToString();
             string? nameVal = entities.GetValueOrDefault("name") ?? parameters.GetValueOrDefault("name")?.ToString();
 
@@ -906,15 +1450,131 @@ User: ""hello"" or ""what can you do?""
                 parameters["department"] = nameVal;
             }
 
-            var headMatch = Regex.Match(prompt, @"\b(?:head\s+(?:is|of)?|new\s+head\s+(?:is)?|manager\s+(?:is)?)\s+([A-Za-z]+(?:\s+[A-Za-z]+)?)\b", RegexOptions.IgnoreCase);
+            var headMatch = Regex.Match(prompt, @"\b(?:with\s+head|head\s+(?:is|of)?|new\s+head\s+(?:is)?|manager\s+(?:is)?|lead\s+(?:is)?)\s+([A-Za-z]+(?:\s+[A-Za-z]+)?)\b", RegexOptions.IgnoreCase);
             if (headMatch.Success)
             {
                 var headName = headMatch.Groups[1].Value.Trim();
-                if (!headName.Equals("department", StringComparison.OrdinalIgnoreCase) && !headName.Equals("finance", StringComparison.OrdinalIgnoreCase) && !headName.Equals("it", StringComparison.OrdinalIgnoreCase))
+                headName = Regex.Replace(headName, @"\s+(?:and|with|budget|at|for)$", "", RegexOptions.IgnoreCase).Trim();
+                var invalidHead = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "department", "dept", "finance", "it", "hr", "operations", "and", "with", "budget" };
+                if (!invalidHead.Contains(headName))
                 {
                     entities["head"] = CultureInfo.CurrentCulture.TextInfo.ToTitleCase(headName.ToLower());
                     parameters["head"] = entities["head"];
                 }
+            }
+
+            var budMatch = Regex.Match(prompt, @"\b(?:budget|allocation)\s+(?:of\s+|is\s+|at\s+)?\$?([0-9]+(?:\.[0-9]+)?)\b", RegexOptions.IgnoreCase);
+            if (budMatch.Success)
+            {
+                var budVal = budMatch.Groups[1].Value.Trim();
+                entities["budgetAmount"] = budVal;
+                entities["amount"] = budVal;
+                parameters["budgetAmount"] = budVal;
+                parameters["amount"] = budVal;
+            }
+        }
+
+        // Policy Code & Update Title extraction
+        var polCodeMatch = Regex.Match(prompt, @"\b(POL-[A-Za-z0-9\-]+)\b", RegexOptions.IgnoreCase);
+        if (polCodeMatch.Success)
+        {
+            var code = polCodeMatch.Groups[1].Value.ToUpperInvariant();
+            entities["policyCode"] = code;
+            parameters["policyCode"] = code;
+        }
+        var polUpdateTitleMatch = Regex.Match(prompt, @"(?:title\s+to|rename\s+to|update\s+title\s+to)\s+(.+)", RegexOptions.IgnoreCase);
+        if (polUpdateTitleMatch.Success)
+        {
+            var newT = polUpdateTitleMatch.Groups[1].Value.Trim();
+            entities["newTitle"] = newT;
+            parameters["newTitle"] = newT;
+        }
+
+        // Salary adjustment / review extraction
+        var salIncMatch = Regex.Match(prompt, @"(?:salary\s+increase|salary\s+adjustment|compensation\s+review)\s+(?:for\s+)?([A-Za-z]+(?:\s+[A-Za-z]+)?)\s+(?:from\s+\$?([0-9\,]+))?\s*(?:to\s+\$?([0-9\,]+))", RegexOptions.IgnoreCase);
+        if (salIncMatch.Success)
+        {
+            var emp = salIncMatch.Groups[1].Value.Trim();
+            entities["name"] = CultureInfo.CurrentCulture.TextInfo.ToTitleCase(emp.ToLower());
+            parameters["name"] = entities["name"];
+
+            if (salIncMatch.Groups[2].Success)
+            {
+                var oldS = salIncMatch.Groups[2].Value.Replace(",", "");
+                entities["old_salary"] = oldS;
+                parameters["old_salary"] = oldS;
+            }
+            if (salIncMatch.Groups[3].Success)
+            {
+                var newS = salIncMatch.Groups[3].Value.Replace(",", "");
+                entities["salary"] = newS;
+                parameters["salary"] = newS;
+                entities["new_salary"] = newS;
+                parameters["new_salary"] = newS;
+            }
+        }
+
+        // Leadership Appointment extraction (e.g. "Appoint Ali as Acting Head of Admission department")
+        var appointMatch = Regex.Match(prompt, @"\b(?:appoint|assign|designate|name|make)\s+([A-Za-z]+(?:\s+[A-Za-z]+)?)\s+(?:as\s+)?([A-Za-z\s]+?)\s+(?:of|for|in)\s+(?:the\s+)?([A-Za-z0-9\&\s]+?)(?:\s+department|\s+dept)?$", RegexOptions.IgnoreCase);
+        if (appointMatch.Success)
+        {
+            var appName = appointMatch.Groups[1].Value.Trim();
+            var appRole = appointMatch.Groups[2].Value.Trim();
+            var appDept = appointMatch.Groups[3].Value.Trim();
+
+            appName = Regex.Replace(appName, @"\s+(?:as|to|for|in)$", "", RegexOptions.IgnoreCase).Trim();
+            entities["name"] = CultureInfo.CurrentCulture.TextInfo.ToTitleCase(appName.ToLower());
+            parameters["name"] = entities["name"];
+
+            var cleanRole = CultureInfo.CurrentCulture.TextInfo.ToTitleCase(appRole.ToLower());
+            entities["role"] = cleanRole;
+            parameters["role"] = cleanRole;
+
+            var cleanDept = CleanDepartmentName(appDept);
+            entities["department"] = cleanDept;
+            parameters["department"] = cleanDept;
+
+            var fullTitle = $"{cleanRole} of {cleanDept}";
+            entities["designation"] = fullTitle;
+            parameters["designation"] = fullTitle;
+            entities["new_designation"] = fullTitle;
+            parameters["new_designation"] = fullTitle;
+            entities["appointment_type"] = "Leadership Appointment";
+            parameters["appointment_type"] = "Leadership Appointment";
+        }
+
+        if (p.Contains("active employee") || p.Contains("active staff") || p.Contains("all active"))
+        {
+            entities["status"] = "Active";
+            parameters["status"] = "Active";
+        }
+
+        // Leave / Sick Day Name Extraction: "Log Marcus's sick day", "Log a sick day for Ali", "Log a half-day afternoon medical appointment leave for Ali"
+        var leaveForMatch = Regex.Match(prompt, @"\b(?:sick\s+day|sick\s+leave|pto|leave|vacation|medical\s+appointment)\s+(?:today\s+)?(?:for|of)\s+([A-Za-z]+(?:\s+[A-Za-z]+)?)\b", RegexOptions.IgnoreCase);
+        if (leaveForMatch.Success)
+        {
+            var lName = leaveForMatch.Groups[1].Value.Trim();
+            lName = Regex.Replace(lName, @"\s+(?:and|to|with|notify|on|via)$", "", RegexOptions.IgnoreCase).Trim();
+            var invalid = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "a", "an", "the", "today", "team", "his", "her", "their", "employee" };
+            if (!invalid.Contains(lName))
+            {
+                var clean = CultureInfo.CurrentCulture.TextInfo.ToTitleCase(lName.ToLower());
+                entities["name"] = clean;
+                parameters["name"] = clean;
+            }
+        }
+
+        var leavePossessiveMatch = Regex.Match(prompt, @"\b(?:log|record|register)\s+([A-Za-z]+)'?s?\s+(?:sick\s+day|sick\s+leave|pto|leave)\b", RegexOptions.IgnoreCase);
+        if (leavePossessiveMatch.Success)
+        {
+            var lName = leavePossessiveMatch.Groups[1].Value.Trim();
+            lName = Regex.Replace(lName, @"\s+(?:and|to|with|notify|on|via)$", "", RegexOptions.IgnoreCase).Trim();
+            var invalid = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "a", "an", "the", "today", "team", "his", "her", "their", "employee" };
+            if (!invalid.Contains(lName))
+            {
+                var clean = CultureInfo.CurrentCulture.TextInfo.ToTitleCase(lName.ToLower());
+                entities["name"] = clean;
+                parameters["name"] = clean;
             }
         }
 
@@ -928,12 +1588,13 @@ User: ""hello"" or ""what can you do?""
 
         if (!isDeptIntent && (!entities.ContainsKey("name") || string.IsNullOrWhiteSpace(entities.GetValueOrDefault("name")) || entities["name"].Equals("In It", StringComparison.OrdinalIgnoreCase) || entities["name"].StartsWith("Move ", StringComparison.OrdinalIgnoreCase)))
         {
-            // Priority 1: Check transfer, promote, onboard, leave, and log actions with explicit employee name
-            var actionVerbNameMatch = Regex.Match(prompt, @"\b(?:move|transfer|promote|reassign|relocate|shift|onboard|hire|log|record|register)\s+(?:employee\s+)?([A-Za-z]+(?:\s+[A-Za-z]+)?)\s+(?:to|from|as|in|into|for|sick|leave|pto|today)\b", RegexOptions.IgnoreCase);
+            // Priority 1: Check transfer, promote, onboard, and actions with explicit employee name
+            var actionVerbNameMatch = Regex.Match(prompt, @"\b(?:move|transfer|promote|reassign|relocate|shift|onboard|hire)\s+(?:employee\s+)?([A-Za-z]+(?:\s+[A-Za-z]+)?)\s+(?:to|from|as|in|into|for)\b", RegexOptions.IgnoreCase);
             if (actionVerbNameMatch.Success)
             {
                 var parsedName = actionVerbNameMatch.Groups[1].Value.Trim();
-                if (!parsedName.Equals("employee", StringComparison.OrdinalIgnoreCase) && !parsedName.Equals("the", StringComparison.OrdinalIgnoreCase))
+                var invalidNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "employee", "the", "a", "an", "this", "new", "sick", "day", "leave", "half" };
+                if (!invalidNames.Contains(parsedName))
                 {
                     parsedName = CultureInfo.CurrentCulture.TextInfo.ToTitleCase(parsedName.ToLower());
                     entities["name"] = parsedName;
@@ -943,7 +1604,13 @@ User: ""hello"" or ""what can you do?""
 
             if (!entities.ContainsKey("name") || string.IsNullOrWhiteSpace(entities.GetValueOrDefault("name")))
             {
-                var knownNames = new[] { "Employee Sufyan", "Employee Ali", "Umar Danish", "John Smith", "Jane Doe", "Michael Johnson", "David Lee", "Robert Chen", "Sarah Jenkins", "Tariq Mahmood", "Maria Garcia", "Ahmed Khan", "Sufyan Khan", "Sufyan", "Alex", "Amanda", "Sarah", "Jim", "Pam", "Marcus", "Ali", "Sara", "Ahmed", "Umar" };
+                var knownNames = new[] { 
+                    "Employee Sufyan", "Employee Ali", "Umar Danish", "John Smith", "Jane Doe", 
+                    "Michael Johnson", "David Lee", "Robert Chen", "Sarah Jenkins", "Tariq Mahmood", 
+                    "Maria Garcia", "Ahmed Khan", "Sufyan Khan", "Elena Rostova", "Marcus Vance", 
+                    "Alex Rivera", "Sarah Ahmed", "Bilal Khan", "Sufyan", "Alex", "Amanda", "Sarah", 
+                    "Jim", "Pam", "Marcus", "Ali", "Sara", "Ahmed", "Umar", "Elena", "Bilal" 
+                };
                 foreach (var kn in knownNames)
                 {
                     if (Regex.IsMatch(prompt, $@"\b{kn}\b", RegexOptions.IgnoreCase))
@@ -963,7 +1630,10 @@ User: ""hello"" or ""what can you do?""
                     "Move", "Transfer", "Promote", "Onboard", "Delete", "Add", "Update", "Freeze", "Place", "Hold", "Set",
                     "Increase", "Reduce", "Give", "Assign", "Cut", "Drop", "Remove", "Change", "Shift", "Show", "List",
                     "Get", "Create", "Hire", "Plan", "Department", "Office", "Branch", "Team", "Senior", "Junior", "Lead",
-                    "Log", "Record", "Register", "Submit", "Enter", "Track", "Save", "Employee", "Log Employee", "Notify", "Report"
+                    "Log", "Record", "Register", "Submit", "Enter", "Track", "Save", "Employee", "Log Employee", "Notify", "Report",
+                    "Calculate", "What", "Compute", "How", "Screen", "Evaluate", "Check", "Review", "Filter", "Verify",
+                    "Identify", "Summarize", "Highlight", "Compare", "Match", "Run", "Execute", "Trigger", "Decline",
+                    "Approve", "Reject", "Need", "Request", "Export", "Preview", "Display", "Find", "Search", "Look", "Tell"
                 };
 
                 foreach (Match m in capMatches)
@@ -1046,7 +1716,8 @@ User: ""hello"" or ""what can you do?""
             var stopWords = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
             {
                 "the", "a", "an", "his", "her", "their", "new", "this", "our", "my", "your", "employee", "staff", "company", "office", "team", "first", "second", "third", "which", "whose", "name",
-                "q1", "q2", "q3", "q4", "quarter", "1000000", "500000", "100k", "50k", "all", "each", "every", "budget", "allocation", "payroll", "hold", "bonus"
+                "q1", "q2", "q3", "q4", "quarter", "1000000", "500000", "100k", "50k", "all", "each", "every", "budget", "allocation", "payroll", "hold", "bonus",
+                "ali", "sarah", "marcus", "elena", "ahmed", "sufyan", "alex", "bilal", "tariq", "maria", "john", "david", "jane", "gmail", "slack", "email"
             };
 
             foreach (var pattern in deptPatterns)
@@ -1073,8 +1744,54 @@ User: ""hello"" or ""what can you do?""
             }
         }
 
-        // 3.1 Dynamic Designation / Role Extraction (e.g. "as a Senior .NET Developer")
+        // 3.1 Dynamic Designation / Role Extraction
+        // Priority 1: Explicit update-designation pattern: "Update Designation for [NAME] to [VALUE]"
         string? existingDesig = entities.GetValueOrDefault("designation") ?? entities.GetValueOrDefault("role") ?? parameters.GetValueOrDefault("designation")?.ToString();
+
+        var updateDesigMatch = Regex.Match(prompt,
+            @"(?:Update|Change|Set|Modify)\s+(?:Designation|Title|Role|Job\s+Title)\s+(?:for|of)?\s*(?:[A-Za-z]+\s+)?to\s+(.+)",
+            RegexOptions.IgnoreCase);
+        if (updateDesigMatch.Success)
+        {
+            var newDesig = updateDesigMatch.Groups[1].Value.Trim().TrimEnd('.');
+            if (!string.IsNullOrWhiteSpace(newDesig) && newDesig.Length >= 2)
+            {
+                // Preserve .NET casing
+                var desigFormatted = Regex.Replace(newDesig, @"\.net", ".NET", RegexOptions.IgnoreCase);
+                desigFormatted = CultureInfo.CurrentCulture.TextInfo.ToTitleCase(desigFormatted.ToLower());
+                desigFormatted = desigFormatted.Replace(".Net", ".NET").Replace(".net", ".NET");
+                entities["designation"] = desigFormatted;
+                entities["role"] = desigFormatted;
+                parameters["designation"] = desigFormatted;
+                parameters["role"] = desigFormatted;
+                existingDesig = desigFormatted;
+
+                // Also extract the employee name from this pattern:
+                // "Update Designation for UMAR to ..."
+                var nameInUpdateMatch = Regex.Match(prompt,
+                    @"(?:Update|Change|Set|Modify)\s+(?:Designation|Title|Role|Job\s+Title)\s+(?:for|of)\s+([A-Za-z]+(?:\s+[A-Za-z]+)?)",
+                    RegexOptions.IgnoreCase);
+                if (nameInUpdateMatch.Success)
+                {
+                    var extractedName = nameInUpdateMatch.Groups[1].Value.Trim();
+                    // Don't allow verb words or prepositions as names
+                    var badWords = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+                        { "the", "a", "an", "employee", "staff", "worker", "member", "user" };
+                    if (!badWords.Contains(extractedName))
+                    {
+                        extractedName = CultureInfo.CurrentCulture.TextInfo.ToTitleCase(extractedName.ToLower());
+                        if (!entities.ContainsKey("name") || string.IsNullOrWhiteSpace(entities.GetValueOrDefault("name")))
+                        {
+                            entities["name"] = extractedName;
+                            entities["employee_name"] = extractedName;
+                            parameters["name"] = extractedName;
+                            parameters["employee_name"] = extractedName;
+                        }
+                    }
+                }
+            }
+        }
+
         if (string.IsNullOrWhiteSpace(existingDesig) || existingDesig == "[Pending]")
         {
             var desigMatch = Regex.Match(prompt, @"\b(?:as|role|designation|title|position|for\s+the\s+role\s+of)\s+(?:is\s+|a\s+|an\s+)*([A-Za-z0-9\.\#\+\-\s]{2,40}?)(?=\.\s+|\,\s+|\s+starting|\s+with|\s+at|\s+in\s+the|\s+salary|\s+his|\s+her|\s+their|$)", RegexOptions.IgnoreCase);

@@ -40,7 +40,9 @@ public class EmployeeService : IEmployeeService
             var searchLower = search.Trim().ToLower();
             query = query.Where(e => e.Name.ToLower().Contains(searchLower) ||
                                      e.Email.ToLower().Contains(searchLower) ||
-                                     e.Designation.ToLower().Contains(searchLower));
+                                     e.Designation.ToLower().Contains(searchLower) ||
+                                     (e.Department != null && e.Department.Name.ToLower().Contains(searchLower)) ||
+                                     (e.ManagerName != null && e.ManagerName.ToLower().Contains(searchLower)));
         }
 
         var employees = await query.ToListAsync();

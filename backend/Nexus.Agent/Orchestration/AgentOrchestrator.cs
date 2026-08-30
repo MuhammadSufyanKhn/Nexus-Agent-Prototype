@@ -186,12 +186,43 @@ public class AgentOrchestrator : IAgentOrchestrator
             || parsedIntent.ParsedIntentType == IntentType.EXPENSE_COMPLIANCE
             || parsedIntent.ParsedIntentType == IntentType.EMPLOYEE_READ
             || parsedIntent.ParsedIntentType == IntentType.SECURITY_TEST   // SECURITY_TEST is diagnostic-only, never mutates
-            || parsedIntent.ParsedIntentType == IntentType.SQL_AGENT;       // SQL_AGENT handles its own risk internally
+            || parsedIntent.ParsedIntentType == IntentType.SQL_AGENT       // SQL_AGENT handles its own risk internally
+            || parsedIntent.ParsedIntentType == IntentType.DEPARTMENT_READ
+            || parsedIntent.ParsedIntentType == IntentType.POLICY_READ
+            || parsedIntent.ParsedIntentType == IntentType.EXPENSE_READ
+            || parsedIntent.ParsedIntentType == IntentType.APPROVAL_READ
+            || parsedIntent.ParsedIntentType == IntentType.AUDIT_READ
+            || parsedIntent.ParsedIntentType == IntentType.DASHBOARD_ANALYTICS
+            || parsedIntent.ParsedIntentType == IntentType.GENERAL_CONVERSATION
+            || parsedIntent.ParsedIntentType == IntentType.TICKET_READ
+            || parsedIntent.ParsedIntentType == IntentType.TICKET_CREATE
+            || parsedIntent.ParsedIntentType == IntentType.TICKET_TRIAGE
+            || parsedIntent.ParsedIntentType == IntentType.TICKET_UPDATE
+            || parsedIntent.ParsedIntentType == IntentType.CV_SCREEN
+            || parsedIntent.ParsedIntentType == IntentType.WORKFLOW_EXECUTE
+            || parsedIntent.Operation == "READ"
+            || parsedIntent.Operation == "ANALYZE"
+            || parsedIntent.Operation == "LIST"
+            || parsedIntent.Operation == "SEARCH"
+            || string.Equals(parsedIntent.Intent, "ONBOARDING_READ", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(parsedIntent.Intent, "TICKET_READ", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(parsedIntent.Intent, "CV_SCREEN", StringComparison.OrdinalIgnoreCase);
 
         // UPDATE_SALARY always triggers approval even if not flagged as high-risk by the plan, because it is a financial mutation
         var isSalaryUpdate = parsedIntent.ParsedIntentType == IntentType.UPDATE_SALARY;
 
-        if (!isReadOnly && (isSalaryUpdate || plan.TotalRiskLevel >= RiskLevel.High || promptLower.Contains("increase") || promptLower.Contains("10%") || promptLower.Contains("bulk") || promptLower.Contains("onboard") || promptLower.Contains("delete") || promptLower.Contains("remove")))
+        bool isOnboardingRequest = parsedIntent.ParsedIntentType == IntentType.EMPLOYEE_ONBOARDING &&
+            !promptLower.Contains("paperwork") && !promptLower.Contains("document") && !promptLower.Contains("orientation") && !promptLower.Contains("schedule");
+
+        bool isExplicitMutationVerb = isOnboardingRequest ||
+            parsedIntent.ParsedIntentType == IntentType.DEPARTMENT_DELETE ||
+            promptLower.Contains("onboard ") ||
+            promptLower.Contains("add employee") || promptLower.Contains("create employee") ||
+            promptLower.Contains("hire employee") || promptLower.Contains("delete employee") ||
+            promptLower.Contains("remove employee") || promptLower.Contains("terminate employee") ||
+            promptLower.Contains("purge department") || (promptLower.Contains("remove") && promptLower.Contains("department"));
+
+        if (!isReadOnly && (isSalaryUpdate || plan.TotalRiskLevel >= RiskLevel.High || promptLower.Contains("increase") || promptLower.Contains("10%") || promptLower.Contains("bulk") || isExplicitMutationVerb))
         {
             var actionPlan = await BuildActionPlanAsync(agentRun.Id, userPrompt, parsedIntent, cancellationToken);
 
@@ -439,8 +470,116 @@ public class AgentOrchestrator : IAgentOrchestrator
 
         sw.Stop();
 
+        // Handle Unallocated Corporate Budget Pool calculation
+        if (parsedIntent.Parameters?.GetValueOrDefault("query")?.ToString() == "UNALLOCATED_POOL" ||
+            (userPrompt.Contains("unallocated", StringComparison.OrdinalIgnoreCase) && userPrompt.Contains("pool", StringComparison.OrdinalIgnoreCase)))
+        {
+            var masterBudget = await _db.MasterBudgets.FirstOrDefaultAsync(cancellationToken);
+            var totalAllocated = await _db.Budgets.SumAsync(b => b.AllocatedAmount, cancellationToken);
+            var totalPool = masterBudget?.TotalBudgetPool ?? 5000000m;
+            var remainingUnallocated = totalPool - totalAllocated;
+
+            lastResultData = new
+            {
+                TotalBudgetPool = totalPool,
+                TotalAllocated = totalAllocated,
+                RemainingUnallocated = remainingUnallocated,
+                AllocationPercentage = totalPool > 0 ? Math.Round((totalAllocated / totalPool) * 100, 1) : 0,
+                Summary = $"Enterprise Corporate Budget Pool Balance: ${remainingUnallocated:N2} remaining unallocated out of ${totalPool:N2} total pool (${totalAllocated:N2} allocated across departments)."
+            };
+        }
+        else if (parsedIntent.Parameters?.GetValueOrDefault("query")?.ToString() == "AVERAGE_SALARY" ||
+                 (userPrompt.Contains("average", StringComparison.OrdinalIgnoreCase) && userPrompt.Contains("salary", StringComparison.OrdinalIgnoreCase)))
+        {
+            var deptParam = parsedIntent.Entities?.GetValueOrDefault("department") ?? parsedIntent.Parameters?.GetValueOrDefault("department")?.ToString() ?? "Engineering";
+            var empQuery = _db.Employees.Include(e => e.Department).Where(e => e.Department != null && e.Department.Name.ToLower().Contains(deptParam.ToLower()));
+            var emps = await empQuery.ToListAsync(cancellationToken);
+            if (emps.Count > 0)
+            {
+                var avgSalary = emps.Average(e => e.Salary);
+                var minSalary = emps.Min(e => e.Salary);
+                var maxSalary = emps.Max(e => e.Salary);
+                lastResultData = new
+                {
+                    Department = deptParam,
+                    EmployeeCount = emps.Count,
+                    AverageSalary = Math.Round(avgSalary, 2),
+                    MinSalary = minSalary,
+                    MaxSalary = maxSalary,
+                    Summary = $"The average employee salary in the {deptParam} department is ${avgSalary:N2} (Range: ${minSalary:N2} - ${maxSalary:N2} across {emps.Count} active employees)."
+                };
+            }
+            else
+            {
+                var allActive = await _db.Employees.Include(e => e.Department).Where(e => e.Status == EmployeeStatus.Active).ToListAsync(cancellationToken);
+                if (allActive.Count > 0)
+                {
+                    var avgAll = allActive.Average(e => e.Salary);
+                    lastResultData = new
+                    {
+                        Department = deptParam,
+                        EmployeeCount = allActive.Count,
+                        AverageSalary = Math.Round(avgAll, 2),
+                        MinSalary = allActive.Min(e => e.Salary),
+                        MaxSalary = allActive.Max(e => e.Salary),
+                        Summary = $"Workforce benchmark compensation: Average salary across active staff is ${avgAll:N2} across {allActive.Count} employees."
+                    };
+                }
+            }
+        }
+        else if (parsedIntent.ParsedIntentType == IntentType.EMPLOYEE_READ)
+        {
+            var deptParam = parsedIntent.Entities?.GetValueOrDefault("department") ?? parsedIntent.Parameters?.GetValueOrDefault("department")?.ToString();
+            var statusParam = parsedIntent.Entities?.GetValueOrDefault("status") ?? parsedIntent.Parameters?.GetValueOrDefault("status")?.ToString();
+
+            if (!string.IsNullOrWhiteSpace(deptParam) || !string.IsNullOrWhiteSpace(statusParam) || userPrompt.Contains("active", StringComparison.OrdinalIgnoreCase))
+            {
+                var query = _db.Employees.Include(e => e.Department).AsNoTracking().AsQueryable();
+                if (!string.IsNullOrWhiteSpace(deptParam))
+                {
+                    query = query.Where(e => e.Department != null && e.Department.Name.ToLower().Contains(deptParam.ToLower()));
+                }
+                if (!string.IsNullOrWhiteSpace(statusParam) && statusParam.Equals("Active", StringComparison.OrdinalIgnoreCase) || userPrompt.Contains("active", StringComparison.OrdinalIgnoreCase))
+                {
+                    query = query.Where(e => e.Status == EmployeeStatus.Active);
+                }
+
+                var filteredEmps = await query.Select(e => new
+                {
+                    id = e.Id,
+                    name = e.Name,
+                    email = e.Email,
+                    designation = e.Designation,
+                    department = e.Department != null ? e.Department.Name : "Unassigned",
+                    manager = e.ManagerName ?? "Executive Leadership",
+                    salary = e.Salary,
+                    status = e.Status.ToString()
+                }).ToListAsync(cancellationToken);
+
+                // STRICT RESULT VALIDATION: Ensure 0 records from other departments leak into the result
+                if (!string.IsNullOrWhiteSpace(deptParam))
+                {
+                    filteredEmps = filteredEmps
+                        .Where(e => e.department.ToLower().Contains(deptParam.ToLower()))
+                        .ToList();
+                }
+
+                lastResultData = new
+                {
+                    department = deptParam ?? "All",
+                    status = statusParam ?? "Active",
+                    count = filteredEmps.Count,
+                    employees = filteredEmps,
+                    summary = filteredEmps.Count > 0
+                        ? $"Found {filteredEmps.Count} active employee(s) in the {deptParam ?? "corporate"} department."
+                        : $"No active employees found matching the {deptParam ?? "requested"} department criteria."
+                };
+            }
+        }
+
         // Build execution payload for READY_TO_EXECUTE state
         var execPayload = BuildExecutionPayload(parsedIntent, lastResultData);
+        var choices = GenerateNextActionChoices(parsedIntent, lastResultData);
 
         return new AgentResult
         {
@@ -453,6 +592,7 @@ public class AgentOrchestrator : IAgentOrchestrator
             ResultData = lastResultData,
             ExecutionFeed = feed,
             ExecutionTimeMs = sw.ElapsedMilliseconds,
+            Choices = choices,
             // ── Spec state machine fields ────────────────────────────────────────
             State = WorkflowState.READY_TO_EXECUTE.ToString(),
             UserMessage = $"Request completed successfully. Intent: {parsedIntent.Intent}.",
@@ -1119,6 +1259,7 @@ public class AgentOrchestrator : IAgentOrchestrator
         await _broadcaster.BroadcastEventAsync(Nexus.Data.Events.AgentActivityEvent.Create(runId, 12, "WORKFLOW_COMPLETED", resultMessage), cancellationToken);
 
         sw.Stop();
+        var resumeChoices = GenerateNextActionChoices(parsedIntent ?? new ParsedIntentResult { Intent = agentRun.Intent ?? "" }, new { message = resultMessage, affectedCount });
         return new AgentResult
         {
             RunId = runId,
@@ -1127,7 +1268,8 @@ public class AgentOrchestrator : IAgentOrchestrator
             IsSuccess = true,
             ResultData = new { message = resultMessage, affectedCount },
             ExecutionFeed = feed,
-            ExecutionTimeMs = sw.ElapsedMilliseconds
+            ExecutionTimeMs = sw.ElapsedMilliseconds,
+            Choices = resumeChoices
         };
     }
 
@@ -1307,6 +1449,32 @@ public class AgentOrchestrator : IAgentOrchestrator
                 plan.Steps.Add(new AgentStep { StepNumber = 2, ToolName = "slack.notify", Description = "Step 2: Dispatch Slack alert", RiskLevel = RiskLevel.Low });
                 break;
 
+            // Workplace Service Desk (IT Tickets)
+            case IntentType.TICKET_CREATE:
+                plan.Steps.Add(new AgentStep { StepNumber = 1, ToolName = "ticket.create", Description = "Create IT equipment provisioning ticket", RiskLevel = RiskLevel.Low });
+                break;
+
+            case IntentType.TICKET_READ:
+            case IntentType.TICKET_TRIAGE:
+            case IntentType.TICKET_UPDATE:
+                plan.Steps.Add(new AgentStep { StepNumber = 1, ToolName = "sql.analytics", Description = "Process Workplace Service Desk request", RiskLevel = RiskLevel.Low });
+                break;
+
+            // Candidate CV Screening
+            case IntentType.CV_SCREEN:
+                plan.Steps.Add(new AgentStep { StepNumber = 1, ToolName = "cv.analyze", Description = "Screen candidate resume and analyze role fit score", RiskLevel = RiskLevel.Low });
+                break;
+
+            // Approval Decisions
+            case IntentType.APPROVAL_ACTION:
+                plan.Steps.Add(new AgentStep { StepNumber = 1, ToolName = "sql.analytics", Description = "Execute manager approval decision on pending action", RiskLevel = RiskLevel.Medium });
+                break;
+
+            // Automated Workflows
+            case IntentType.WORKFLOW_EXECUTE:
+                plan.Steps.Add(new AgentStep { StepNumber = 1, ToolName = "browser.automation", Description = "Execute enterprise workflow pipeline", RiskLevel = RiskLevel.Low });
+                break;
+
             // SQL Agent passthrough
             case IntentType.SQL_AGENT:
                 plan.Steps.Add(new AgentStep { StepNumber = 1, ToolName = "sql.analytics", Description = "Execute Production SQL Agent query", RiskLevel = RiskLevel.Low });
@@ -1361,8 +1529,8 @@ public class AgentOrchestrator : IAgentOrchestrator
             case IntentType.UPDATE_SALARY:
                 var salary = e.GetValueOrDefault("salary") ?? e.GetValueOrDefault("new_salary") ?? "[pending]";
                 var effectiveDate = intent.StructuredEntities?.EffectiveDate ?? "immediately";
-                message = "I have drafted a salary adjustment request. Please review the details below before I submit it to the system:";
-                proposed = "Update employee compensation record in SQL Server database";
+                message = "I have drafted a salary adjustment request. Please review the details below before I submit it for execution:";
+                proposed = "Update employee compensation record";
                 summary = $"Employee: {name} | New Amount: {salary}/mo | Effective Date: {effectiveDate}";
                 break;
 
@@ -1380,20 +1548,20 @@ public class AgentOrchestrator : IAgentOrchestrator
                 if (decimal.TryParse(salStr, out var dSal) && dSal > 0) salFormatted = $"${dSal:N2} / yr";
 
                 message = $"I am ready to onboard {name}. Please confirm the details below before I create the record:";
-                proposed = "Insert new employee record into SQL Server database";
+                proposed = "Create new employee record";
                 summary = $"Employee: {name} | Department: {dept} | Role: {desig} | Salary: {salFormatted}";
                 break;
 
             case IntentType.EXECUTE_AUTOMATION:
                 var target = intent.StructuredEntities?.AutomationTarget ?? "the configured workflow";
                 message = "I am ready to trigger the automation workflow. Please confirm:";
-                proposed = "Execute external automation (n8n / Zapier / Playwright)";
+                proposed = "Execute automated workflow pipeline";
                 summary = $"Target: {target} | Action: EXECUTE";
                 break;
 
             default:
                 message = "I have prepared the following action for your review. Please confirm before execution:";
-                proposed = $"Execute {intent.Intent} operation in SQL Server";
+                proposed = $"Execute {intent.Intent} workflow";
                 summary = $"Intent: {intent.Intent} | Scope: {intent.Scope}";
                 break;
         }
@@ -1629,7 +1797,7 @@ public class AgentOrchestrator : IAgentOrchestrator
 
                 var changes = new List<Nexus.Data.ActionPlan.ChangePreview>
                 {
-                    new Nexus.Data.ActionPlan.ChangePreview { FieldName = "Department Status", OldValue = $"{dept.Employees.Count} Employee(s)", NewValue = "[PERMANENTLY DELETED]", Difference = "Entity Purge" }
+                    new Nexus.Data.ActionPlan.ChangePreview { FieldName = "Department Status", OldValue = $"{dept.Employees.Count} assigned employee(s)", NewValue = "Removed", Difference = "Department Deletion" }
                 };
 
                 if (allocated > 0)
@@ -1639,14 +1807,14 @@ public class AgentOrchestrator : IAgentOrchestrator
                         FieldName = "Allocated Q3 Budget",
                         OldValue = $"${allocated:N2}",
                         NewValue = "$0.00",
-                        Difference = $"Budget Deletion (${allocated:N2})"
+                        Difference = $"Budget Reset (${allocated:N2})"
                     });
                 }
 
                 actionPlan.AffectedRecords.Add(new Nexus.Data.ActionPlan.AffectedRecord
                 {
                     RecordId = dept.Id,
-                    EntityName = "Department Master (SQL Server)",
+                    EntityName = "Department",
                     PrimaryLabel = $"{dept.Name} Department",
                     Changes = changes
                 });
@@ -1658,7 +1826,7 @@ public class AgentOrchestrator : IAgentOrchestrator
             {
                 StepNumber = 1,
                 ToolName = "department.crud",
-                Description = $"Delete {matchingDepts.Count} department record(s) from SQL Server",
+                Description = $"Remove {matchingDepts.Count} department record(s)",
                 RiskLevel = isBulk ? RiskLevel.Critical : RiskLevel.High
             });
 
@@ -1677,7 +1845,7 @@ public class AgentOrchestrator : IAgentOrchestrator
                 actionPlan.Warnings.Add($"Transfers budget from deleted department to {targetDept} Department.");
             }
 
-            actionPlan.Warnings.Add($"⚠ High-Risk Operation: Permanently deletes {matchingDepts.Count} department record(s).");
+            actionPlan.Warnings.Add($"Removes {matchingDepts.Count} department(s) from system.");
             if (matchingDepts.Any(d => d.Employees.Count > 0))
             {
                 actionPlan.Warnings.Add("Employees in affected departments will have their department assignment reset.");
@@ -1714,12 +1882,12 @@ public class AgentOrchestrator : IAgentOrchestrator
             actionPlan.AffectedRecords.Add(new Nexus.Data.ActionPlan.AffectedRecord
             {
                 RecordId = 0,
-                EntityName = "Department Budget (SQL Server)",
+                EntityName = "Department Budget",
                 PrimaryLabel = $"{srcDept} → {tgtDept} Budget Transfer",
                 Changes = new List<Nexus.Data.ActionPlan.ChangePreview>
                 {
-                    new Nexus.Data.ActionPlan.ChangePreview { FieldName = $"{srcDept} Budget", OldValue = "[CURRENT]", NewValue = $"-[${amount:N2}]", Difference = $"-$[${amount:N2}]" },
-                    new Nexus.Data.ActionPlan.ChangePreview { FieldName = $"{tgtDept} Budget", OldValue = "[CURRENT]", NewValue = $"+[${amount:N2}]", Difference = $"+$[${amount:N2}]" }
+                    new Nexus.Data.ActionPlan.ChangePreview { FieldName = $"{srcDept} Budget", OldValue = "(current)", NewValue = $"-${amount:N2}", Difference = $"-${amount:N2}" },
+                    new Nexus.Data.ActionPlan.ChangePreview { FieldName = $"{tgtDept} Budget", OldValue = "(current)", NewValue = $"+${amount:N2}", Difference = $"+${amount:N2}" }
                 }
             });
 
@@ -1814,11 +1982,11 @@ public class AgentOrchestrator : IAgentOrchestrator
             actionPlan.AffectedRecords.Add(new Nexus.Data.ActionPlan.AffectedRecord
             {
                 RecordId = 0,
-                EntityName = "Department Budget (SQL Server)",
+                EntityName = "Department Budget",
                 PrimaryLabel = $"{deptName} Q3 Budget",
                 Changes = new List<Nexus.Data.ActionPlan.ChangePreview>
                 {
-                    new Nexus.Data.ActionPlan.ChangePreview { FieldName = "Q3 Allocated Budget", OldValue = "[CURRENT]", NewValue = $"${budgetAmt:N2}", Difference = $"Allocation +${budgetAmt:N2}" }
+                    new Nexus.Data.ActionPlan.ChangePreview { FieldName = "Q3 Allocated Budget", OldValue = "(current balance)", NewValue = $"${budgetAmt:N2}", Difference = $"Allocation +${budgetAmt:N2}" }
                 }
             });
 
@@ -1862,21 +2030,21 @@ public class AgentOrchestrator : IAgentOrchestrator
             actionPlan.AffectedRecords.Add(new Nexus.Data.ActionPlan.AffectedRecord
             {
                 RecordId = 0,
-                EntityName = "Employee Master (SQL Server)",
+                EntityName = "Employee Profile",
                 PrimaryLabel = name,
                 Changes = new List<Nexus.Data.ActionPlan.ChangePreview>
                 {
-                    new Nexus.Data.ActionPlan.ChangePreview { FieldName = "Provisioning Profile", OldValue = "[WILL BE CREATED]", NewValue = $"{desig} @ ${proposedSalary:N2}", Difference = "New SQL Record" }
+                    new Nexus.Data.ActionPlan.ChangePreview { FieldName = "Provisioning Profile", OldValue = "(new employee)", NewValue = $"{desig} (${proposedSalary:N0}/yr)", Difference = "New Record" }
                 }
             });
 
-            actionPlan.Steps.Add(new Nexus.Data.ActionPlan.ActionPlanStep { StepNumber = 1, ToolName = "policy.evaluate", Description = "Evaluate HR Policy POL-HR-001 salary band", RiskLevel = RiskLevel.Low });
-            actionPlan.Steps.Add(new Nexus.Data.ActionPlan.ActionPlanStep { StepNumber = 2, ToolName = "employee.create", Description = "Create employee SQL record", RiskLevel = RiskLevel.Medium });
-            actionPlan.Steps.Add(new Nexus.Data.ActionPlan.ActionPlanStep { StepNumber = 3, ToolName = "onboarding.submit_legacy_form", Description = "Submit legacy HR portal form via Playwright", RiskLevel = RiskLevel.Medium });
-            actionPlan.Steps.Add(new Nexus.Data.ActionPlan.ActionPlanStep { StepNumber = 4, ToolName = "sap.employee.create", Description = "Provision employee in Mock SAP HCM", RiskLevel = RiskLevel.Medium });
-            actionPlan.Steps.Add(new Nexus.Data.ActionPlan.ActionPlanStep { StepNumber = 5, ToolName = "email.welcome", Description = "Generate welcome email", RiskLevel = RiskLevel.Low });
+            actionPlan.Steps.Add(new Nexus.Data.ActionPlan.ActionPlanStep { StepNumber = 1, ToolName = "policy.evaluate", Description = "Verify compensation policy compliance (POL-HR-001)", RiskLevel = RiskLevel.Low });
+            actionPlan.Steps.Add(new Nexus.Data.ActionPlan.ActionPlanStep { StepNumber = 2, ToolName = "employee.create", Description = "Create employee profile", RiskLevel = RiskLevel.Medium });
+            actionPlan.Steps.Add(new Nexus.Data.ActionPlan.ActionPlanStep { StepNumber = 3, ToolName = "onboarding.submit_legacy_form", Description = "Register employee in HR Portal", RiskLevel = RiskLevel.Medium });
+            actionPlan.Steps.Add(new Nexus.Data.ActionPlan.ActionPlanStep { StepNumber = 4, ToolName = "sap.employee.create", Description = "Setup payroll & benefits record", RiskLevel = RiskLevel.Medium });
+            actionPlan.Steps.Add(new Nexus.Data.ActionPlan.ActionPlanStep { StepNumber = 5, ToolName = "email.welcome", Description = "Send welcome email", RiskLevel = RiskLevel.Low });
 
-            actionPlan.Warnings.Add($"Multi-system onboarding provisions SQL Server, Legacy Portal, SAP ERP, and Welcome Email.");
+            actionPlan.Warnings.Add("Automated onboarding will register profile, setup payroll access, and dispatch welcome email.");
             return actionPlan;
         }
 
@@ -1920,21 +2088,26 @@ public class AgentOrchestrator : IAgentOrchestrator
             return actionPlan;
         }
 
-        // ── 5. EMPLOYEE TRANSFER / PROMOTE ────────────────────────────────
-        if (intentType == IntentType.EMPLOYEE_TRANSFER || intentType == IntentType.EMPLOYEE_PROMOTE || pLower.Contains("transfer") || pLower.Contains("reassign") || pLower.Contains("relocate") || pLower.Contains("move") || pLower.Contains("promote"))
+        // ── 5. EMPLOYEE TRANSFER / PROMOTE / APPOINTMENT ────────────────────────────────
+        if (intentType == IntentType.EMPLOYEE_TRANSFER || intentType == IntentType.EMPLOYEE_PROMOTE || pLower.Contains("transfer") || pLower.Contains("reassign") || pLower.Contains("relocate") || pLower.Contains("move") || pLower.Contains("promote") || pLower.Contains("appoint") || pLower.Contains("acting head"))
         {
             var empName = intent.Entities.GetValueOrDefault("name") ?? intent.Entities.GetValueOrDefault("employee_name") ?? "";
             if (empName.StartsWith("Move ", StringComparison.OrdinalIgnoreCase))
                 empName = empName.Substring(5).Trim();
 
             var targetDept = intent.Entities.GetValueOrDefault("department") ?? intent.Entities.GetValueOrDefault("targetDepartment") ?? "";
-            var targetRole = intent.Entities.GetValueOrDefault("role") ?? intent.Entities.GetValueOrDefault("designation") ?? intent.Entities.GetValueOrDefault("targetRole") ?? "";
+            var targetRole = intent.Entities.GetValueOrDefault("designation") ?? intent.Entities.GetValueOrDefault("role") ?? intent.Entities.GetValueOrDefault("targetRole") ?? "";
 
             var emp = await _db.Employees.Include(e => e.Department).FirstOrDefaultAsync(e => e.Name.ToLower().Contains(empName.ToLower()), ct);
 
+            bool isAppointment = intent.Entities.GetValueOrDefault("appointment_type") == "Leadership Appointment" ||
+                                 pLower.Contains("appoint") || pLower.Contains("acting head") || pLower.Contains("interim head");
+
             var actionPlan = new Nexus.Data.ActionPlan.ActionPlan
             {
-                Title = $"Plan of Action: Transfer & Reassign Employee '{emp?.Name ?? empName}'",
+                Title = isAppointment
+                    ? $"Plan of Action: Leadership Appointment: Appoint {emp?.Name ?? empName} as {targetRole} ({targetDept})"
+                    : (intentType == IntentType.EMPLOYEE_PROMOTE ? $"Plan of Action: Promotion for {emp?.Name ?? empName}" : $"Plan of Action: Transfer & Reassign Employee '{emp?.Name ?? empName}'"),
                 RiskLevel = RiskLevel.High,
                 Status = "AWAITING_APPROVAL",
                 Metadata = JsonSerializer.Serialize(intent)
@@ -1943,24 +2116,42 @@ public class AgentOrchestrator : IAgentOrchestrator
             actionPlan.AffectedRecords.Add(new Nexus.Data.ActionPlan.AffectedRecord
             {
                 RecordId = emp?.Id ?? 0,
-                EntityName = "Employee Master (SQL Server)",
+                EntityName = "Employee Profile",
                 PrimaryLabel = emp?.Name ?? empName,
                 Changes = new List<Nexus.Data.ActionPlan.ChangePreview>
                 {
-                    new Nexus.Data.ActionPlan.ChangePreview { FieldName = "Department", OldValue = emp?.Department?.Name ?? "[CURRENT]", NewValue = targetDept, Difference = "Transfer" },
-                    new Nexus.Data.ActionPlan.ChangePreview { FieldName = "Designation", OldValue = emp?.Designation ?? "[CURRENT]", NewValue = targetRole, Difference = "Role Change" }
+                    new Nexus.Data.ActionPlan.ChangePreview { FieldName = "Department", OldValue = emp?.Department?.Name ?? "(current)", NewValue = targetDept, Difference = "Transfer" },
+                    new Nexus.Data.ActionPlan.ChangePreview { FieldName = "Designation", OldValue = emp?.Designation ?? "(current)", NewValue = targetRole, Difference = isAppointment ? "Leadership Role" : "Role Change" }
                 }
             });
+
+            if (isAppointment && !string.IsNullOrWhiteSpace(targetDept))
+            {
+                actionPlan.AffectedRecords.Add(new Nexus.Data.ActionPlan.AffectedRecord
+                {
+                    RecordId = 0,
+                    EntityName = "Department Master",
+                    PrimaryLabel = $"{targetDept} Department",
+                    Changes = new List<Nexus.Data.ActionPlan.ChangePreview>
+                    {
+                        new Nexus.Data.ActionPlan.ChangePreview { FieldName = "Department Head / Leadership", OldValue = "Pending Assignment", NewValue = emp?.Name ?? empName, Difference = "Leadership Assignment" }
+                    }
+                });
+            }
 
             actionPlan.Steps.Add(new Nexus.Data.ActionPlan.ActionPlanStep
             {
                 StepNumber = 1,
                 ToolName = "employee.transfer",
-                Description = $"Transfer {emp?.Name ?? empName} to {targetDept} as {targetRole}",
+                Description = isAppointment
+                    ? $"Appoint {emp?.Name ?? empName} to {targetDept} as {targetRole}"
+                    : $"Transfer {emp?.Name ?? empName} to {targetDept} as {targetRole}",
                 RiskLevel = RiskLevel.High
             });
 
-            actionPlan.Warnings.Add($"Transfers employee to {targetDept} with role updated to {targetRole}.");
+            actionPlan.Warnings.Add(isAppointment
+                ? $"Leadership appointment: Designates {emp?.Name ?? empName} as {targetRole} for the {targetDept} Department."
+                : $"Transfers employee to {targetDept} with role updated to {targetRole}.");
             return actionPlan;
         }
 
@@ -1991,7 +2182,7 @@ public class AgentOrchestrator : IAgentOrchestrator
             decimal totalImpact = 0m;
             if (employees.Count == 0)
             {
-                actionPlan.Warnings.Add("Zero matching employee records found in SQL Server database for salary adjustment.");
+                actionPlan.Warnings.Add("No matching employee records found for salary adjustment.");
             }
             else
             {
@@ -2004,7 +2195,7 @@ public class AgentOrchestrator : IAgentOrchestrator
                     actionPlan.AffectedRecords.Add(new Nexus.Data.ActionPlan.AffectedRecord
                     {
                         RecordId = emp.Id,
-                        EntityName = "Employee Master (SQL Server)",
+                        EntityName = "Employee Profile",
                         PrimaryLabel = emp.Name,
                         Changes = new List<Nexus.Data.ActionPlan.ChangePreview>
                         {
@@ -2047,22 +2238,22 @@ public class AgentOrchestrator : IAgentOrchestrator
         genericPlan.AffectedRecords.Add(new Nexus.Data.ActionPlan.AffectedRecord
         {
             RecordId = 0,
-            EntityName = $"{intent.TargetEntity} Master",
+            EntityName = $"{intent.TargetEntity}",
             PrimaryLabel = intent.Parameters.GetValueOrDefault("name")?.ToString() ?? intent.TargetEntity,
             Changes = intent.Parameters.Select(p => new Nexus.Data.ActionPlan.ChangePreview
             {
                 FieldName = p.Key,
-                OldValue = "[CURRENT]",
+                OldValue = "(current)",
                 NewValue = String.Concat(p.Value),
-                Difference = "Value Update"
+                Difference = "Updated"
             }).ToList()
         });
 
         genericPlan.Steps.Add(new Nexus.Data.ActionPlan.ActionPlanStep
         {
             StepNumber = 1,
-            ToolName = "system.execution",
-            Description = $"Execute {intent.Operation} on {intent.TargetEntity}",
+            ToolName = "workflow.execute",
+            Description = $"Apply {intent.Operation} to {intent.TargetEntity}",
             RiskLevel = RiskLevel.Medium
         });
 
@@ -2092,6 +2283,365 @@ public class AgentOrchestrator : IAgentOrchestrator
 
         _db.AuditLogs.Add(auditLog);
         await _db.SaveChangesAsync(ct);
+    }
+
+    private List<NextActionChoice> GenerateNextActionChoices(ParsedIntentResult intent, object? resultData)
+    {
+        var choices = new List<NextActionChoice>();
+        var entityName = intent.Entities?.GetValueOrDefault("name") ?? intent.Entities?.GetValueOrDefault("employee_name");
+        var deptName = intent.Entities?.GetValueOrDefault("department");
+
+        switch (intent.ParsedIntentType)
+        {
+            case IntentType.EMPLOYEE_READ:
+                if (!string.IsNullOrWhiteSpace(deptName))
+                {
+                    choices.Add(new NextActionChoice
+                    {
+                        Id = "view_dept_employees",
+                        Label = $"View {deptName} Employees",
+                        ActionType = "NAVIGATE",
+                        TargetTab = "employees",
+                        Context = new Dictionary<string, string> { { "department", deptName } }
+                    });
+                    choices.Add(new NextActionChoice
+                    {
+                        Id = "view_directory",
+                        Label = "Open Employee Directory",
+                        ActionType = "NAVIGATE",
+                        TargetTab = "employees"
+                    });
+                    choices.Add(new NextActionChoice
+                    {
+                        Id = "view_employee_details",
+                        Label = "View Employee Details",
+                        ActionType = "EXECUTE_PROMPT",
+                        PromptToExecute = string.IsNullOrWhiteSpace(entityName) ? $"Find employee records for {deptName} and show current designation and salary" : $"Find employee records for {entityName} and show current designation and salary"
+                    });
+                    choices.Add(new NextActionChoice
+                    {
+                        Id = "export_employee_list",
+                        Label = "Export Employee List",
+                        ActionType = "EXECUTE_PROMPT",
+                        PromptToExecute = $"Calculate average employee salary in the {deptName} department"
+                    });
+                }
+                else
+                {
+                    choices.Add(new NextActionChoice
+                    {
+                        Id = "view_directory",
+                        Label = string.IsNullOrWhiteSpace(entityName) ? "Open Employee Directory" : $"View {entityName} in Directory",
+                        ActionType = "NAVIGATE",
+                        TargetTab = "employees",
+                        Context = new Dictionary<string, string> { { "highlightName", entityName ?? "" } }
+                    });
+                    choices.Add(new NextActionChoice
+                    {
+                        Id = "compensation_review",
+                        Label = "Review Department Compensation",
+                        ActionType = "EXECUTE_PROMPT",
+                        PromptToExecute = "Calculate average employee salary in the Engineering department"
+                    });
+                    choices.Add(new NextActionChoice
+                    {
+                        Id = "export_workforce",
+                        Label = "View Workforce Overview",
+                        ActionType = "EXECUTE_PROMPT",
+                        PromptToExecute = "Show an executive overview of active workforce metrics and department headcount"
+                    });
+                }
+                break;
+
+            case IntentType.EMPLOYEE_PROMOTE:
+            case IntentType.EMPLOYEE_TRANSFER:
+                bool isAppoint = intent.Entities?.GetValueOrDefault("appointment_type") == "Leadership Appointment" ||
+                                 (intent.Entities?.ContainsKey("role") == true && intent.Entities["role"].Contains("Head", StringComparison.OrdinalIgnoreCase));
+                if (isAppoint)
+                {
+                    choices.Add(new NextActionChoice
+                    {
+                        Id = "view_profile",
+                        Label = string.IsNullOrWhiteSpace(entityName) ? "View Leadership Profile" : $"View {entityName}'s Profile",
+                        ActionType = "NAVIGATE",
+                        TargetTab = "employees",
+                        Context = new Dictionary<string, string> { { "highlightName", entityName ?? "" } }
+                    });
+                    if (!string.IsNullOrWhiteSpace(deptName))
+                    {
+                        choices.Add(new NextActionChoice
+                        {
+                            Id = "open_department",
+                            Label = $"Open {deptName} Department",
+                            ActionType = "NAVIGATE",
+                            TargetTab = "departments",
+                            Context = new Dictionary<string, string> { { "department", deptName } }
+                        });
+                    }
+                    choices.Add(new NextActionChoice
+                    {
+                        Id = "view_dept_structure",
+                        Label = "View Updated Department Structure",
+                        ActionType = "NAVIGATE",
+                        TargetTab = "departments"
+                    });
+                }
+                else
+                {
+                    choices.Add(new NextActionChoice
+                    {
+                        Id = "view_directory",
+                        Label = string.IsNullOrWhiteSpace(entityName) ? "Open Employee Directory" : $"View {entityName} in Directory",
+                        ActionType = "NAVIGATE",
+                        TargetTab = "employees",
+                        Context = new Dictionary<string, string> { { "highlightName", entityName ?? "" } }
+                    });
+                    choices.Add(new NextActionChoice
+                    {
+                        Id = "open_departments",
+                        Label = "Open Departments & Budgets",
+                        ActionType = "NAVIGATE",
+                        TargetTab = "departments"
+                    });
+                }
+                break;
+
+            case IntentType.EMPLOYEE_UPDATE:
+            case IntentType.EMPLOYEE_CREATE:
+            case IntentType.EMPLOYEE_ONBOARDING:
+            case IntentType.UPDATE_SALARY:
+                choices.Add(new NextActionChoice
+                {
+                    Id = "view_directory",
+                    Label = string.IsNullOrWhiteSpace(entityName) ? "Open Employee Directory" : $"View {entityName} in Directory",
+                    ActionType = "NAVIGATE",
+                    TargetTab = "employees",
+                    Context = new Dictionary<string, string> { { "highlightName", entityName ?? "" } }
+                });
+                choices.Add(new NextActionChoice
+                {
+                    Id = "compensation_review",
+                    Label = "Review Department Compensation",
+                    ActionType = "EXECUTE_PROMPT",
+                    PromptToExecute = $"Calculate average employee salary in the {deptName ?? "Engineering"} department"
+                });
+                choices.Add(new NextActionChoice
+                {
+                    Id = "export_workforce",
+                    Label = "View Workforce Overview",
+                    ActionType = "EXECUTE_PROMPT",
+                    PromptToExecute = "Show an executive overview of active workforce metrics and department headcount"
+                });
+                break;
+
+            case IntentType.POLICY_READ:
+            case IntentType.POLICY_CREATE:
+            case IntentType.POLICY_UPDATE:
+                var polCode = intent.Entities?.GetValueOrDefault("policyCode") ?? "POL-HR-001";
+                choices.Add(new NextActionChoice
+                {
+                    Id = "open_policy_center",
+                    Label = "Open HR Policy Center",
+                    ActionType = "NAVIGATE",
+                    TargetTab = "policies",
+                    Context = new Dictionary<string, string> { { "policyCode", polCode } }
+                });
+                choices.Add(new NextActionChoice
+                {
+                    Id = "view_official_pdf",
+                    Label = "View Official PDF Document",
+                    ActionType = "OPEN_URL",
+                    Url = "/documents/HR_Policies_Comprehensive.pdf"
+                });
+                choices.Add(new NextActionChoice
+                {
+                    Id = "check_meal_policy",
+                    Label = "Check Meal Policy Limit",
+                    ActionType = "EXECUTE_PROMPT",
+                    PromptToExecute = "What is the maximum reimbursement limit for business meals under company policy?"
+                });
+                break;
+
+            case IntentType.BUDGET_READ:
+            case IntentType.BUDGET_ANALYSIS:
+            case IntentType.BUDGET_UPDATE:
+            case IntentType.BUDGET_REALLOCATE:
+            case IntentType.BUDGET_FREEZE:
+                choices.Add(new NextActionChoice
+                {
+                    Id = "open_departments",
+                    Label = "Open Departments & Budgets",
+                    ActionType = "NAVIGATE",
+                    TargetTab = "departments"
+                });
+                choices.Add(new NextActionChoice
+                {
+                    Id = "unallocated_balance",
+                    Label = "Check Unallocated Pool Balance",
+                    ActionType = "EXECUTE_PROMPT",
+                    PromptToExecute = "Check remaining unallocated corporate budget pool balance"
+                });
+                choices.Add(new NextActionChoice
+                {
+                    Id = "variance_analysis",
+                    Label = "Analyze Department Variances",
+                    ActionType = "EXECUTE_PROMPT",
+                    PromptToExecute = "Highlight department budget variances exceeding 10% of allocation"
+                });
+                break;
+
+            case IntentType.TICKET_CREATE:
+            case IntentType.TICKET_READ:
+            case IntentType.TICKET_TRIAGE:
+            case IntentType.TICKET_UPDATE:
+                choices.Add(new NextActionChoice
+                {
+                    Id = "open_service_desk",
+                    Label = "Open Workplace Service Desk",
+                    ActionType = "NAVIGATE",
+                    TargetTab = "tickets"
+                });
+                choices.Add(new NextActionChoice
+                {
+                    Id = "view_open_tickets",
+                    Label = "Show Open Service Tickets",
+                    ActionType = "EXECUTE_PROMPT",
+                    PromptToExecute = "Show all open service desk tickets waiting for technician assignment"
+                });
+                choices.Add(new NextActionChoice
+                {
+                    Id = "new_hardware_req",
+                    Label = "Request Hardware for Sarah",
+                    ActionType = "EXECUTE_PROMPT",
+                    PromptToExecute = "Need MacBook Pro M3 and AWS VPN access for new hire Sarah in DevOps"
+                });
+                break;
+
+            case IntentType.CV_SCREEN:
+                choices.Add(new NextActionChoice
+                {
+                    Id = "open_cv_screen",
+                    Label = "Open Candidate CV Screening",
+                    ActionType = "NAVIGATE",
+                    TargetTab = "cv"
+                });
+                choices.Add(new NextActionChoice
+                {
+                    Id = "interview_questions",
+                    Label = "Generate Interview Questions",
+                    ActionType = "EXECUTE_PROMPT",
+                    PromptToExecute = "Generate interview question recommendations based on candidate CV"
+                });
+                choices.Add(new NextActionChoice
+                {
+                    Id = "check_salary_band",
+                    Label = "Check Experience vs Salary Band",
+                    ActionType = "EXECUTE_PROMPT",
+                    PromptToExecute = "Check candidate years of experience against department salary band"
+                });
+                break;
+
+            case IntentType.APPROVAL_READ:
+            case IntentType.APPROVAL_ACTION:
+                choices.Add(new NextActionChoice
+                {
+                    Id = "open_approval_center",
+                    Label = "Open HR Approval Center",
+                    ActionType = "NAVIGATE",
+                    TargetTab = "approvals"
+                });
+                choices.Add(new NextActionChoice
+                {
+                    Id = "view_pending_queue",
+                    Label = "Show Pending Action Requests",
+                    ActionType = "EXECUTE_PROMPT",
+                    PromptToExecute = "Show all pending HR action requests requiring manager authorization"
+                });
+                break;
+
+            case IntentType.EXPENSE_READ:
+            case IntentType.EXPENSE_COMPLIANCE:
+            case IntentType.EXPENSE_CREATE:
+            case IntentType.EXPENSE_APPROVE:
+                choices.Add(new NextActionChoice
+                {
+                    Id = "open_expense_review",
+                    Label = "Open Expense Review & Compliance",
+                    ActionType = "NAVIGATE",
+                    TargetTab = "expenses"
+                });
+                choices.Add(new NextActionChoice
+                {
+                    Id = "filter_violations",
+                    Label = "Filter Policy Violations",
+                    ActionType = "EXECUTE_PROMPT",
+                    PromptToExecute = "Filter expense claims by Policy Violation"
+                });
+                break;
+
+            case IntentType.WORKFLOW_EXECUTE:
+            case IntentType.EXECUTE_AUTOMATION:
+                choices.Add(new NextActionChoice
+                {
+                    Id = "view_activity_history",
+                    Label = "View Activity History",
+                    ActionType = "NAVIGATE",
+                    TargetTab = "audit"
+                });
+                choices.Add(new NextActionChoice
+                {
+                    Id = "filter_log_dept",
+                    Label = "Filter Activity Log for Engineering",
+                    ActionType = "EXECUTE_PROMPT",
+                    PromptToExecute = "Filter activity log by affected department: Engineering"
+                });
+                break;
+
+            case IntentType.AUDIT_READ:
+            case IntentType.SECURITY_TEST:
+                choices.Add(new NextActionChoice
+                {
+                    Id = "open_audit_log",
+                    Label = "Open Activity History",
+                    ActionType = "NAVIGATE",
+                    TargetTab = "audit"
+                });
+                choices.Add(new NextActionChoice
+                {
+                    Id = "filter_log_dept",
+                    Label = "Filter Activity by Department",
+                    ActionType = "EXECUTE_PROMPT",
+                    PromptToExecute = "Filter activity log for changes made to the IT Department"
+                });
+                break;
+
+            case IntentType.DASHBOARD_ANALYTICS:
+            default:
+                choices.Add(new NextActionChoice
+                {
+                    Id = "open_dashboard",
+                    Label = "Open Workforce Dashboard",
+                    ActionType = "NAVIGATE",
+                    TargetTab = "dashboard"
+                });
+                choices.Add(new NextActionChoice
+                {
+                    Id = "view_workforce_dist",
+                    Label = "View Workforce Distribution",
+                    ActionType = "EXECUTE_PROMPT",
+                    PromptToExecute = "Show workforce distribution across all active company departments"
+                });
+                choices.Add(new NextActionChoice
+                {
+                    Id = "open_directory",
+                    Label = "Open Employee Directory",
+                    ActionType = "NAVIGATE",
+                    TargetTab = "employees"
+                });
+                break;
+        }
+
+        return choices;
     }
 
     private static string ComputeSha256Hash(string rawData)

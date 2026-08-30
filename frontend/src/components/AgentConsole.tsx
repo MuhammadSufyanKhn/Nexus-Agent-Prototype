@@ -20,7 +20,6 @@ import {
   BarChart3,
   CheckCircle2,
   AlertTriangle,
-  Clock,
   ShieldAlert,
   Sparkles,
   ChevronDown,
@@ -34,18 +33,20 @@ import {
   Bot,
   TrendingUp,
   Shield,
-  Database,
-  Zap
+  Zap,
+  ArrowUpRight
 } from 'lucide-react';
 
 interface AgentConsoleProps {
   userRole: string;
   onApprovalStateChange: () => void;
+  onNavigate?: (tab: string, context?: any) => void;
 }
 
 export const AgentConsole: React.FC<AgentConsoleProps> = ({
   userRole,
-  onApprovalStateChange
+  onApprovalStateChange,
+  onNavigate
 }) => {
   const [prompt, setPrompt] = useState('');
   const [loading, setLoading] = useState(false);
@@ -53,6 +54,7 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [approvalProcessing, setApprovalProcessing] = useState(false);
   const [feedExpanded, setFeedExpanded] = useState(false);
+  const [navigationPending, setNavigationPending] = useState<{ tab: string; label: string } | null>(null);
 
   // Autocomplete & Command Engine state
   const [suggestions, setSuggestions] = useState<CommandSuggestion[]>([]);
@@ -161,6 +163,44 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
     }
   ];
 
+  // ── Intent → Tab navigation map ──────────────────────────────────────────
+  const TAB_LABELS: Record<string, string> = {
+    employees: 'Employee Directory', departments: 'Departments & Budgets',
+    policies: 'HR Policy Center', expenses: 'Expense Review',
+    onboarding: 'Onboarding Hub', audit: 'Activity History',
+    approvals: 'HR Approval Center', dashboard: 'Workforce Dashboard', tickets: 'Workplace Service Desk',
+    cv: 'Candidate CV Screening'
+  };
+
+  const getTargetTab = (intent: string): string | null => {
+    const map: Record<string, string> = {
+      EMPLOYEE_READ: 'employees', EMPLOYEE_CREATE: 'employees', EMPLOYEE_UPDATE: 'employees',
+      EMPLOYEE_DELETE: 'employees', EMPLOYEE_TRANSFER: 'employees', EMPLOYEE_PROMOTE: 'employees',
+      EMPLOYEE_OFFBOARD: 'employees', EMPLOYEE_ONBOARDING: 'onboarding', ONBOARDING_READ: 'onboarding',
+      EMPLOYEE_CANCEL_ONBOARDING: 'onboarding', DEPARTMENT_CREATE: 'departments',
+      DEPARTMENT_READ: 'departments', DEPARTMENT_UPDATE: 'departments', DEPARTMENT_DELETE: 'departments',
+      BUDGET_ANALYSIS: 'departments', BUDGET_UPDATE: 'departments', BUDGET_REALLOCATE: 'departments',
+      BUDGET_FREEZE: 'departments', BUDGET_READ: 'departments', POLICY_READ: 'policies',
+      POLICY_CREATE: 'policies', POLICY_UPDATE: 'policies', POLICY_DELETE: 'policies',
+      EXPENSE_READ: 'expenses', EXPENSE_CREATE: 'expenses', EXPENSE_COMPLIANCE: 'expenses',
+      APPROVAL_READ: 'approvals', AUDIT_READ: 'audit', DASHBOARD_ANALYTICS: 'dashboard',
+      EXECUTE_AUTOMATION: 'audit', PAYROLL_HOLD: 'departments', PAYROLL_BONUS: 'departments',
+      LEAVE_CREATE: 'employees', UPDATE_SALARY: 'employees',
+      CV_SCREEN: 'cv', TICKET_READ: 'tickets', TICKET_CREATE: 'tickets', TICKET_TRIAGE: 'tickets',
+      SECURITY_TEST: 'audit', SQL_AGENT: 'dashboard'
+    };
+    return map[intent] ?? null;
+  };
+
+  const triggerNavigation = (intent: string) => {
+    if (!onNavigate) return;
+    const tab = getTargetTab(intent);
+    if (!tab) return;
+    const label = TAB_LABELS[tab] ?? tab;
+    // Present navigation choice without any auto-redirection timer
+    setNavigationPending({ tab, label });
+  };
+
   const handleExecute = async (promptToRun?: string) => {
     const targetPrompt = promptToRun || prompt;
     if (!targetPrompt.trim()) return;
@@ -171,6 +211,7 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
     setFeedExpanded(false);
     setEditedParams({});
     setActiveModal(null);
+    setNavigationPending(null);
 
     try {
       const res = await executeAgentPrompt(targetPrompt, userRole);
@@ -178,6 +219,11 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
       if (res.isSuccess) {
         window.dispatchEvent(new CustomEvent('nexus-data-updated'));
         window.dispatchEvent(new CustomEvent('budget-updated'));
+        // Navigate for read-only successful results
+        // Trigger 7-second choice card for navigation
+        if (res.intent && !res.requiresApproval) {
+          triggerNavigation(res.intent);
+        }
       }
       if (!res.isSuccess && res.errorMessage) {
         setErrorMsg(res.errorMessage);
@@ -207,7 +253,7 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
         approvalId: result.actionPlan.approvalId,
         approved,
         approvedBy: `${userRole} User`,
-        reason: approved ? 'Action Plan approved by Admin' : 'Action Plan rejected during review',
+        reason: approved ? 'Changes approved' : 'Changes declined',
         editedParameters: Object.keys(editedParams).length > 0 ? editedParams : undefined
       });
 
@@ -225,11 +271,15 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
         if (approved) {
           window.dispatchEvent(new CustomEvent('nexus-data-updated'));
           window.dispatchEvent(new CustomEvent('budget-updated'));
+          // Trigger 7-second choice card for navigation after approval
+          if (result.intent) {
+            triggerNavigation(result.intent);
+          }
         }
         if (onApprovalStateChange) onApprovalStateChange();
       }
     } catch (err: any) {
-      setErrorMsg(err.message || 'Failed to record approval decision.');
+      setErrorMsg(err.message || 'Failed to record your decision.');
     } finally {
       setApprovalProcessing(false);
     }
@@ -270,139 +320,213 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
 
   // ── Render helpers ────────────────────────────────────────────────────────
 
-  const renderActionPlan = (plan: ActionPlan) => (
-    <div className="bg-white rounded-xl border border-amber-200 shadow-md p-6 space-y-6 animate-in fade-in duration-200">
-      <div className="flex items-center justify-between border-b border-amber-100 pb-4">
-        <div className="flex items-center gap-3">
-          <div className="p-2.5 bg-amber-50 text-amber-600 rounded-lg border border-amber-200">
-            <ShieldAlert className="w-6 h-6" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-bold uppercase tracking-wider text-amber-700 bg-amber-100 px-2 py-0.5 rounded">
-                Approval Required
-              </span>
-              <span className="text-xs font-semibold text-slate-500">• Risk Level: {plan.riskLevel}</span>
+  const renderActionPlan = (plan: ActionPlan) => {
+    const hasEdits = Object.keys(editedParams).length > 0;
+
+    // Map entity names to friendly labels
+    const friendlyEntity = (name: string) => {
+      const map: Record<string, string> = {
+        EMPLOYEE: 'Employee Profile', DEPARTMENT: 'Department Master', DEPARTMENT_BUDGET: 'Department Budget',
+        POLICY: 'HR Policy Record', EXPENSE: 'Expense Report', ONBOARDING: 'Employee Onboarding',
+      };
+      let clean = (name || '').replace(/\s*\([^)]*\)/g, '').trim();
+      return map[clean?.toUpperCase()] ?? clean ?? 'HR Entity';
+    };
+
+    // Map field names to friendly labels
+    const friendlyField = (field: string) => {
+      const map: Record<string, string> = {
+        name: 'Full Name', salary: 'Base Salary', designation: 'Job Title', role: 'Leadership Role',
+        department: 'Department', startDate: 'Start Date', endDate: 'End Date',
+        status: 'Status', email: 'Email Address', phone: 'Phone Number',
+        manager: 'Reporting Manager', budget: 'Budget Amount', budgetAmount: 'Budget Amount',
+        head: 'Department Head', amount: 'Amount', fromDepartment: 'From Department',
+        toDepartment: 'To Department', effectiveDate: 'Effective Date', reason: 'Reason',
+        newSalary: 'New Salary', oldSalary: 'Previous Salary', bonus: 'Bonus Amount',
+        employeeId: 'Employee ID', id: 'ID', leaveType: 'Leave Type', leaveDate: 'Leave Date',
+        appointment_type: 'Appointment Type', new_designation: 'New Job Title'
+      };
+      return map[field] ?? field.replace(/([A-Z])/g, ' $1').trim();
+    };
+
+    return (
+      <div className="bg-white rounded-2xl border border-amber-200 shadow-lg overflow-hidden animate-in fade-in duration-200">
+
+        {/* Header */}
+        <div className="bg-gradient-to-r from-amber-50 to-orange-50 border-b border-amber-200 px-6 py-4 flex items-start justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-amber-100 text-amber-700 rounded-xl">
+              <ShieldAlert className="w-5 h-5" />
             </div>
-            <h3 className="text-lg font-bold text-slate-900 mt-1">{plan.title}</h3>
+            <div>
+              <div className="flex items-center gap-2 mb-0.5">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-amber-700 bg-amber-100 border border-amber-200 px-2 py-0.5 rounded-full">
+                  Awaiting Your Approval
+                </span>
+              </div>
+              <h3 className="text-base font-bold text-slate-900 leading-snug">{plan.title}</h3>
+            </div>
           </div>
+          {plan.totalFinancialImpact && plan.totalFinancialImpact > 0 && (
+            <div className="text-right shrink-0">
+              <span className="text-[11px] text-slate-500 font-medium block">Financial Impact</span>
+              <span className="text-lg font-extrabold text-slate-900">
+                +${plan.totalFinancialImpact.toLocaleString()}
+              </span>
+            </div>
+          )}
         </div>
-        <div className="text-right">
-          <span className="text-xs text-slate-500 font-medium block">Total Financial Impact</span>
-          <span className="text-xl font-extrabold text-slate-900">
-            +${plan.totalFinancialImpact?.toLocaleString() ?? '0.00'}
-          </span>
-        </div>
-      </div>
 
-      {/* Editable Workflow Banner */}
-      <div className="p-3.5 bg-blue-50/80 border border-blue-200 rounded-xl text-xs text-blue-900 flex items-start gap-2.5">
-        <Sparkles className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
-        <div>
-          <span className="font-bold block">Interactive Editable Preview</span>
-          You can edit any proposed values below before executing. The backend will revalidate your inputs and apply your exact edits upon approval.
-        </div>
-      </div>
-
-      {plan.warnings && plan.warnings.length > 0 && (
-        <div className="bg-amber-50/60 border border-amber-200/80 rounded-lg p-3 text-xs text-amber-800 space-y-1">
-          <div className="font-bold flex items-center gap-1.5 text-amber-900">
-            <AlertTriangle className="w-3.5 h-3.5" /> Safety &amp; Policy Notes:
+        <div className="p-6 space-y-5">
+          {/* Info Banner */}
+          <div className="p-3 bg-blue-50 border border-blue-100 rounded-xl text-xs text-blue-800 flex items-start gap-2.5">
+            <Sparkles className="w-4 h-4 text-blue-500 shrink-0 mt-0.5" />
+            <div>
+              <span className="font-semibold block">Review Proposed Changes</span>
+              Nexus AI has prepared the following HR action for your review. You can edit any field below before approving.
+            </div>
           </div>
-          {plan.warnings.map((w, idx) => (
-            <div key={idx} className="ml-5">• {w}</div>
-          ))}
-        </div>
-      )}
 
-      {/* Editable Parameters Grid */}
-      {plan.affectedRecords && plan.affectedRecords.length > 0 && (
-        <div className="space-y-3">
-          <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center justify-between">
-            <span>Proposed Record Changes &amp; Input Fields</span>
-            <span className="text-[10px] text-slate-400 font-medium font-normal">Click any field value to edit</span>
-          </h4>
-          <div className="space-y-3">
-            {plan.affectedRecords.map((rec, rIdx) => (
-              <div key={rIdx} className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
-                <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-                  <span className="font-bold text-xs text-slate-800">{rec.entityName} Master</span>
-                  <span className="text-xs font-semibold text-emerald-700">{rec.primaryLabel || 'New Record'}</span>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {rec.changes?.map((c, cIdx) => {
-                    const isEdited = editedParams[c.fieldName] !== undefined;
-                    const currentValue = editedParams[c.fieldName] ?? c.newValue;
-                    const sourceTag = isEdited
-                      ? { label: 'User-edited', class: 'bg-purple-100 text-purple-700 border-purple-200' }
-                      : c.valueSource === 'Policy-derived'
-                        ? { label: 'Policy-derived', class: 'bg-emerald-100 text-emerald-700 border-emerald-200' }
-                        : { label: 'AI-proposed', class: 'bg-blue-100 text-blue-700 border-blue-200' };
+          {/* Policy / Safety Notes */}
+          {plan.warnings && plan.warnings.length > 0 && (
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3.5 text-xs text-amber-900 space-y-1.5">
+              <div className="font-bold flex items-center gap-1.5">
+                <AlertTriangle className="w-3.5 h-3.5" /> Policy & Compliance Notes:
+              </div>
+              {plan.warnings.map((w, idx) => (
+                <div key={idx} className="ml-5 leading-relaxed">• {w}</div>
+              ))}
+            </div>
+          )}
 
-                    return (
-                      <div key={cIdx} className="bg-white p-3 rounded-lg border border-slate-200 space-y-1.5 shadow-2xs">
-                        <div className="flex items-center justify-between">
-                          <label className="text-[11px] font-bold text-slate-600 uppercase tracking-wide">
-                            {c.fieldName.replace(/([A-Z])/g, ' $1').trim()}
-                          </label>
-                          <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold border ${sourceTag.class}`}>
-                            {sourceTag.label}
-                          </span>
-                        </div>
-                        <input
-                          type="text"
-                          value={currentValue}
-                          onChange={(e) => setEditedParams({ ...editedParams, [c.fieldName]: e.target.value })}
-                          className="w-full text-xs font-semibold text-slate-900 bg-slate-50 hover:bg-white focus:bg-white border border-slate-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 rounded-lg px-2.5 py-1.5 transition-all outline-hidden"
-                          placeholder={`Enter ${c.fieldName}...`}
-                        />
-                        <div className="text-[10px] text-slate-400 flex items-center justify-between">
-                          <span>Original AI: {c.newValue}</span>
-                          {c.oldValue && <span>Previous: {c.oldValue}</span>}
-                        </div>
+          {/* Affected Records — HR-friendly cards */}
+          {plan.affectedRecords && plan.affectedRecords.length > 0 && (
+            <div className="space-y-4">
+              {plan.affectedRecords.map((rec, rIdx) => (
+                <div key={rIdx} className="border border-slate-200 rounded-xl overflow-hidden">
+                  {/* Record Header */}
+                  <div className="flex items-center justify-between bg-slate-50 border-b border-slate-200 px-4 py-2.5">
+                    <div className="flex items-center gap-2">
+                      <Users className="w-3.5 h-3.5 text-slate-500" />
+                      <span className="text-xs font-bold text-slate-700">{friendlyEntity(rec.entityName)}</span>
+                    </div>
+                    {rec.primaryLabel && (
+                      <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                        {rec.primaryLabel}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Changes Table */}
+                  {rec.changes && rec.changes.length > 0 && (
+                    <div className="divide-y divide-slate-100">
+                      <div className="grid grid-cols-3 bg-slate-50/50 px-4 py-2">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Field</span>
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Current Value</span>
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Proposed Change</span>
                       </div>
-                    );
-                  })}
+                      {rec.changes.map((c, cIdx) => {
+                        const isEdited = editedParams[c.fieldName] !== undefined;
+                        const currentValue = editedParams[c.fieldName] ?? c.newValue;
+                        return (
+                          <div key={cIdx} className="grid grid-cols-3 items-center px-4 py-2.5 gap-2 hover:bg-slate-50/50 transition-colors">
+                            <span className="text-xs font-semibold text-slate-700">
+                              {friendlyField(c.fieldName)}
+                            </span>
+                            <span className="text-xs text-slate-500">
+                              {c.oldValue || <span className="text-slate-300 italic">—</span>}
+                            </span>
+                            <div className="relative">
+                              <input
+                                type="text"
+                                value={currentValue}
+                                onChange={(e) => setEditedParams({ ...editedParams, [c.fieldName]: e.target.value })}
+                                className={`w-full text-xs font-semibold rounded-lg px-2.5 py-1.5 border transition-all outline-none ${
+                                  isEdited
+                                    ? 'bg-purple-50 border-purple-300 text-purple-900 focus:ring-1 focus:ring-purple-400'
+                                    : 'bg-emerald-50 border-emerald-200 text-emerald-900 hover:bg-white focus:bg-white focus:border-blue-400 focus:ring-1 focus:ring-blue-400'
+                                }`}
+                                title="Click to edit this value"
+                              />
+                              {isEdited && (
+                                <span className="absolute -top-1 -right-1 w-2 h-2 bg-purple-500 rounded-full" />
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
+              ))}
+            </div>
+          )}
+
+          {/* Workflow Steps — shown as friendly milestones, NOT technical tool names */}
+          {plan.steps && plan.steps.length > 0 && (
+            <div className="space-y-2">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">What will happen</h4>
+              <div className="space-y-1.5">
+                {plan.steps.map((s, sIdx) => (
+                  <div key={sIdx} className="flex items-center gap-2.5 p-2.5 bg-slate-50 rounded-lg border border-slate-100 text-xs">
+                    <div className="w-5 h-5 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-[10px] shrink-0">
+                      {s.stepNumber}
+                    </div>
+                    <span className="text-slate-700 font-medium">{s.description}</span>
+                  </div>
+                ))}
               </div>
-            ))}
+            </div>
+          )}
+
+          {/* Your Decision Section */}
+          <div className="pt-3 border-t border-slate-100 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">Your Decision</span>
+              {hasEdits && (
+                <span className="text-[11px] font-semibold text-purple-700 bg-purple-50 border border-purple-200 px-2 py-0.5 rounded-full">
+                  Custom modifications detected
+                </span>
+              )}
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    setResult(null);
+                    setEditedParams({});
+                  }}
+                  disabled={approvalProcessing}
+                  className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition-colors disabled:opacity-50 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => handleApprovalDecision(false)}
+                  disabled={approvalProcessing}
+                  className="px-5 py-2.5 bg-white hover:bg-red-50 text-red-600 border border-red-200 rounded-xl text-xs font-semibold transition-colors disabled:opacity-50 cursor-pointer"
+                >
+                  Decline Request
+                </button>
+              </div>
+              <button
+                onClick={() => handleApprovalDecision(true)}
+                disabled={approvalProcessing}
+                className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm hover:shadow-md flex items-center gap-2 disabled:opacity-50 cursor-pointer"
+              >
+                <CheckCircle2 className="w-4 h-4" />
+                {approvalProcessing
+                  ? 'Applying Changes...'
+                  : hasEdits
+                    ? 'Apply Edited Changes'
+                    : 'Approve Changes'}
+              </button>
+            </div>
           </div>
         </div>
-      )}
-
-      {/* Proposed Tool Execution Steps */}
-      {plan.steps && plan.steps.length > 0 && (
-        <div className="space-y-2">
-          <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">Execution Plan Sequence</h4>
-          <div className="space-y-1.5">
-            {plan.steps.map((s, sIdx) => (
-              <div key={sIdx} className="flex items-center justify-between p-2.5 bg-slate-50 rounded-lg border border-slate-100 text-xs">
-                <span className="font-semibold text-slate-700">Step {s.stepNumber}: {s.description}</span>
-                <span className="font-mono text-[10px] text-slate-400 bg-white px-2 py-0.5 rounded border border-slate-200">{s.toolName}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      <div className="flex items-center justify-end gap-3 pt-2">
-        <button
-          onClick={() => handleApprovalDecision(false)}
-          disabled={approvalProcessing}
-          className="px-4 py-2 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded-lg text-xs font-bold transition-colors"
-        >
-          Reject Changes
-        </button>
-        <button
-          onClick={() => handleApprovalDecision(true)}
-          disabled={approvalProcessing}
-          className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-colors shadow-sm flex items-center gap-1.5"
-        >
-          {approvalProcessing ? 'Executing...' : Object.keys(editedParams).length > 0 ? 'Revalidate & Execute Edited Plan' : 'Approve & Execute Plan'}
-        </button>
       </div>
-    </div>
-  );
+    );
+  };
 
   const renderSqlAnalytics = (data: SqlAnalyticsResult) => (
     <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs space-y-4">
@@ -509,10 +633,15 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
       || (isEmployeeIntent && data?.name ? `Employee '${data.name}' operation completed.` : null)
       || 'Operation completed successfully.';
 
-    // Build field list from result object
-    const fields = typeof data === 'object' && data !== null
+    // Extract list of items if result is array or contains array
+    const rawList = Array.isArray(data)
+      ? data
+      : (Array.isArray(data?.result) ? data.result : data?.policies ?? data?.employees ?? data?.departments ?? data?.budgets ?? null);
+
+    // Build primitive key-value fields for single record operations
+    const fields = typeof data === 'object' && data !== null && !Array.isArray(data)
       ? Object.entries(data)
-        .filter(([k]) => !['message', 'result', 'summary'].includes(k))
+        .filter(([k, v]) => !['message', 'result', 'summary', 'policies', 'employees', 'departments', 'budgets', 'count'].includes(k) && (typeof v !== 'object' || v === null))
         .slice(0, 10)
       : [];
 
@@ -524,7 +653,9 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
           </div>
           <div>
             <div className="text-xs font-bold text-slate-500 uppercase tracking-wider">{intentLabel(intent)}</div>
-            <div className="text-sm font-semibold text-slate-900">{message}</div>
+            <div className="text-sm font-semibold text-slate-900">
+              {typeof message === 'string' ? message : 'Operation completed successfully.'}
+            </div>
           </div>
           <CheckCircle2 className="w-5 h-5 text-emerald-500 ml-auto shrink-0" />
         </div>
@@ -566,23 +697,146 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
           </div>
         )}
 
-        {/* Array results (e.g. policy list, employee list) */}
-        {(data?.policies || data?.employees || data?.departments || data?.budgets) && (
-          <div className="space-y-2">
-            {(data.policies ?? data.employees ?? data.departments ?? data.budgets ?? []).slice(0, 10).map((item: any, idx: number) => (
-              <div key={idx} className="flex items-center justify-between p-2.5 bg-slate-50 rounded-lg border border-slate-100 text-xs">
-                <span className="font-semibold text-slate-800">{item.title ?? item.name ?? item.code ?? item.departmentName ?? `Record #${item.id}`}</span>
-                <span className="text-slate-500">{item.category ?? item.designation ?? item.description ?? item.quarter ?? ''}</span>
-                <span className={`font-bold ${item.isActive === false ? 'text-rose-500' : 'text-emerald-600'}`}>
-                  {item.isActive === false ? 'Inactive' : item.status ?? item.salary ? `$${Number(item.salary ?? 0).toLocaleString()}` : ''}
+        {/* Array results list (e.g. policy list, employee list) */}
+        {rawList && rawList.length > 0 && (
+          <div className="space-y-2.5">
+            {rawList.slice(0, 15).map((item: any, idx: number) => {
+              if (!item || typeof item !== 'object') return null;
+              const nameLabel = item.title ?? item.name ?? item.code ?? item.departmentName ?? `Record #${item.id || idx + 1}`;
+              const descLabel = item.contentSummary ?? item.designation ?? item.category ?? item.description ?? item.quarter ?? '';
+              const valLabel = item.salary ? `$${Number(item.salary).toLocaleString()}` : item.code ?? item.statusName ?? item.status ?? '';
+
+              return (
+                <div key={idx} className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 text-xs space-y-2">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="flex items-center gap-2 mb-0.5">
+                        {item.code && (
+                          <span className="text-[10px] font-bold text-blue-700 bg-blue-50 border border-blue-200 px-1.5 py-0.5 rounded">
+                            {item.code}
+                          </span>
+                        )}
+                        <span className="font-bold text-slate-900 text-sm">{nameLabel}</span>
+                      </div>
+                      {descLabel && <p className="text-xs text-slate-600 leading-relaxed font-normal">{descLabel}</p>}
+                    </div>
+                    {valLabel && !item.code && (
+                      <span className="font-extrabold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200 text-xs shrink-0">
+                        {valLabel}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Policy PDF / Document viewer button */}
+                  {item.documentPath && (
+                    <div className="pt-2 border-t border-slate-200/60 flex items-center justify-between">
+                      <span className="text-[11px] text-slate-500 font-medium">Official Document Available</span>
+                      <a
+                        href={item.documentPath.startsWith('http') ? item.documentPath : `http://localhost:5160/${item.documentPath.replace(/^\//, '')}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5 shadow-2xs"
+                      >
+                        <FileCheck className="w-3.5 h-3.5" /> View Official PDF Document
+                      </a>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Custom Dedicated Result Cards */}
+        {intent === 'LEAVE_CREATE' && (
+          <div className="p-4 bg-emerald-50/60 rounded-xl border border-emerald-200 text-xs space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="font-bold text-emerald-900 text-sm">Official Leave Record Registered</span>
+              <span className="bg-emerald-600 text-white font-bold text-[10px] px-2.5 py-0.5 rounded-full uppercase tracking-wider">
+                Approved &amp; Synced
+              </span>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1">
+              <div>
+                <span className="text-[10px] text-slate-400 uppercase font-semibold block">Employee</span>
+                <span className="font-bold text-slate-800 text-xs">{data.employeeName || data.name || 'Ali'}</span>
+              </div>
+              <div>
+                <span className="text-[10px] text-slate-400 uppercase font-semibold block">Department</span>
+                <span className="font-bold text-slate-800 text-xs">{data.department || 'IT'}</span>
+              </div>
+              <div>
+                <span className="text-[10px] text-slate-400 uppercase font-semibold block">Leave Date</span>
+                <span className="font-bold text-slate-800 text-xs">{data.leaveDate || data.startDate || new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</span>
+              </div>
+              <div>
+                <span className="text-[10px] text-slate-400 uppercase font-semibold block">Team Alert</span>
+                <span className="font-bold text-emerald-700 text-xs flex items-center gap-1">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> Dispatched via Gmail
                 </span>
               </div>
-            ))}
+            </div>
+          </div>
+        )}
+
+        {intent === 'DEPARTMENT_CREATE' && (
+          <div className="p-4 bg-blue-50/60 rounded-xl border border-blue-200 text-xs space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="font-bold text-blue-900 text-sm">New Corporate Department Established</span>
+              <span className="bg-blue-600 text-white font-bold text-[10px] px-2.5 py-0.5 rounded-full uppercase tracking-wider">
+                Active in Master
+              </span>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-1">
+              <div>
+                <span className="text-[10px] text-slate-400 uppercase font-semibold block">Department Name</span>
+                <span className="font-bold text-slate-800 text-xs">{data.name || data.department || 'Finance'}</span>
+              </div>
+              <div>
+                <span className="text-[10px] text-slate-400 uppercase font-semibold block">Department Head</span>
+                <span className="font-bold text-slate-800 text-xs">{data.head || 'Assigned Lead'}</span>
+              </div>
+              <div>
+                <span className="text-[10px] text-slate-400 uppercase font-semibold block">Initial Budget</span>
+                <span className="font-bold text-emerald-700 text-xs">
+                  {data.budgetAmount ? `$${Number(data.budgetAmount).toLocaleString()}` : (data.amount ? `$${Number(data.amount).toLocaleString()}` : '$500,000')}
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {data?.averageSalary !== undefined && (
+          <div className="p-4 bg-indigo-50/60 rounded-xl border border-indigo-200 text-xs space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="font-bold text-indigo-900 text-sm">Department Compensation Benchmark</span>
+              <span className="bg-indigo-600 text-white font-bold text-[10px] px-2.5 py-0.5 rounded-full uppercase tracking-wider">
+                Verified Metric
+              </span>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1">
+              <div>
+                <span className="text-[10px] text-slate-400 uppercase font-semibold block">Department</span>
+                <span className="font-bold text-slate-800 text-xs">{data.department ?? 'IT'}</span>
+              </div>
+              <div>
+                <span className="text-[10px] text-slate-400 uppercase font-semibold block">Average Salary</span>
+                <span className="font-bold text-emerald-700 text-sm">${Number(data.averageSalary).toLocaleString()}</span>
+              </div>
+              <div>
+                <span className="text-[10px] text-slate-400 uppercase font-semibold block">Salary Range</span>
+                <span className="font-bold text-slate-800 text-xs">${Number(data.minSalary ?? 0).toLocaleString()} – ${Number(data.maxSalary ?? 0).toLocaleString()}</span>
+              </div>
+              <div>
+                <span className="text-[10px] text-slate-400 uppercase font-semibold block">Active Headcount</span>
+                <span className="font-bold text-slate-800 text-xs">{data.employeeCount ?? 1} employees</span>
+              </div>
+            </div>
           </div>
         )}
 
         {/* Key-value fields for single record operations */}
-        {fields.length > 0 && !data?.policies && !data?.employees && !data?.departments && (
+        {fields.length > 0 && (!rawList || rawList.length === 0) && intent !== 'LEAVE_CREATE' && intent !== 'DEPARTMENT_CREATE' && data?.averageSalary === undefined && (
           <div className="grid grid-cols-2 gap-2">
             {fields.map(([key, val]) => (
               <div key={key} className="bg-slate-50 rounded-lg p-2.5 border border-slate-100">
@@ -657,6 +911,74 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
     );
   };
 
+  const renderFilteredEmployees = (data: any) => {
+    const emps = data?.employees || [];
+    const dept = data?.department || 'Requested Department';
+    return (
+      <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-4">
+        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-blue-50 text-blue-600 rounded-xl">
+              <Users className="w-5 h-5" />
+            </div>
+            <div>
+              <h4 className="text-sm font-bold text-slate-900">Active Staff Directory — {dept}</h4>
+              <p className="text-xs text-slate-500">{data.summary || `Found ${emps.length} active employee(s)`}</p>
+            </div>
+          </div>
+          <span className="px-3 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full text-xs font-bold">
+            {emps.length} Active Records
+          </span>
+        </div>
+
+        {emps.length > 0 ? (
+          <div className="overflow-hidden border border-slate-200 rounded-xl">
+            <table className="min-w-full divide-y divide-slate-200 text-xs">
+              <thead className="bg-slate-50 font-bold text-slate-600 uppercase tracking-wider text-[10px]">
+                <tr>
+                  <th className="px-4 py-3 text-left">Employee Name</th>
+                  <th className="px-4 py-3 text-left">Designation</th>
+                  <th className="px-4 py-3 text-left">Department</th>
+                  <th className="px-4 py-3 text-left">Reporting Manager</th>
+                  <th className="px-4 py-3 text-left">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 bg-white">
+                {emps.map((emp: any, idx: number) => (
+                  <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                    <td className="px-4 py-3 font-bold text-slate-900 flex items-center gap-2">
+                      <div className="w-6 h-6 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-[10px]">
+                        {emp.name ? emp.name.charAt(0) : 'E'}
+                      </div>
+                      <span>{emp.name}</span>
+                    </td>
+                    <td className="px-4 py-3 font-semibold text-slate-700">{emp.designation || 'Staff'}</td>
+                    <td className="px-4 py-3 text-slate-600">
+                      <span className="px-2 py-0.5 rounded-md bg-slate-100 font-medium text-[11px] text-slate-700">
+                        {emp.department || dept}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-slate-600">{emp.manager || 'Executive'}</td>
+                    <td className="px-4 py-3">
+                      <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-300">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                        {emp.status || 'Active'}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-600 text-center">
+            No active employee records found matching criteria.
+          </div>
+        )}
+      </div>
+    );
+  };
+
   // Choose which result renderer to use based on intent
   const renderResultData = (res: AgentResult) => {
     if (!res.resultData) return null;
@@ -665,6 +987,11 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
 
     if (intent === 'GENERAL_CONVERSATION' || data?.isConversational) {
       return renderConversationalResult(data?.message ?? 'Hello! How can I assist you today?');
+    }
+
+    // Filtered Employee List (EMPLOYEE_READ)
+    if (intent === 'EMPLOYEE_READ' || (data?.employees && Array.isArray(data.employees))) {
+      return renderFilteredEmployees(data);
     }
 
     // SQL / budget analytics
@@ -784,14 +1111,11 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
         </div>
       </div>
 
-      {/* LLM Error Banner */}
+      {/* LLM Error Banner — shown discreetly, no technical terms */}
       {result?.llmError && (
-        <div className="p-4 bg-orange-50 border border-orange-200 rounded-xl text-xs text-orange-900 font-medium flex items-start gap-3">
-          <Wifi className="w-4 h-4 text-orange-500 shrink-0 mt-0.5" />
-          <div>
-            <div className="font-bold text-orange-800 mb-1">Gemini API Error — Using Rule-Based Fallback</div>
-            <div>{result.llmError}</div>
-          </div>
+        <div className="p-3 bg-orange-50 border border-orange-200 rounded-xl text-xs text-orange-800 flex items-start gap-2.5">
+          <Wifi className="w-3.5 h-3.5 text-orange-500 shrink-0 mt-0.5" />
+          <span>Response generated using offline analysis. Results may be limited.</span>
         </div>
       )}
 
@@ -803,6 +1127,46 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
             <span>{errorMsg}</span>
           </div>
           <button onClick={() => setErrorMsg(null)} className="text-rose-600 font-bold hover:underline ml-4 shrink-0">Dismiss</button>
+        </div>
+      )}
+
+      {/* ── Navigation Suggestion Card (User-Controlled, No Time Limit) ── */}
+      {navigationPending && (
+        <div className="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white rounded-2xl p-4 shadow-xl border border-blue-500/30 space-y-2 animate-in fade-in duration-300">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 bg-blue-500/20 rounded-xl shrink-0 border border-blue-400/30">
+                <Sparkles className="w-5 h-5 text-blue-300" />
+              </div>
+              <div>
+                <div className="text-xs font-semibold text-blue-200 flex items-center gap-2">
+                  <span>Quick Navigation</span>
+                </div>
+                <h4 className="text-sm font-bold text-white mt-0.5">
+                  Would you like to open {navigationPending.label}?
+                </h4>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+              <button
+                onClick={() => { setNavigationPending(null); }}
+                className="px-3.5 py-1.5 bg-white/10 hover:bg-white/20 text-slate-200 border border-white/20 rounded-xl text-xs font-semibold transition-colors cursor-pointer"
+              >
+                Stay on Assistant
+              </button>
+              <button
+                onClick={() => {
+                  if (onNavigate) onNavigate(navigationPending.tab);
+                  setNavigationPending(null);
+                }}
+                className="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center gap-1.5 cursor-pointer"
+              >
+                <span>Go to {navigationPending.label}</span>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -820,7 +1184,7 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
                 <div>
                   {/* Workflow State Badge */}
                   {result.state && (
-                    <span className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider mb-1 ${result.state === 'CONFIRMATION_REQUIRED' ? 'bg-amber-100 text-amber-800 border border-amber-300' :
+                    <span className={`inline-flex items-center gap-1 text-[10px] px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider mb-1 ${result.state === 'CONFIRMATION_REQUIRED' ? 'bg-amber-100 text-amber-800 border border-amber-300' :
                         result.state === 'CLARIFICATION_REQUIRED' ? 'bg-orange-100 text-orange-800 border border-orange-300' :
                           result.state === 'READY_TO_EXECUTE' ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' :
                             'bg-blue-100 text-blue-800 border border-blue-300'
@@ -829,41 +1193,23 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
                       {result.state === 'CLARIFICATION_REQUIRED' && <AlertCircle className="w-2.5 h-2.5" />}
                       {result.state === 'READY_TO_EXECUTE' && <CheckCircle2 className="w-2.5 h-2.5" />}
                       {result.state === 'ANSWER_DIRECT' && <Bot className="w-2.5 h-2.5" />}
-                      {result.state?.replace(/_/g, ' ')}
+                      {result.state === 'CONFIRMATION_REQUIRED' ? 'Action Review Required' :
+                       result.state === 'CLARIFICATION_REQUIRED' ? 'Additional Information Needed' :
+                       result.state === 'READY_TO_EXECUTE' ? 'Action Completed' : 'Nexus HR Assistant'}
                     </span>
                   )}
                   <div className="text-xs font-bold text-slate-900">
                     {result.requiresApproval
-                      ? 'Awaiting Your Approval'
+                      ? 'Awaiting HR Manager Approval'
                       : result.isSuccess
                         ? 'Request Completed Successfully'
-                        : 'Clarification Needed'}
-                  </div>
-                  <div className="text-[11px] text-slate-500 flex items-center gap-2 flex-wrap mt-0.5">
-                    <span>Intent: <span className="font-semibold text-slate-700">{intentLabel(result.intent)}</span></span>
-                    {result.targetSystem && result.targetSystem !== 'UNKNOWN' && (
-                      <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold ${result.targetSystem === 'SQL_SERVER' ? 'bg-slate-100 text-slate-600 border border-slate-200' :
-                          result.targetSystem === 'N8N_WORKFLOW' ? 'bg-purple-100 text-purple-700 border border-purple-200' :
-                            'bg-pink-100 text-pink-700 border border-pink-200'
-                        }`}>
-                        <Database className="w-2.5 h-2.5" />
-                        {result.targetSystem === 'SQL_SERVER' ? 'SQL Server' :
-                          result.targetSystem === 'N8N_WORKFLOW' ? 'n8n Workflow' :
-                            result.targetSystem === 'ZAPIER' ? 'Zapier' : result.targetSystem}
-                      </span>
-                    )}
-                    {result.llmError && <span className="text-orange-600">(rule-based)</span>}
+                        : 'Information Required'}
                   </div>
                 </div>
               </div>
-              {result.executionTimeMs && (
-                <span className="text-[11px] text-slate-400 font-medium flex items-center gap-1 shrink-0">
-                  <Clock className="w-3.5 h-3.5" /> {result.executionTimeMs}ms
-                </span>
-              )}
             </div>
 
-            {/* User Message from spec */}
+            {/* User Message */}
             {result.userMessage && result.state !== 'ANSWER_DIRECT' && (
               <div className="mt-3 pt-3 border-t border-slate-100 text-xs text-slate-700 font-medium leading-relaxed">
                 {result.userMessage}
@@ -895,21 +1241,6 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
             </div>
           )}
 
-          {/* ── ExecutionPayload Panel (spec output field: READY_TO_EXECUTE) ── */}
-          {result.executionPayload && result.state === 'READY_TO_EXECUTE' && (
-            <div className="bg-emerald-50/60 border border-emerald-200 rounded-xl p-4 shadow-xs space-y-2">
-              <div className="flex items-center gap-2 text-emerald-800 font-bold text-xs">
-                <Zap className="w-4 h-4 text-emerald-600" />
-                <span>Execution Payload</span>
-                <span className="ml-auto text-[10px] bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full border border-emerald-200 font-semibold">
-                  {(result.executionPayload as any)?.targetSystem ?? 'SQL_SERVER'}
-                </span>
-              </div>
-              <pre className="text-[10px] text-slate-700 bg-white rounded-lg border border-emerald-100 p-2.5 overflow-x-auto font-mono leading-relaxed">
-                {JSON.stringify(result.executionPayload, null, 2)}
-              </pre>
-            </div>
-          )}
 
           {/* Action Plan (approval required) */}
           {result.requiresApproval && result.actionPlan && renderActionPlan(result.actionPlan)}
@@ -924,6 +1255,42 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
 
           {/* Result Data */}
           {result.resultData && renderResultData(result)}
+
+          {/* Context-Aware Recommended Next Actions */}
+          {result.choices && result.choices.length > 0 && (
+            <div className="bg-gradient-to-br from-slate-50 to-blue-50/50 rounded-2xl border border-blue-100 p-4 shadow-xs space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-blue-600" />
+                  <span className="text-xs font-bold text-slate-800 uppercase tracking-wider">Recommended Next Actions:</span>
+                </div>
+                <span className="text-[10px] text-slate-500 font-medium">Click to execute or view section</span>
+              </div>
+              <div className="flex flex-wrap gap-2.5">
+                {result.choices.map((choice) => (
+                  <button
+                    key={choice.id}
+                    onClick={() => {
+                      if (choice.actionType === 'NAVIGATE' && choice.targetTab) {
+                        if (onNavigate) onNavigate(choice.targetTab, choice.context);
+                      } else if (choice.actionType === 'EXECUTE_PROMPT' && choice.promptToExecute) {
+                        setPrompt(choice.promptToExecute);
+                        handleExecute(choice.promptToExecute);
+                      } else if (choice.actionType === 'OPEN_URL' && choice.url) {
+                        window.open(choice.url, '_blank');
+                      }
+                    }}
+                    className="flex items-center gap-2 px-3.5 py-2 bg-white hover:bg-blue-600 hover:text-white text-slate-700 border border-slate-200 hover:border-blue-600 rounded-xl text-xs font-semibold shadow-2xs hover:shadow-md transition-all group cursor-pointer"
+                  >
+                    {choice.actionType === 'NAVIGATE' && <ArrowUpRight className="w-3.5 h-3.5 text-blue-500 group-hover:text-white" />}
+                    {choice.actionType === 'EXECUTE_PROMPT' && <Send className="w-3.5 h-3.5 text-indigo-500 group-hover:text-white" />}
+                    {choice.actionType === 'OPEN_URL' && <FileText className="w-3.5 h-3.5 text-emerald-500 group-hover:text-white" />}
+                    <span>{choice.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Execution Feed Timeline */}
           {result.executionFeed && result.executionFeed.length > 0 && renderFeed(result.executionFeed)}

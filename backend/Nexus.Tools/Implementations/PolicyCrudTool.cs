@@ -87,16 +87,37 @@ public class PolicyCrudTool : IAgentTool
     private async Task<ToolExecutionResult> ReadPoliciesAsync(ToolExecutionContext ctx, string titleSearch, string codeSearch, Stopwatch sw)
     {
         var query = _db.Policies.AsQueryable();
+        var rawSearch = $"{titleSearch} {codeSearch}".Trim();
 
-        if (!string.IsNullOrWhiteSpace(codeSearch))
-            query = query.Where(p => p.Code.ToLower().Contains(codeSearch.ToLower()));
-        else if (!string.IsNullOrWhiteSpace(titleSearch) && titleSearch.Length > 2)
-            query = query.Where(p =>
-                p.Title.ToLower().Contains(titleSearch.ToLower()) ||
-                p.Category.ToLower().Contains(titleSearch.ToLower()) ||
-                p.ContentSummary.ToLower().Contains(titleSearch.ToLower()));
+        // Extract POL-XXX-XXX code if present in the search string
+        var codeMatch = System.Text.RegularExpressions.Regex.Match(rawSearch, @"POL-[A-Z]+-\d+", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        if (codeMatch.Success)
+        {
+            var code = codeMatch.Value.ToUpper();
+            query = query.Where(p => p.Code.ToUpper().Contains(code));
+        }
+        else
+        {
+            // Extract meaningful HR keywords
+            var keywords = new[] { "leave", "compensation", "salary", "expense", "meal", "travel", "stipend", "relocation", "bonus", "education", "access", "it", "provisioning" };
+            var matchedKeyword = keywords.FirstOrDefault(k => rawSearch.ToLower().Contains(k));
+
+            if (!string.IsNullOrWhiteSpace(matchedKeyword))
+            {
+                query = query.Where(p =>
+                    p.Title.ToLower().Contains(matchedKeyword) ||
+                    p.Category.ToLower().Contains(matchedKeyword) ||
+                    p.ContentSummary.ToLower().Contains(matchedKeyword) ||
+                    p.Code.ToLower().Contains(matchedKeyword));
+            }
+        }
 
         var policies = await query.OrderByDescending(p => p.UpdatedAt).Take(20).ToListAsync();
+        if (policies.Count == 0)
+        {
+            // Fallback: return all policies if specific search yielded no results
+            policies = await _db.Policies.OrderByDescending(p => p.UpdatedAt).Take(20).ToListAsync();
+        }
 
         var resultData = new
         {

@@ -22,6 +22,14 @@ export const EmployeesView: React.FC = () => {
       })
       .catch((err) => console.error(err))
       .finally(() => setLoading(false));
+
+    const handleFilter = (e: any) => {
+      if (e.detail && typeof e.detail === 'string') {
+        setSearch(e.detail);
+      }
+    };
+    window.addEventListener('filter-employee', handleFilter);
+    return () => window.removeEventListener('filter-employee', handleFilter);
   }, []);
 
   const filteredEmployees = employees.filter((emp) => {

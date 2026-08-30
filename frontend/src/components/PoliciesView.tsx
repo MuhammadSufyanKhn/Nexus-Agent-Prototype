@@ -35,6 +35,14 @@ export const PoliciesView: React.FC = () => {
 
   useEffect(() => {
     loadPolicies();
+
+    const handleFilter = (e: any) => {
+      if (e.detail && typeof e.detail === 'string') {
+        setSearch(e.detail);
+      }
+    };
+    window.addEventListener('filter-policy', handleFilter);
+    return () => window.removeEventListener('filter-policy', handleFilter);
   }, []);
 
   const resetForm = () => {

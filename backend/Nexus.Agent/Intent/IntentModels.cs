@@ -67,6 +67,21 @@ public enum IntentType
     POLICY_DISTRIBUTE = 46,           // broadcast policy update to staff
     MULTI_STEP_WORKFLOW = 47,         // sequential workflow (e.g. sick leave + slack)
 
+    // ── Workplace Service Desk (IT Tickets) ──────────────────────────────────
+    TICKET_CREATE = 50,
+    TICKET_READ = 51,
+    TICKET_TRIAGE = 52,
+    TICKET_UPDATE = 53,
+
+    // ── Candidate CV Screening ───────────────────────────────────────────────
+    CV_SCREEN = 54,
+
+    // ── Approval Decisions & Review ───────────────────────────────────────────
+    APPROVAL_ACTION = 55,
+
+    // ── Automated Workflows ───────────────────────────────────────────────────
+    WORKFLOW_EXECUTE = 56,
+
     // ── SQL Agent passthrough ─────────────────────────────────────────────────
     SQL_AGENT = 8,
 
@@ -194,6 +209,26 @@ public class ParsedIntentResult
                 "CREATE_EXPENSE" or "SUBMIT_EXPENSE" => "EXPENSE_CREATE",
                 "CHECK_EXPENSE" or "CHECK_EXPENSE_COMPLIANCE" or "EXPENSE_POLICY_CHECK" => "EXPENSE_COMPLIANCE",
                 "GET_EXPENSES" or "READ_EXPENSES" or "LIST_EXPENSES" => "EXPENSE_READ",
+                "APPROVE_EXPENSE" or "EXPENSE_APPROVE" => "EXPENSE_APPROVE",
+
+                // ── Workplace Service Desk ─────────────────────────────────────────
+                "CREATE_TICKET" or "REQUEST_HARDWARE" or "REQUEST_EQUIPMENT" or "IT_OPERATIONS"
+                    or "HARDWARE_REQUEST" or "VPN_REQUEST" or "TICKET_CREATE" => "TICKET_CREATE",
+                "GET_TICKETS" or "LIST_TICKETS" or "READ_TICKETS" or "SERVICE_DESK_READ"
+                    or "TICKETS_READ" or "TICKET_READ" => "TICKET_READ",
+                "TRIAGE_TICKET" or "SMART_TRIAGE" or "TICKET_TRIAGE" or "ASSIGN_TECHNICIAN" => "TICKET_TRIAGE",
+                "RESOLVE_TICKET" or "UPDATE_TICKET" or "TICKET_UPDATE" => "TICKET_UPDATE",
+
+                // ── Candidate CV Screening ─────────────────────────────────────────
+                "SCREEN_CV" or "ANALYZE_CV" or "CV_ANALYSIS" or "CV_SCREEN"
+                    or "EVALUATE_CANDIDATE" or "SCREEN_RESUME" or "CANDIDATE_SCREEN" => "CV_SCREEN",
+
+                // ── Approvals ──────────────────────────────────────────────────────
+                "APPROVE_ACTION" or "DECLINE_ACTION" or "REJECT_ACTION"
+                    or "APPROVAL_ACTION" or "EXECUTE_APPROVAL" or "DECIDE_APPROVAL" => "APPROVAL_ACTION",
+
+                // ── Automated Workflows ────────────────────────────────────────────
+                "WORKFLOW_EXECUTE" or "RUN_WORKFLOW" or "EXECUTE_PIPELINE" or "SYNC_WORKFORCE" => "WORKFLOW_EXECUTE",
 
                 "GENERAL_CONVERSATION" or "GREETING" or "CHAT" or "HI" or "HELLO" => "GENERAL_CONVERSATION",
 

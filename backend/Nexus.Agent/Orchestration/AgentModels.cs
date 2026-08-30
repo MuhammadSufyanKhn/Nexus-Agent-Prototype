@@ -139,6 +139,11 @@ public class AgentResult
     public ConfirmationDetails? ConfirmationDetails { get; set; }
 
     /// <summary>
+    /// Context-aware action choices presented to the HR user after command execution.
+    /// </summary>
+    public List<NextActionChoice> Choices { get; set; } = new();
+
+    /// <summary>
     /// Target backend system: SQL_SERVER | N8N_WORKFLOW | ZAPIER | UNKNOWN.
     /// Maps to spec's parameters.target_system.
     /// </summary>
@@ -149,6 +154,17 @@ public class AgentResult
     /// ready for the backend API/SQL tool call. Maps to spec's "execution_payload".
     /// </summary>
     public object? ExecutionPayload { get; set; }
+}
+
+public class NextActionChoice
+{
+    public string Id { get; set; } = string.Empty;
+    public string Label { get; set; } = string.Empty;
+    public string ActionType { get; set; } = "NAVIGATE"; // NAVIGATE | EXECUTE_PROMPT | OPEN_URL | MODAL
+    public string? TargetTab { get; set; }
+    public string? PromptToExecute { get; set; }
+    public string? Url { get; set; }
+    public Dictionary<string, string> Context { get; set; } = new();
 }
 
 public class ExecuteAgentRequest

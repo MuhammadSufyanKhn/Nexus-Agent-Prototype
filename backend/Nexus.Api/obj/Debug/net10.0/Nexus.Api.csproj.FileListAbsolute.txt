@@ -162,3 +162,6 @@ D:\.NET PROJECTS\NEXUS AGENT LITE\backend\Nexus.Api\obj\Debug\net10.0\Nexus.Api.
 D:\.NET PROJECTS\NEXUS AGENT LITE\backend\Nexus.Api\obj\Debug\net10.0\ref\Nexus.Api.dll
 d:\.NET PROJECTS\NEXUS AGENT LITE\backend\Nexus.Api\obj\Debug\net10.0\Nexus.Api.sourcelink.json
 d:\.NET PROJECTS\NEXUS AGENT LITE\backend\Nexus.Api\bin\Debug\net10.0\Nexus.Api.staticwebassets.runtime.json
+D:\.NET PROJECTS\NEXUS AGENT LITE\backend\Nexus.Api\obj\Debug\net10.0\compressed\201crhabdz-{0}-xz3qy42tdq-xz3qy42tdq.gz
+D:\.NET PROJECTS\NEXUS AGENT LITE\backend\Nexus.Api\obj\Debug\net10.0\compressed\pndarkv8hv-{0}-xz3qy42tdq-xz3qy42tdq.gz
+D:\.NET PROJECTS\NEXUS AGENT LITE\backend\Nexus.Api\obj\Debug\net10.0\compressed\xl3m7kr5gx-{0}-x09hh41ask-x09hh41ask.gz

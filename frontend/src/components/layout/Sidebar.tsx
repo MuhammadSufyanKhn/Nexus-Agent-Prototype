@@ -8,7 +8,6 @@ import {
   CheckSquare,
   Receipt,
   UserPlus,
-  Cpu,
   ShieldCheck,
   Activity,
   Shield,
@@ -49,7 +48,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
   ];
 
   const govNav = [
-    { id: 'automation',  label: 'Automated Workflows', icon: Cpu },
     { id: 'audit',       label: 'Activity History',    icon: ShieldCheck },
   ];
 

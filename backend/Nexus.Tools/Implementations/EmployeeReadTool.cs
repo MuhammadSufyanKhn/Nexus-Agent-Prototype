@@ -52,7 +52,10 @@ public class EmployeeReadTool : IAgentTool
             }
 
             var departmentId = context.GetArgument<int?>("departmentId");
-            var search = context.GetArgument<string>("search");
+            var search = context.GetArgument<string>("search")
+                ?? context.GetArgument<string>("name")
+                ?? context.GetArgument<string>("employee_name")
+                ?? context.GetArgument<string>("department");
 
             var employees = await _employeeService.GetAllAsync(departmentId, search);
             sw.Stop();

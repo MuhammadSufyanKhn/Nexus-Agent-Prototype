@@ -9,7 +9,6 @@ import { PoliciesView } from './components/PoliciesView';
 import { ExpensesView } from './components/ExpensesView';
 import { ApprovalsView } from './components/ApprovalsView';
 import { OnboardingView } from './components/OnboardingView';
-import { AutomationView } from './components/AutomationView';
 import { AuditLogsView } from './components/AuditLogsView';
 import { CvCheckerView } from './components/CvCheckerView';
 import { TicketsView } from './components/TicketsView';
@@ -40,6 +39,22 @@ export function App() {
     return () => clearInterval(interval);
   }, []);
 
+  const [, setNavContext] = useState<any>(null);
+
+  // Called by AgentConsole after a successful AI action to route user to the correct module
+  const handleNavigate = (tab: string, context?: any) => {
+    setActiveTab(tab);
+    if (context) {
+      setNavContext(context);
+      if (context.highlightName) {
+        window.dispatchEvent(new CustomEvent('filter-employee', { detail: context.highlightName }));
+      }
+      if (context.policyCode) {
+        window.dispatchEvent(new CustomEvent('filter-policy', { detail: context.policyCode }));
+      }
+    }
+  };
+
   return (
     <div className="flex min-h-screen bg-slate-50 text-slate-900 font-sans antialiased">
       {/* Persistent Left Sidebar */}
@@ -65,7 +80,11 @@ export function App() {
         {/* Page Content */}
         <main className="flex-1 pb-16">
           {activeTab === 'console' && (
-            <AgentConsole userRole={userRole} onApprovalStateChange={refreshGlobalState} />
+            <AgentConsole
+              userRole={userRole}
+              onApprovalStateChange={refreshGlobalState}
+              onNavigate={handleNavigate}
+            />
           )}
           {activeTab === 'dashboard' && (
             <DashboardView
@@ -84,7 +103,6 @@ export function App() {
             <ApprovalsView userRole={userRole} onApprovalChanged={refreshGlobalState} />
           )}
           {activeTab === 'onboarding' && <OnboardingView />}
-          {activeTab === 'automation' && <AutomationView />}
           {activeTab === 'audit' && <AuditLogsView />}
         </main>
       </div>
