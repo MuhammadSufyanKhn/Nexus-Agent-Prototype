@@ -155,3 +155,8 @@ D:\.NET PROJECTS\NEXUS AGENT LITE\backend\Nexus.Tests\obj\Debug\net10.0\Nexus.Te
 D:\.NET PROJECTS\NEXUS AGENT LITE\backend\Nexus.Tests\obj\Debug\net10.0\ref\Nexus.Tests.dll
 d:\.NET PROJECTS\NEXUS AGENT LITE\backend\Nexus.Tests\obj\Debug\net10.0\Nexus.Tests.sourcelink.json
 d:\.NET PROJECTS\NEXUS AGENT LITE\backend\Nexus.Tests\bin\Debug\net10.0\Nexus.Api.staticwebassets.runtime.json
+D:\.NET PROJECTS\NEXUS AGENT LITE\backend\Nexus.Tests\bin\Debug\net10.0\UglyToad.PdfPig.dll
+D:\.NET PROJECTS\NEXUS AGENT LITE\backend\Nexus.Tests\bin\Debug\net10.0\UglyToad.PdfPig.Core.dll
+D:\.NET PROJECTS\NEXUS AGENT LITE\backend\Nexus.Tests\bin\Debug\net10.0\UglyToad.PdfPig.Fonts.dll
+D:\.NET PROJECTS\NEXUS AGENT LITE\backend\Nexus.Tests\bin\Debug\net10.0\UglyToad.PdfPig.Tokenization.dll
+D:\.NET PROJECTS\NEXUS AGENT LITE\backend\Nexus.Tests\bin\Debug\net10.0\UglyToad.PdfPig.Tokens.dll

@@ -175,8 +175,15 @@ public class PolicyCrudTool : IAgentTool
     private async Task<ToolExecutionResult> UpdatePolicyAsync(ToolExecutionContext ctx, string titleSearch, string codeSearch, Stopwatch sw)
     {
         Policy? policy = null;
-        if (!string.IsNullOrWhiteSpace(codeSearch))
-            policy = await _db.Policies.FirstOrDefaultAsync(p => p.Code.ToLower() == codeSearch.ToLower());
+        var code = codeSearch;
+        if (string.IsNullOrWhiteSpace(code))
+        {
+            var m = System.Text.RegularExpressions.Regex.Match(titleSearch, @"\b(POL-[A-Za-z0-9\-]+)\b", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            if (m.Success) code = m.Groups[1].Value;
+        }
+
+        if (!string.IsNullOrWhiteSpace(code))
+            policy = await _db.Policies.FirstOrDefaultAsync(p => p.Code.ToLower() == code.ToLower());
         if (policy == null && !string.IsNullOrWhiteSpace(titleSearch))
             policy = await _db.Policies.FirstOrDefaultAsync(p => p.Title.ToLower().Contains(titleSearch.ToLower()));
 
@@ -200,10 +207,17 @@ public class PolicyCrudTool : IAgentTool
     private async Task<ToolExecutionResult> DeletePolicyAsync(ToolExecutionContext ctx, string titleSearch, string codeSearch, Stopwatch sw)
     {
         Policy? policy = null;
-        if (!string.IsNullOrWhiteSpace(codeSearch))
-            policy = await _db.Policies.FirstOrDefaultAsync(p => p.Code.ToLower() == codeSearch.ToLower());
+        var code = codeSearch;
+        if (string.IsNullOrWhiteSpace(code))
+        {
+            var m = System.Text.RegularExpressions.Regex.Match(titleSearch, @"\b(POL-[A-Za-z0-9\-]+)\b", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            if (m.Success) code = m.Groups[1].Value;
+        }
+
+        if (!string.IsNullOrWhiteSpace(code))
+            policy = await _db.Policies.FirstOrDefaultAsync(p => p.Code.ToLower() == code.ToLower());
         if (policy == null && !string.IsNullOrWhiteSpace(titleSearch))
-            policy = await _db.Policies.FirstOrDefaultAsync(p => p.Title.ToLower().Contains(titleSearch.ToLower()));
+            policy = await _db.Policies.FirstOrDefaultAsync(p => p.Title.ToLower().Contains(titleSearch.ToLower()) || titleSearch.ToLower().Contains(p.Title.ToLower()));
 
         if (policy == null)
             return ToolExecutionResult.Failure($"Policy '{titleSearch ?? codeSearch}' not found.", RiskLevel.Low);

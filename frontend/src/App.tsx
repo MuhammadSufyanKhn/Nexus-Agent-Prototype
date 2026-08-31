@@ -12,6 +12,8 @@ import { OnboardingView } from './components/OnboardingView';
 import { AuditLogsView } from './components/AuditLogsView';
 import { CvCheckerView } from './components/CvCheckerView';
 import { TicketsView } from './components/TicketsView';
+import { JobOpeningsView } from './components/JobOpeningsView';
+import { CandidateApplicationPortal } from './components/CandidateApplicationPortal';
 import { fetchPendingApprovals, checkLLMHealth } from './services/api';
 
 import type { LLMHealthStatus } from './services/api';
@@ -21,6 +23,27 @@ export function App() {
   const [userRole, setUserRole] = useState('Admin');
   const [pendingCount, setPendingCount] = useState(0);
   const [health, setHealth] = useState<LLMHealthStatus | null>(null);
+
+  // Candidate Portal standalone routing
+  const [candidatePortalJobId, setCandidatePortalJobId] = useState<number | null>(() => {
+    const params = new URLSearchParams(window.location.search);
+    const jobId = params.get('jobId');
+    if (jobId) return Number(jobId);
+    if (window.location.hash.startsWith('#/apply/')) {
+      const parts = window.location.hash.split('/');
+      if (parts[2]) return Number(parts[2]);
+    }
+    return null;
+  });
+
+  const [isCandidatePortal, setIsCandidatePortal] = useState<boolean>(() => {
+    const params = new URLSearchParams(window.location.search);
+    return window.location.port === '3001' || params.get('portal') === 'candidate' || window.location.hash.startsWith('#/apply');
+  });
+
+  // Cross-view selection for CV screening
+  const [cvJobId, setCvJobId] = useState<number | undefined>(undefined);
+  const [cvCandidateId, setCvCandidateId] = useState<number | undefined>(undefined);
 
   const refreshGlobalState = async () => {
     try {
@@ -54,6 +77,20 @@ export function App() {
       }
     }
   };
+
+  // If viewing standalone candidate application portal
+  if (isCandidatePortal) {
+    return (
+      <CandidateApplicationPortal
+        initialJobId={candidatePortalJobId || undefined}
+        onBackToPortal={() => {
+          setIsCandidatePortal(false);
+          setCandidatePortalJobId(null);
+          window.history.pushState({}, '', window.location.pathname);
+        }}
+      />
+    );
+  }
 
   return (
     <div className="flex min-h-screen bg-slate-50 text-slate-900 font-sans antialiased">
@@ -94,11 +131,29 @@ export function App() {
           )}
           {activeTab === 'employees' && <EmployeesView />}
           {activeTab === 'departments' && <DepartmentsView />}
+          {activeTab === 'jobs' && (
+            <JobOpeningsView
+              onScreenCandidate={(jobId, candidateId) => {
+                setCvJobId(jobId);
+                setCvCandidateId(candidateId);
+                setActiveTab('cv');
+              }}
+              onOpenCandidatePortal={(jobId) => {
+                setCandidatePortalJobId(jobId);
+                setIsCandidatePortal(true);
+              }}
+            />
+          )}
+          {activeTab === 'cv' && (
+            <CvCheckerView 
+              initialJobId={cvJobId}
+              initialCandidateId={cvCandidateId}
+            />
+          )}
           {activeTab === 'policies' && <PoliciesView />}
           {activeTab === 'tickets' && <TicketsView />}
           {activeTab === 'expenses' && <ExpensesView />}
 
-          {activeTab === 'cv' && <CvCheckerView />}
           {activeTab === 'approvals' && (
             <ApprovalsView userRole={userRole} onApprovalChanged={refreshGlobalState} />
           )}

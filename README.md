@@ -1,104 +1,146 @@
-# NEXUS-AGENT LITE — Enterprise AI HR Assistant
+# NEXUS-AGENT LITE — Enterprise AI HR Assistant & Talent Intelligence Platform
 
 > **Turn Natural Language Requests into Safe, Automated HR & Operations Workflows.**
 
-NEXUS-AGENT LITE is an enterprise AI HR assistant built using **C# .NET 10 Web API**, **React 19**, and **Python 3.12 Automation**. It allows HR managers and administrators to talk to their HR systems in plain English. 
+NEXUS-AGENT LITE is an enterprise workforce automation platform built with **C# .NET 10 Web API**, **Entity Framework Core**, **SQL Server**, **React 19**, **Gemini 2.5 LLM Intelligence**, and **Python Automation**. 
 
-Whether you want to onboard a new employee, log a sick day, reallocate department budgets, or analyze workforce spending, Nexus AI understands your natural language commands and safely performs the operations.
-
----
-
-## 🌟 Key Features Made Simple
-
-### 1. 🤖 Intelligent Natural Language Assistant
-Simply type what you want to do in plain English into the chat console:
-* *"Onboard Ahmed Khan as a mid-level .NET developer in IT"*
-* *"Log Sufyan's sick day today and notify his team"*
-* *"Show me departments exceeding their allocated Q3 budget"*
-
-### 2. 🛡️ Human-in-the-Loop Approval Center
-For high-risk operations (like onboarding an employee, changing salaries, or transferring staff), Nexus AI creates a **Plan of Action** and pauses execution. **Zero database changes occur** until an administrator reviews the financial impact, record diffs, and clicks **Authorize & Execute Plan**.
-
-### 3. 📧 Automated Email & Notification Subsystem
-Automatically dispatches HTML notification emails via Python SMTP directly to target recipients (e.g. `nexusagent.notifications@gmail.com` and the employee's database email) without hardcoded dummy addresses.
-
-### 4. 🔒 Built-in Security Sandbox & Role-Based Access Control (RBAC)
-* **SQL Security Sandbox**: Converts natural language to T-SQL, but permits **ONLY read-only `SELECT` queries** for data analytics (rejecting any destructive commands like `DROP` or `DELETE`).
-* **RBAC Engine**: Enforces role-based permissions so unauthorized users cannot run high-risk operations.
-
-### 5. 📜 Cryptographic Audit Ledger
-Every single action executed by the agent appends a tamper-proof **SHA-256 hash log** to an immutable audit ledger for complete enterprise compliance.
+It enables HR managers to interact with enterprise databases using conversational AI, automates employee onboarding and policy enforcement, and provides an end-to-end **Talent Acquisition, PDF Resume Extraction, and AI CV Screening pipeline**.
 
 ---
 
-## 🚀 Easy Quick Start Guide
+## 🌟 Key Features
+
+### 1. 🤖 Conversational HR Assistant & Workflow Execution
+* Plain English natural language command execution:
+  * *"Onboard Ahmed Khan as a mid-level .NET developer in IT"*
+  * *"Log Sufyan's sick day today and notify his team"*
+  * *"Show me departments exceeding their allocated Q3 budget"*
+* Automated action execution with fallback safety guards.
+
+### 2. 💼 Job Requisition & Pipeline Management
+* Full CRUD requisition lifecycle with compensation ranges, department tagging, and required competencies.
+* Real-time counters showing total candidate applications stored in SQL Server.
+* 1-click shareable public application link generator with clipboard copy.
+* Interactive applicants drawer to view and inspect all submissions.
+
+### 3. 🌐 Dedicated Public Candidate Portal (`http://localhost:3001`)
+* **Department Filtering**: Filter active openings by unit (e.g. **`All Departments`**, **`IT`**, **`Marketing`**, **`HR`**, etc.) with live opening counters.
+* **Role Transparency**: Detailed role descriptions, core responsibilities, required competencies, and a **4-Card Perks Grid** (Top Compensation, Hybrid/Remote, Health & Wellness, Learning Stipends).
+* **PDF-Only Applications**: Strictly accepts `.pdf` documents (no raw text paste needed) with drag-and-drop or file browsing and instant file validation.
+* **Vertical Layout**: Clear, natural top-to-bottom layout with job specifications on top and the candidate submission form directly below.
+
+### 4. ✨ AI CV Screening with Embedded PDF Viewer
+* **Embedded PDF Document Viewer**: Direct in-browser PDF viewer displaying the candidate's actual submitted resume document with 1-click PDF download.
+* **Automated PDF Word Extraction**: Powered by **`UglyToad.PdfPig`**, the agent automatically extracts every word and token from candidate PDF pages on the backend and saves the text to the database.
+* **View Extracted Words Switcher**: Recruiter toggle between the visual PDF document and the agent's parsed word stream (with exact word count).
+* **Neural Match Scoring**: Gemini dynamically calculates match percentages, evaluates candidate fit against job requirements, and highlights ⭐ **Best Fit** candidates.
+* **Dynamic Role-Specific Interview Questions**: Generates 5 technical interview questions based directly on the candidate's actual projects, claims, and identified skill gaps (no hardcoded questions).
+* **1-Click Onboarding**: Direct action to approve candidate and create an employee record in the directory.
+
+### 5. 🛡️ Human-in-the-Loop Approval Center
+* Plan of Action review gate for high-risk operations (salary changes, terminations, department budget freezes).
+* Visual diff tables and financial impact calculation before committing database changes.
+
+### 6. 🔒 Cryptographic Audit Ledger & RBAC
+* Read-only SQL Sandbox preventing destructive queries (`DROP`, `DELETE`).
+* Immutable SHA-256 cryptographic audit ledger tracking every agent-executed action.
+
+---
+
+## 🚀 Quick Start Guide
 
 ### Prerequisites
-* **.NET 10 SDK** installed on your system
+* **.NET 10 SDK**
 * **Node.js** (v20+) & **npm**
 * **Python 3.12** (`py` launcher installed)
+* **SQL Server** (LocalDB / Express / Developer Edition)
 
 ---
 
-### Step 1: Start Mock Legacy HR Portal
-In a terminal window:
-```bash
-py mock-portal/server.py
-```
-*(Runs local legacy HR portal at `http://127.0.0.1:8088`)*
-
----
-
-### Step 2: Start ASP.NET Core Backend API
-In a second terminal window:
-```bash
+### Step 1: Start Backend API (Port 5160)
+```powershell
 cd backend/Nexus.Api
-dotnet run
+dotnet run --launch-profile http
 ```
-*(Runs backend Web API at `https://localhost:7160` / `http://localhost:5160`)*
+> Runs ASP.NET Core API at **`http://localhost:5160`** (Swagger docs at `/swagger`)
 
 ---
 
-### Step 3: Start React Command Center Frontend
-In a third terminal window:
-```bash
+### Step 2: Start HR Admin App & AI Assistant (Port 3000)
+```powershell
 cd frontend
 npm run dev
 ```
-*(Open your browser at `http://localhost:3000`)*
+> Open browser at **`http://localhost:3000`**
 
 ---
 
-## 🎬 5 Core System Demo Scenarios
+### Step 3: Start Public Candidate Application Portal (Port 3001)
+```powershell
+cd frontend
+npm run dev:portal
+```
+> Open browser at **`http://localhost:3001`** *(Dedicated public portal with department filtering and PDF resume upload)*
 
-Launch the web app at `http://localhost:3000` and test these example commands in the **Agent Console**:
+---
 
-| Demo Scenario | Example Natural Language Command | What Happens |
+### Step 4: Standalone Production HTML Application
+The repository also includes a production-ready, single-file HTML/CSS/JS version with dark theme (`#0d1117` base) located at:
+* File path: [`frontend/nexus-hr.html`](file:///d:/.NET%20PROJECTS/NEXUS%20AGENT%20LITE/frontend/nexus-hr.html)
+* Or visit via dev server: **`http://localhost:3000/nexus-hr.html`**
+
+---
+
+## 📁 Repository Structure
+
+```text
+NEXUS AGENT LITE/
+├── backend/
+│   ├── Nexus.Api/             # ASP.NET Core Web API Controllers & Endpoints
+│   │   ├── Controllers/       # AgentController, CvController, JobOpeningsController
+│   ├── Nexus.Data/            # EF Core DbContext, Entities, and Gemini LLM Service
+│   ├── Nexus.Agent/           # AI Intent Parsing & Autonomous Execution Engine
+│   ├── Nexus.Tools/           # Automation Tools & SQL Sandbox
+│   ├── Nexus.Security/        # RBAC & Cryptographic SHA-256 Audit Ledger
+│   └── Nexus.Tests/           # Complete xUnit Test Suite (91 Tests)
+├── frontend/
+│   ├── src/
+│   │   ├── components/
+│   │   │   ├── CandidateApplicationPortal.tsx  # Public Portal (Dept filter & PDF-only)
+│   │   │   ├── CvCheckerView.tsx               # Embedded PDF Viewer & AI Screening
+│   │   │   ├── JobOpeningsView.tsx             # Job Requisitions & Pipeline Manager
+│   │   │   ├── AgentConsole.tsx                # Natural Language AI Chat Assistant
+│   │   │   ├── EmployeesView.tsx               # Workforce Directory
+│   │   │   └── DepartmentsView.tsx             # Corporate Budget Pools & Depts
+│   │   ├── services/api.ts                     # Full TypeScript API Client
+│   │   └── App.tsx                             # Port 3001 / Route Switcher
+│   ├── public/
+│   │   └── nexus-hr.html      # Standalone Single-File App (Public)
+│   ├── nexus-hr.html          # Standalone Single-File App (Frontend Root)
+│   ├── package.json           # Scripts: "dev" (3000) & "dev:portal" (3001)
+│   └── vite.config.ts         # Vite Configuration & Backend Proxy
+├── mock-portal/               # Python Mock Legacy HR Server (Port 8088)
+├── docs/                      # Technical Architecture & Setup Documentation
+└── README.md                  # System Documentation & Run Guide
+```
+
+---
+
+## 🎬 Core Demonstration Scenarios
+
+| Scenario | Location / URL | What Happens |
 | :--- | :--- | :--- |
-| **1. AI Employee Onboarding** | `"Onboard Ahmed Khan as a mid-level .NET developer in IT with salary 68k"` | Evaluates policy `POL-HR-001`, generates a Plan of Action, creates SQL record, fills legacy HR portal form, provisions Mock SAP, and sends welcome email upon approval. |
-| **2. Sick Leave & Notification** | `"Log Sufyan's sick day today and notify his team on gmail"` | Looks up employee Sufyan in database (`4t195es@gmail.com`), logs sick leave in SQL Server, and sends notification email to both the team inbox and employee. |
-| **3. SQL Data Analytics** | `"Show me departments exceeding their allocated Q3 budget"` | Converts query to secure T-SQL, validates against SQL sandbox, and displays budget spending insights. |
-| **4. Human Approval Gate** | `"Increase salaries of all IT developers by 10%"` | Calculates total financial impact preview, creates a visual diff table, and pauses for human administrator authorization. |
-| **5. Policy Compliance Check** | `"Check whether Ahmed's latest expense complies with company policy"` | Compares claimed expense against `POL-FIN-002` rules ($50 meal limit) and displays compliance audit evidence. |
-
----
-
-## 📁 Repository Documentation Index
-
-* 🏗️ [**docs/ARCHITECTURE.md**](file:///d:/.NET%20PROJECTS/NEXUS%20AGENT%20LITE/docs/ARCHITECTURE.md): System architecture, subsystem flow, and security model explained in plain English.
-* ⚙️ [**docs/AUTOMATION.md**](file:///d:/.NET%20PROJECTS/NEXUS%20AGENT%20LITE/docs/AUTOMATION.md): Python email automation, Playwright browser automation, and ticket creation details.
-* 🎬 [**docs/DEMO_GUIDE.md**](file:///d:/.NET%20PROJECTS/NEXUS%20AGENT%20LITE/docs/DEMO_GUIDE.md): Step-by-step walkthrough of all hackathon demonstration scenarios.
-* 📘 [**docs/SETUP_GUIDE.md**](file:///d:/.NET%20PROJECTS/NEXUS%20AGENT%20LITE/docs/SETUP_GUIDE.md): Complete local setup and configuration instructions.
-* 🤖 [**docs/AI_INFRASTRUCTURE.md**](file:///d:/.NET%20PROJECTS/NEXUS%20AGENT%20LITE/docs/AI_INFRASTRUCTURE.md): Explanation of Gemini API integration, local LLM fallback, and intent parsing.
-* 📋 [**docs/POLICIES.md**](file:///d:/.NET%20PROJECTS/NEXUS%20AGENT%20LITE/docs/POLICIES.md): HR policy rules and financial limit guidelines.
-* 🗄️ [**database/README.md**](file:///d:/.NET%20PROJECTS/NEXUS%20AGENT%20LITE/database/README.md): Database schema, SQL tables, and seed data layout.
+| **1. Department Filtered Career Portal** | `http://localhost:3001` | Candidate selects **IT** or **Marketing** filter; attaches candidate `.pdf` resume; application & PDF are submitted and stored in SQL database. |
+| **2. Embedded PDF Screening & Word Extraction** | `http://localhost:3000` (CV Tab) | Agent displays the uploaded PDF in the embedded viewer, automatically extracts words with `UglyToad.PdfPig`, and provides a toggle to inspect extracted words. |
+| **3. AI Fit Assessment & Dynamic Questions** | `http://localhost:3000` (CV Tab) | Click **"Run AI Evaluation"** to trigger multi-ring spinner, fit score reveal, and 5 dynamic role-specific interview questions generated by Gemini. |
+| **4. Natural Language Onboarding** | `http://localhost:3000` (Console) | Command: `"Onboard Ahmed Khan as a mid-level .NET developer in IT"` triggers policy check, creates Action Plan, and provisions employee upon approval. |
+| **5. Sick Leave & Email Dispatch** | `http://localhost:3000` (Console) | Command: `"Log Sufyan's sick day today and notify his team"` logs leave in SQL Server and dispatches real SMTP emails. |
 
 ---
 
 ## 🧪 Running Automated Unit Tests
 
-```bash
-cd backend
-dotnet test Nexus.Tests/Nexus.Tests.csproj
+```powershell
+dotnet test backend/Nexus.slnx
 ```
-*(All unit and integration tests run cleanly with zero failures!)*
+*(All 91 unit and integration tests run cleanly with 0 failures!)*

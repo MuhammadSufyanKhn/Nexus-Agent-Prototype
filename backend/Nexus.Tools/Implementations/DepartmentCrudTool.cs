@@ -105,6 +105,7 @@ public class DepartmentCrudTool : IAgentTool
         if (existing != null)
             return ToolExecutionResult.Failure($"Department '{name}' already exists (ID: {existing.Id}).", RiskLevel.Low);
 
+        var prompt = ctx.GetArgument<string>("prompt") ?? string.Empty;
         var dept = new Department
         {
             Name = name,
@@ -112,12 +113,103 @@ public class DepartmentCrudTool : IAgentTool
         };
         _db.Departments.Add(dept);
         await _db.SaveChangesAsync();
+
+        // Check if head of department was specified
+        var headName = ctx.GetArgument<string>("head") 
+            ?? ctx.GetArgument<string>("departmentHead") 
+            ?? ctx.GetArgument<string>("manager");
+        if (string.IsNullOrWhiteSpace(headName))
+        {
+            var headMatch = System.Text.RegularExpressions.Regex.Match(prompt, @"(?:head|lead|manager)\s+([A-Za-z]+)", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            if (headMatch.Success) headName = headMatch.Groups[1].Value;
+        }
+
+        if (!string.IsNullOrWhiteSpace(headName))
+        {
+            headName = System.Globalization.CultureInfo.CurrentCulture.TextInfo.ToTitleCase(headName.ToLower());
+            var headEmp = await _db.Employees.FirstOrDefaultAsync(e => e.DepartmentId == dept.Id && e.Name.ToLower() == headName.ToLower());
+            if (headEmp == null)
+            {
+                headEmp = new Employee
+                {
+                    Name = headName,
+                    Email = $"{headName.ToLower()}@nexus.local",
+                    DepartmentId = dept.Id,
+                    Designation = $"Head of {name}",
+                    Salary = 95000.00m,
+                    ExperienceYears = 8,
+                    Status = EmployeeStatus.Active,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+                _db.Employees.Add(headEmp);
+            }
+            else
+            {
+                headEmp.Designation = $"Head of {name}";
+            }
+        }
+
+        // Check if initial budget was specified
+        decimal initialBudget = 0m;
+        var budgetArg = ctx.GetArgument<decimal?>("budgetAmount") ?? ctx.GetArgument<decimal?>("budget");
+        if (budgetArg is { } b && b > 0) initialBudget = b;
+        else
+        {
+            var rawAmt = ctx.GetArgument<string>("budgetAmount") ?? ctx.GetArgument<string>("budget");
+            if (!string.IsNullOrWhiteSpace(rawAmt))
+            {
+                rawAmt = rawAmt.Trim();
+                if (rawAmt.EndsWith("k", StringComparison.OrdinalIgnoreCase) && decimal.TryParse(rawAmt[..^1], out var kv)) initialBudget = kv * 1000m;
+                else if (rawAmt.EndsWith("m", StringComparison.OrdinalIgnoreCase) && decimal.TryParse(rawAmt[..^1], out var mv)) initialBudget = mv * 1_000_000m;
+                else if (decimal.TryParse(rawAmt, out var sv)) initialBudget = sv;
+            }
+            else
+            {
+                var budMatch = System.Text.RegularExpressions.Regex.Match(prompt, @"(?:budget|allocation)\s+(?:of\s+)?\$?([0-9kKmM\.\,]+)", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                if (budMatch.Success)
+                {
+                    var val = budMatch.Groups[1].Value.Replace(",", "").Trim();
+                    if (val.EndsWith("k", StringComparison.OrdinalIgnoreCase) && decimal.TryParse(val[..^1], out var kv)) initialBudget = kv * 1000m;
+                    else if (val.EndsWith("m", StringComparison.OrdinalIgnoreCase) && decimal.TryParse(val[..^1], out var mv)) initialBudget = mv * 1_000_000m;
+                    else if (decimal.TryParse(val, out var sv)) initialBudget = sv;
+                }
+            }
+        }
+
+        if (initialBudget > 0)
+        {
+            var budgetRecord = await _db.Budgets.FirstOrDefaultAsync(b => b.DepartmentId == dept.Id);
+            if (budgetRecord == null)
+            {
+                budgetRecord = new Budget
+                {
+                    DepartmentId = dept.Id,
+                    Year = 2026,
+                    Quarter = "Q3",
+                    AllocatedAmount = initialBudget,
+                    SpentAmount = 0m,
+                    IsFrozen = false
+                };
+                _db.Budgets.Add(budgetRecord);
+            }
+            else
+            {
+                budgetRecord.AllocatedAmount = initialBudget;
+            }
+        }
+
+        await _db.SaveChangesAsync();
         sw.Stop();
 
         return ToolExecutionResult.Success(new
         {
-            message = $"Department '{name}' created successfully.",
-            dept.Id, dept.Name, dept.Description
+            message = $"Department '{name}' created successfully (Head: {headName ?? "Assigned Lead"}, Budget: ${initialBudget:N2}).",
+            dept.Id,
+            dept.Name,
+            dept.Description,
+            headOfDepartment = headName ?? "Assigned Lead",
+            allocatedBudget = initialBudget
         }, RiskLevel.Medium, sw.ElapsedMilliseconds);
     }
 

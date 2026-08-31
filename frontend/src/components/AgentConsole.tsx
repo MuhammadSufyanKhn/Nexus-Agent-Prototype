@@ -34,7 +34,10 @@ import {
   TrendingUp,
   Shield,
   Zap,
-  ArrowUpRight
+  ArrowUpRight,
+  Briefcase,
+  Ticket,
+  Star
 } from 'lucide-react';
 
 interface AgentConsoleProps {
@@ -979,6 +982,193 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
     );
   };
 
+  const renderJobOpeningResult = (data: any) => {
+    const title = data?.title || 'Web Developer';
+    const dept = data?.department || 'IT';
+    const reqs = data?.requirements || 'Technical Skills';
+    const isStandardPort = window.location.port === '3000' || window.location.port === '5173';
+    const link = isStandardPort 
+      ? `http://localhost:3001/?jobId=${data?.jobOpeningId || 1}`
+      : `${window.location.origin}/?portal=candidate&jobId=${data?.jobOpeningId || 1}`;
+
+    return (
+      <div className="bg-white rounded-2xl border border-indigo-200 p-6 shadow-xs space-y-4">
+        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-indigo-50 text-indigo-600 rounded-xl">
+              <Briefcase className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-full">
+                  Job Opening Created
+                </span>
+                <span className="text-[10px] font-bold uppercase text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                  Live in Job Opening Tab
+                </span>
+              </div>
+              <h4 className="text-base font-bold text-slate-900 mt-1">{title} ({dept})</h4>
+            </div>
+          </div>
+          <button
+            onClick={() => onNavigate?.('jobs')}
+            className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+          >
+            <span>View in Job Opening Tab</span>
+            <ArrowUpRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+
+        <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-2 text-xs">
+          <div>
+            <span className="text-slate-400 font-medium">Requisition Title:</span>{' '}
+            <span className="font-bold text-slate-800">{title}</span>
+          </div>
+          <div>
+            <span className="text-slate-400 font-medium">Target Department:</span>{' '}
+            <span className="font-bold text-slate-800">{dept}</span>
+          </div>
+          <div>
+            <span className="text-slate-400 font-medium">Technical Requirements:</span>{' '}
+            <span className="font-semibold text-slate-700">{reqs}</span>
+          </div>
+        </div>
+
+        <div className="p-3 bg-blue-50/70 border border-blue-200 rounded-xl flex items-center justify-between gap-3 text-xs">
+          <div className="flex items-center gap-2 text-blue-900 truncate">
+            <span className="font-semibold">Candidate Portal Link:</span>
+            <span className="font-mono text-blue-700 text-[11px] truncate select-all">{link}</span>
+          </div>
+          <button
+            onClick={() => {
+              navigator.clipboard.writeText(link);
+              alert('Candidate Application Link copied to clipboard!');
+            }}
+            className="px-3 py-1 bg-white hover:bg-blue-100 text-blue-700 border border-blue-300 rounded-lg text-[11px] font-bold shrink-0 transition-colors cursor-pointer"
+          >
+            Copy Link
+          </button>
+        </div>
+
+        <p className="text-xs text-slate-500 italic">
+          The new job opening has been created in the Job Opening tab. Candidates can submit their resumes via the public application link.
+        </p>
+      </div>
+    );
+  };
+
+  const renderTicketResult = (data: any, intent: string) => {
+    const isUpdate = intent === 'TICKET_UPDATE' || data?.status === 'Resolved';
+    const ticketId = data?.ticketId || 'TCK-IT-001';
+    const summary = data?.summary || data?.message || `Ticket ${ticketId} processed.`;
+    const employee = data?.employee || data?.employeeName || 'Sarah';
+    const dept = data?.department || 'DevOps';
+    const details = data?.details || 'MacBook Pro M3 and AWS VPN access';
+
+    return (
+      <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-4">
+        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+          <div className="flex items-center gap-3">
+            <div className={`p-2.5 rounded-xl ${isUpdate ? 'bg-emerald-50 text-emerald-600' : 'bg-blue-50 text-blue-600'}`}>
+              <Ticket className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-mono font-bold uppercase text-slate-700 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded">
+                  {ticketId}
+                </span>
+                <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full border ${
+                  isUpdate ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-blue-50 text-blue-700 border-blue-200'
+                }`}>
+                  {isUpdate ? 'Resolved' : 'Open Ticket'}
+                </span>
+              </div>
+              <h4 className="text-sm font-bold text-slate-900 mt-1">{summary}</h4>
+            </div>
+          </div>
+          <button
+            onClick={() => onNavigate?.('tickets')}
+            className="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+          >
+            <span>Service Desk</span>
+            <ArrowUpRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-slate-50 border border-slate-200 rounded-xl p-3.5 text-xs">
+          <div>
+            <span className="text-slate-400 block text-[10px]">Employee</span>
+            <span className="font-bold text-slate-800">{employee}</span>
+          </div>
+          <div>
+            <span className="text-slate-400 block text-[10px]">Department</span>
+            <span className="font-bold text-slate-800">{dept}</span>
+          </div>
+          <div>
+            <span className="text-slate-400 block text-[10px]">Provisioning / Details</span>
+            <span className="font-semibold text-slate-700">{details}</span>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderCvScreenResult = (data: any) => {
+    const name = data?.candidateName || 'Candidate';
+    const score = data?.matchScore || 85;
+    const isBestFit = data?.isBestFit === true || score >= 80;
+    const questions = data?.recommendedInterviewQuestions || [];
+
+    return (
+      <div className="bg-white rounded-2xl border border-indigo-200 p-6 shadow-xs space-y-4">
+        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-indigo-50 text-indigo-600 rounded-xl">
+              <Sparkles className="w-5 h-5 text-indigo-600" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className={`text-[10px] font-bold uppercase px-2.5 py-0.5 rounded-full border flex items-center gap-1 ${
+                  isBestFit ? 'bg-emerald-50 text-emerald-700 border-emerald-300' : 'bg-blue-50 text-blue-700 border-blue-300'
+                }`}>
+                  {isBestFit && <Star className="w-3 h-3 fill-current text-emerald-600" />}
+                  {isBestFit ? 'Best Fit For This Position' : 'Strong Match'}
+                </span>
+              </div>
+              <h4 className="text-base font-bold text-slate-900 mt-1">{name} — Fit Score: {score}%</h4>
+            </div>
+          </div>
+          <button
+            onClick={() => onNavigate?.('cv')}
+            className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+          >
+            <span>Open in CV Tab</span>
+            <ArrowUpRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+
+        {data?.fitSummary && (
+          <p className="text-xs text-slate-700 leading-relaxed bg-slate-50 p-3 rounded-xl border border-slate-200">
+            {data.fitSummary}
+          </p>
+        )}
+
+        {questions.length > 0 && (
+          <div className="space-y-1.5 bg-indigo-50/50 border border-indigo-100 rounded-xl p-3.5 text-xs">
+            <span className="font-bold text-indigo-900 block text-[11px] uppercase tracking-wider">
+              Recommended Interview Questions:
+            </span>
+            <ol className="list-decimal pl-4 space-y-1 text-slate-700">
+              {questions.map((q: string, idx: number) => (
+                <li key={idx}>{q}</li>
+              ))}
+            </ol>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   // Choose which result renderer to use based on intent
   const renderResultData = (res: AgentResult) => {
     if (!res.resultData) return null;
@@ -987,6 +1177,21 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
 
     if (intent === 'GENERAL_CONVERSATION' || data?.isConversational) {
       return renderConversationalResult(data?.message ?? 'Hello! How can I assist you today?');
+    }
+
+    // Job Opening Creation
+    if (intent === 'JOB_OPENING_CREATE') {
+      return renderJobOpeningResult(data);
+    }
+
+    // Ticket Create / Update / Read
+    if (intent.startsWith('TICKET') || intent === 'TICKET_CREATE' || intent === 'TICKET_UPDATE' || intent === 'TICKET_READ' || intent === 'TICKET_TRIAGE') {
+      return renderTicketResult(data, intent);
+    }
+
+    // CV Fit Screening
+    if (intent === 'CV_SCREEN') {
+      return renderCvScreenResult(data);
     }
 
     // Filtered Employee List (EMPLOYEE_READ)

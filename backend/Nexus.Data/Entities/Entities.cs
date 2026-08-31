@@ -233,3 +233,38 @@ public class Ticket
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }
 
+public class JobOpening
+{
+    public int Id { get; set; }
+    public string Title { get; set; } = string.Empty;
+    public string Department { get; set; } = string.Empty;
+    public string Description { get; set; } = string.Empty;
+    public string Requirements { get; set; } = string.Empty;
+    public string Location { get; set; } = string.Empty;
+    public string SalaryRange { get; set; } = string.Empty;
+    public string Status { get; set; } = "Active"; // Active, Closed
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+    public ICollection<CandidateApplication> Applications { get; set; } = new List<CandidateApplication>();
+}
+
+public class CandidateApplication
+{
+    public int Id { get; set; }
+    public int JobOpeningId { get; set; }
+    public string CandidateName { get; set; } = string.Empty;
+    public string Email { get; set; } = string.Empty;
+    public string Phone { get; set; } = string.Empty;
+    public int ExperienceYears { get; set; } = 0;
+    public string CoverNote { get; set; } = string.Empty;
+    public string CvText { get; set; } = string.Empty;
+    public string CvFileName { get; set; } = string.Empty;
+    public string? CvPdfData { get; set; } // Base64 Data URL of the uploaded PDF
+    public string Status { get; set; } = "Submitted"; // Submitted, Reviewed, Shortlisted, Best Fit, Rejected
+    public int? FitScore { get; set; }
+    public string? AiEvaluationJson { get; set; }
+    public DateTime SubmittedAt { get; set; } = DateTime.UtcNow;
+
+    public JobOpening? JobOpening { get; set; }
+}
+

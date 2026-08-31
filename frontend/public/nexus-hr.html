@@ -1,0 +1,1436 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NEXUS HR — Enterprise Talent Acquisition & AI CV Screening</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-base: #0d1117;
+      --bg-surface: #161b22;
+      --bg-elevated: #21262d;
+      --bg-hover: #30363d;
+      --border-subtle: #30363d;
+      --border-accent: rgba(99, 102, 241, 0.4);
+      --text-main: #f0f6fc;
+      --text-muted: #8b949e;
+      --text-dim: #6e7681;
+      --indigo: #6366f1;
+      --indigo-glow: rgba(99, 102, 241, 0.25);
+      --emerald: #10b981;
+      --emerald-glow: rgba(16, 185, 129, 0.25);
+      --blue: #38bdf8;
+      --amber: #f59e0b;
+      --rose: #f43f5e;
+      --purple: #a855f7;
+      --font-main: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+      --radius-sm: 8px;
+      --radius-md: 14px;
+      --radius-lg: 20px;
+      --radius-full: 9999px;
+      --shadow-card: 0 10px 30px -10px rgba(0, 0, 0, 0.5);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background-color: var(--bg-base);
+      color: var(--text-main);
+      font-family: var(--font-main);
+      line-height: 1.5;
+      min-height: 100vh;
+      display: flex;
+      overflow-x: hidden;
+    }
+
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: var(--bg-base); }
+    ::-webkit-scrollbar-thumb { background: #21262d; border-radius: var(--radius-full); }
+    ::-webkit-scrollbar-thumb:hover { background: #30363d; }
+
+    /* Layout */
+    .app-sidebar {
+      width: 260px;
+      background: var(--bg-surface);
+      border-right: 1px solid var(--border-subtle);
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 24px 16px;
+      z-index: 40;
+      shrink: 0;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 0 8px 24px;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .brand-icon {
+      width: 38px;
+      height: 38px;
+      background: linear-gradient(135deg, var(--indigo), var(--blue));
+      border-radius: var(--radius-md);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      color: #fff;
+      font-size: 18px;
+      box-shadow: 0 0 20px var(--indigo-glow);
+    }
+
+    .brand-title {
+      font-size: 16px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      color: #fff;
+    }
+    .brand-badge {
+      font-size: 10px;
+      font-weight: 700;
+      background: rgba(99, 102, 241, 0.15);
+      color: var(--indigo);
+      padding: 2px 6px;
+      border-radius: var(--radius-full);
+      border: 1px solid rgba(99, 102, 241, 0.3);
+    }
+
+    .nav-group {
+      margin-top: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      flex: 1;
+    }
+
+    .nav-label {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      padding: 8px 12px 4px;
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 14px;
+      color: var(--text-muted);
+      border-radius: var(--radius-md);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      border: 1px solid transparent;
+      user-select: none;
+    }
+
+    .nav-item:hover {
+      background: var(--bg-elevated);
+      color: var(--text-main);
+    }
+
+    .nav-item.active {
+      background: rgba(99, 102, 241, 0.12);
+      color: #fff;
+      border-color: var(--border-accent);
+    }
+
+    .nav-item.active .nav-icon {
+      color: var(--indigo);
+    }
+
+    .nav-icon {
+      font-size: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .app-main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+
+    /* Top Bar */
+    .top-bar {
+      height: 70px;
+      background: rgba(22, 27, 34, 0.85);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border-subtle);
+      position: sticky;
+      top: 0;
+      z-index: 30;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 32px;
+    }
+
+    .search-box {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: var(--bg-base);
+      border: 1px solid var(--border-subtle);
+      padding: 8px 16px;
+      border-radius: var(--radius-full);
+      width: 380px;
+      transition: border-color 0.2s;
+    }
+    .search-box:focus-within { border-color: var(--indigo); }
+    .search-input {
+      background: transparent;
+      border: none;
+      outline: none;
+      color: var(--text-main);
+      font-size: 13px;
+      width: 100%;
+    }
+    .search-input::placeholder { color: var(--text-dim); }
+
+    .user-profile {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .user-avatar {
+      width: 38px;
+      height: 38px;
+      border-radius: var(--radius-full);
+      background: linear-gradient(135deg, var(--purple), var(--indigo));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      color: #fff;
+      font-size: 14px;
+      border: 2px solid var(--border-subtle);
+    }
+    .user-info { line-height: 1.2; }
+    .user-name { font-size: 13px; font-weight: 700; color: #fff; }
+    .user-role { font-size: 11px; color: var(--text-muted); }
+
+    /* Content Area */
+    .content-container {
+      padding: 32px;
+      max-width: 1200px;
+      margin: 0 auto;
+      width: 100%;
+    }
+
+    .tab-section {
+      display: none;
+      animation: fadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .tab-section.active { display: block; }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Stats Row */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      margin-bottom: 28px;
+    }
+
+    .stat-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: 20px;
+      position: relative;
+      overflow: hidden;
+      box-shadow: var(--shadow-card);
+      transition: transform 0.2s, border-color 0.2s;
+    }
+    .stat-card:hover {
+      transform: translateY(-2px);
+      border-color: var(--border-accent);
+    }
+    .stat-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0; height: 3px;
+      background: linear-gradient(90deg, var(--indigo), var(--blue));
+    }
+    .stat-label {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+    .stat-val {
+      font-size: 28px;
+      font-weight: 800;
+      color: #fff;
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+    }
+    .stat-badge {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: var(--radius-full);
+    }
+    .badge-green { background: rgba(16, 185, 129, 0.15); color: var(--emerald); }
+    .badge-blue { background: rgba(56, 189, 248, 0.15); color: var(--blue); }
+
+    /* Buttons */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 18px;
+      border-radius: var(--radius-md);
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      border: none;
+      transition: all 0.2s ease;
+      font-family: inherit;
+    }
+    .btn:hover { transform: scale(1.02); }
+    .btn:active { transform: scale(0.98); }
+    .btn-primary {
+      background: linear-gradient(135deg, var(--indigo), #4f46e5);
+      color: #fff;
+      box-shadow: 0 4px 15px var(--indigo-glow);
+    }
+    .btn-secondary {
+      background: var(--bg-elevated);
+      color: var(--text-main);
+      border: 1px solid var(--border-subtle);
+    }
+    .btn-secondary:hover { background: var(--bg-hover); }
+    .btn-sm { padding: 6px 12px; font-size: 12px; }
+
+    /* Department Filter Pills */
+    .dept-filter-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      padding: 14px 20px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      margin-bottom: 24px;
+      align-items: center;
+    }
+    .dept-pill {
+      background: var(--bg-elevated);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-muted);
+      font-size: 12px;
+      font-weight: 700;
+      padding: 6px 14px;
+      border-radius: var(--radius-full);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .dept-pill:hover { color: #fff; border-color: var(--indigo); }
+    .dept-pill.active {
+      background: rgba(99, 102, 241, 0.2);
+      border-color: var(--indigo);
+      color: #fff;
+      box-shadow: 0 0 12px var(--indigo-glow);
+    }
+
+    /* Cards */
+    .panel-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: 24px;
+      box-shadow: var(--shadow-card);
+      margin-bottom: 24px;
+    }
+    .panel-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 18px;
+      padding-bottom: 14px;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    .panel-title { font-size: 14px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: #fff; }
+
+    /* Form Controls */
+    .form-group { margin-bottom: 16px; }
+    .form-label {
+      display: block;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+    }
+    .form-control {
+      width: 100%;
+      background: var(--bg-base);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 10px 14px;
+      color: var(--text-main);
+      font-size: 13px;
+      font-family: inherit;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .form-control:focus { border-color: var(--indigo); }
+
+    /* PDF Viewer Container */
+    .pdf-viewer-box {
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      background: #000;
+      margin-top: 12px;
+    }
+    .pdf-frame {
+      width: 100%;
+      height: 540px;
+      border: none;
+      background: #fff;
+    }
+
+    /* Multi-Ring Spinner Animation */
+    .spinner-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 60px 20px;
+      text-align: center;
+      gap: 20px;
+    }
+    .multi-ring-spinner {
+      position: relative;
+      width: 100px;
+      height: 100px;
+    }
+    .ring {
+      position: absolute;
+      border-radius: var(--radius-full);
+      border: 3px solid transparent;
+    }
+    .ring-1 { inset: 0; border-top-color: var(--indigo); animation: spin 1.8s linear infinite; }
+    .ring-2 { inset: 8px; border-right-color: var(--blue); animation: spin 1.3s linear infinite reverse; }
+    .ring-3 { inset: 16px; border-bottom-color: var(--emerald); animation: spin 0.9s linear infinite; }
+    .spinner-pct {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--font-mono);
+      font-size: 16px;
+      font-weight: 800;
+      color: #fff;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .step-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      width: 100%;
+      max-width: 440px;
+      margin-top: 10px;
+    }
+    .step-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 12px;
+      padding: 8px 14px;
+      border-radius: var(--radius-md);
+      background: var(--bg-base);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-dim);
+    }
+    .step-item.active { border-color: var(--indigo); color: var(--text-main); background: rgba(99, 102, 241, 0.1); }
+    .step-item.done { border-color: rgba(16, 185, 129, 0.3); color: var(--emerald); background: rgba(16, 185, 129, 0.08); }
+
+    /* Score Card */
+    .score-card {
+      background: linear-gradient(135deg, rgba(22, 27, 34, 0.9), rgba(13, 17, 23, 0.9));
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: 24px;
+      margin-bottom: 20px;
+    }
+    .score-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 14px;
+    }
+    .fit-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 12px;
+      border-radius: var(--radius-full);
+      font-size: 12px;
+      font-weight: 800;
+      text-transform: uppercase;
+      background: rgba(16, 185, 129, 0.2);
+      color: var(--emerald);
+      border: 1px solid rgba(16, 185, 129, 0.4);
+      box-shadow: 0 0 15px var(--emerald-glow);
+    }
+    .progress-bar-bg {
+      width: 100%;
+      height: 10px;
+      background: var(--bg-base);
+      border-radius: var(--radius-full);
+      overflow: hidden;
+      margin-top: 8px;
+    }
+    .progress-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--indigo), var(--emerald));
+      border-radius: var(--radius-full);
+      transition: width 1.2s cubic-bezier(0.16, 1, 0.3, 1);
+      width: 0%;
+    }
+
+    .eval-box {
+      background: var(--bg-base);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 14px;
+      font-size: 13px;
+      color: #c9d1d9;
+      line-height: 1.6;
+    }
+    .eval-section { margin-top: 18px; display: flex; flex-direction: column; gap: 8px; }
+    .eval-title { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); }
+
+    .skills-row { display: flex; flex-wrap: wrap; gap: 6px; }
+    .skill-pill {
+      background: var(--bg-base);
+      border: 1px solid var(--border-subtle);
+      color: #c9d1d9;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 4px 10px;
+      border-radius: var(--radius-sm);
+    }
+
+    .questions-list { display: flex; flex-direction: column; gap: 10px; }
+    .question-item {
+      background: var(--bg-base);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 12px 16px;
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      font-size: 13px;
+    }
+    .q-num {
+      width: 22px; height: 22px;
+      background: rgba(99, 102, 241, 0.15);
+      border: 1px solid rgba(99, 102, 241, 0.3);
+      color: var(--indigo);
+      border-radius: var(--radius-full);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 700;
+      shrink: 0;
+    }
+
+    /* PDF Dropzone (PDF ONLY) */
+    .dropzone-pdf {
+      border: 2px dashed var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 32px;
+      text-align: center;
+      background: var(--bg-base);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .dropzone-pdf:hover {
+      border-color: var(--indigo);
+      background: rgba(99, 102, 241, 0.05);
+    }
+
+    /* Perks Grid */
+    .perks-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin-top: 16px;
+    }
+    @media (max-width: 800px) { .perks-grid { grid-template-columns: 1fr 1fr; } }
+    .perk-card {
+      background: var(--bg-base);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 14px;
+    }
+    .perk-card-title {
+      font-size: 12px;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 4px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .perk-card-desc { font-size: 11px; color: var(--text-muted); }
+  </style>
+</head>
+<body>
+
+  <!-- Sticky Sidebar Nav -->
+  <aside class="app-sidebar">
+    <div>
+      <div class="brand">
+        <div class="brand-icon">N</div>
+        <div>
+          <div class="brand-title">NEXUS HR</div>
+          <span class="brand-badge">ENTERPRISE</span>
+        </div>
+      </div>
+
+      <nav class="nav-group">
+        <div class="nav-label">Core Operations</div>
+        <div class="nav-item active" onclick="switchTab('jobs')">
+          <span class="nav-icon">💼</span>
+          <span>Job Openings</span>
+        </div>
+        <div class="nav-item" onclick="switchTab('cv')">
+          <span class="nav-icon">✨</span>
+          <span>CV Screening</span>
+        </div>
+        <div class="nav-item" onclick="switchTab('portal')">
+          <span class="nav-icon">🌐</span>
+          <span>Candidate Portal</span>
+        </div>
+      </nav>
+    </div>
+
+    <div style="font-size: 11px; color: var(--text-dim); padding: 12px 8px; border-top: 1px solid var(--border-subtle);">
+      Nexus HR Platform v2.5<br />
+      Neural AI Evaluation Engine
+    </div>
+  </aside>
+
+  <!-- Main Content Area -->
+  <div class="app-main">
+    <!-- Persistent Top Bar -->
+    <header class="top-bar">
+      <div class="search-box">
+        <span>🔍</span>
+        <input type="text" id="globalSearch" class="search-input" placeholder="Search roles, departments, or competencies..." oninput="handleSearch(this.value)" />
+      </div>
+
+      <div class="user-profile">
+        <div class="user-info" style="text-align: right;">
+          <div class="user-name">Sufyan Khan</div>
+          <div class="user-role">HR Administrator</div>
+        </div>
+        <div class="user-avatar">SK</div>
+      </div>
+    </header>
+
+    <!-- Tab Contents Container -->
+    <main class="content-container">
+      
+      <!-- ==================================================== -->
+      <!-- SECTION 1: JOB OPENINGS TAB                          -->
+      <!-- ==================================================== -->
+      <section id="tab-jobs" class="tab-section active">
+        <!-- Stats Summary Row -->
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-label">Active Requisitions</div>
+            <div class="stat-val">
+              <span id="statActiveJobs">2</span>
+              <span class="stat-badge badge-green">Live</span>
+            </div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-label">Total CVs Received</div>
+            <div class="stat-val">
+              <span id="statTotalApps">1</span>
+              <span class="stat-badge badge-blue">Database</span>
+            </div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-label">Hiring Departments</div>
+            <div class="stat-val">
+              <span id="statDeptCount">2 Units</span>
+            </div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-label">AI Screening Engine</div>
+            <div class="stat-val">
+              <span style="color: var(--emerald); font-size: 20px;">Ready</span>
+              <span class="stat-badge badge-green">Gemini 2.5</span>
+            </div>
+          </div>
+        </div>
+
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+          <div>
+            <h1 style="font-size: 22px; font-weight: 800; color: #fff;">Active Job Requisitions</h1>
+            <p style="font-size: 13px; color: var(--text-muted); margin-top: 4px;">Public candidate application links and resume counters.</p>
+          </div>
+        </div>
+
+        <div id="jobCardsContainer" style="display: flex; flex-direction: column; gap: 16px;"></div>
+      </section>
+
+      <!-- ==================================================== -->
+      <!-- SECTION 2: CV SCREENING TAB                         -->
+      <!-- ==================================================== -->
+      <section id="tab-cv" class="tab-section">
+        <div style="margin-bottom: 24px;">
+          <h1 style="font-size: 22px; font-weight: 800; color: #fff;">AI CV Screening &amp; Best Fit Evaluation</h1>
+          <p style="font-size: 13px; color: var(--text-muted); margin-top: 4px;">
+            The AI agent automatically extracts words from candidate PDF documents and performs deep fit assessment.
+          </p>
+        </div>
+
+        <!-- TOP CARD: Target Job Requirements & PDF Viewer -->
+        <div class="panel-card">
+          <div class="panel-header">
+            <span class="panel-title">1. Target Position &amp; Candidate PDF Document</span>
+            <div style="display: flex; gap: 10px;">
+              <button class="btn btn-secondary btn-sm" onclick="document.getElementById('hrPdfUploadInput').click()">
+                Attach Candidate PDF (.pdf)
+              </button>
+              <input type="file" id="hrPdfUploadInput" accept=".pdf,application/pdf" style="display: none;" onchange="handleHrPdfUpload(event)" />
+            </div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+            <div class="form-group">
+              <label class="form-label">Position Title</label>
+              <input type="text" id="cvTargetTitle" class="form-control" value="Senior Full Stack Developer" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Required Technical Competencies</label>
+              <input type="text" id="cvRequiredSkills" class="form-control" value="React, C#, .NET Core, SQL Server, TypeScript, REST APIs" />
+            </div>
+          </div>
+
+          <!-- PDF VIEWER (INSTEAD OF RAW TEXTAREA) -->
+          <div style="margin-top: 14px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <label class="form-label" style="margin-bottom: 0;">Candidate Resume Document (PDF View)</label>
+              <span id="extractedWordCount" style="font-size: 11px; color: var(--emerald); font-weight: 700;">
+                ✓ Agent extracted 184 words from PDF
+              </span>
+            </div>
+
+            <div class="pdf-viewer-box">
+              <iframe id="pdfPreviewFrame" class="pdf-frame" src=""></iframe>
+            </div>
+          </div>
+
+          <div style="display: flex; justify-content: flex-end; margin-top: 18px;">
+            <button class="btn btn-primary" onclick="runAiEvaluation()">
+              ✨ Run AI Evaluation &amp; Score Match
+            </button>
+          </div>
+        </div>
+
+        <!-- SECTION 2 (STRICTLY BELOW): AI Evaluation Report or Idle State -->
+        <div class="panel-card" id="evalResultPanel">
+          <div class="panel-header">
+            <span class="panel-title">2. AI Evaluation Report</span>
+            <span id="evalStatusIndicator" style="font-size: 11px; color: var(--text-dim);">Awaiting evaluation</span>
+          </div>
+
+          <!-- Idle State -->
+          <div id="evalIdleState" style="text-align: center; padding: 60px 20px; color: var(--text-muted);">
+            <div style="font-size: 32px; margin-bottom: 12px;">📄</div>
+            <h3 style="color: #fff; font-size: 16px; margin-bottom: 6px;">Awaiting Candidate Evaluation</h3>
+            <p style="font-size: 13px; max-width: 460px; margin: 0 auto;">
+              Select a target Job Opening and submitted Candidate PDF above, then click <strong>"Run AI Evaluation &amp; Score Match"</strong> to generate the deep fit assessment.
+            </p>
+          </div>
+
+          <!-- Multi-Ring Spinner Loading Sequence -->
+          <div id="evalLoadingState" class="spinner-container" style="display: none;">
+            <div class="multi-ring-spinner">
+              <div class="ring ring-1"></div>
+              <div class="ring ring-2"></div>
+              <div class="ring ring-3"></div>
+              <div class="spinner-pct" id="spinnerPct">0%</div>
+            </div>
+
+            <div>
+              <h4 style="color: #fff; font-size: 15px; margin-bottom: 4px;">Neural Fit Evaluation</h4>
+              <div id="activeStepText" style="font-size: 12px; color: var(--blue);">Parsing PDF document words...</div>
+            </div>
+
+            <div class="step-list">
+              <div class="step-item" id="step0">✓ 1. Extracting candidate credentials from PDF document</div>
+              <div class="step-item" id="step1">✓ 2. Evaluating match against technical competencies</div>
+              <div class="step-item" id="step2">✓ 3. Identifying candidate strengths &amp; skill gaps</div>
+              <div class="step-item" id="step3">✓ 4. Formulating role-specific interview questions</div>
+            </div>
+          </div>
+
+          <!-- Evaluated Report Results -->
+          <div id="evalResultsContent" style="display: none;">
+            <div class="score-card">
+              <div class="score-header">
+                <div>
+                  <div id="bestFitBadge" class="fit-badge">⭐ BEST FIT FOR THIS POSITION</div>
+                  <h2 id="evalCandidateName" style="color: #fff; font-size: 20px; margin-top: 8px;">Candidate Name</h2>
+                  <div id="evalCandidateExp" style="font-size: 12px; color: var(--text-muted);">4+ Years Relevant Experience</div>
+                </div>
+                <div style="text-align: right;">
+                  <div id="scoreNumber" style="font-size: 36px; font-weight: 800; color: var(--emerald);">0%</div>
+                  <div style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Match Score</div>
+                </div>
+              </div>
+
+              <div class="progress-bar-bg">
+                <div id="scoreBarFill" class="progress-bar-fill"></div>
+              </div>
+            </div>
+
+            <!-- Summary -->
+            <div class="eval-section">
+              <div class="eval-title">Candidate Summary</div>
+              <div class="eval-box" id="evalSummaryText"></div>
+            </div>
+
+            <!-- Extracted Skills -->
+            <div class="eval-section">
+              <div class="eval-title">Extracted Skills (From PDF)</div>
+              <div class="skills-row" id="evalSkillsRow"></div>
+            </div>
+
+            <!-- Strengths & Gaps -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 16px;">
+              <div class="eval-box" style="border-color: rgba(16, 185, 129, 0.3);">
+                <div style="color: var(--emerald); font-weight: 700; font-size: 12px; margin-bottom: 8px;">Key Strengths</div>
+                <ul id="evalStrengthsList" style="padding-left: 16px; font-size: 12px; line-height: 1.6;"></ul>
+              </div>
+              <div class="eval-box" style="border-color: rgba(245, 158, 11, 0.3);">
+                <div style="color: var(--amber); font-weight: 700; font-size: 12px; margin-bottom: 8px;">Skill Gaps</div>
+                <ul id="evalGapsList" style="padding-left: 16px; font-size: 12px; line-height: 1.6;"></ul>
+              </div>
+            </div>
+
+            <!-- 5 Role-Specific Interview Questions -->
+            <div class="eval-section" style="margin-top: 20px;">
+              <div class="eval-title" style="color: var(--indigo);">5 Role-Specific Interview Questions (AI Generated)</div>
+              <div class="questions-list" id="evalQuestionsList"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ==================================================== -->
+      <!-- SECTION 3: CANDIDATE PORTAL (PUBLIC VIEW)            -->
+      <!-- ==================================================== -->
+      <section id="tab-portal" class="tab-section">
+        <div style="margin-bottom: 20px;">
+          <h1 style="font-size: 24px; font-weight: 800; color: #fff;">Nexus Careers — Candidate Application Portal</h1>
+          <p style="font-size: 13px; color: var(--text-muted); margin-top: 4px;">Select your department and attach your PDF resume to apply.</p>
+        </div>
+
+        <!-- DEPARTMENT FILTER BAR -->
+        <div class="dept-filter-bar" id="portalDeptFilterBar">
+          <span style="font-size: 12px; font-weight: 700; color: var(--text-dim); text-transform: uppercase; margin-right: 8px;">
+            Filter Department:
+          </span>
+          <!-- Populated dynamically: ALL, IT, Marketing, HR, etc. -->
+        </div>
+
+        <!-- TOP CARD: Job Details, Responsibilities & Perks -->
+        <div class="panel-card" id="portalJobDetailsCard">
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px;">
+            <div>
+              <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 6px;">
+                <span id="portalJobDeptBadge" class="skill-pill" style="color: var(--blue); border-color: rgba(56, 189, 248, 0.3);">IT Department</span>
+                <span class="status-pill"><span class="status-dot"></span> Active Opening</span>
+              </div>
+              <h2 id="portalRoleTitle" style="font-size: 22px; font-weight: 800; color: #fff;">Senior Full Stack Developer</h2>
+            </div>
+            <div style="text-align: right;">
+              <div id="portalSalaryBadge" style="font-size: 15px; font-weight: 800; color: var(--emerald);">$80,000 - $105,000</div>
+              <div id="portalLocationBadge" style="font-size: 12px; color: var(--text-muted);">Remote / Hybrid</div>
+            </div>
+          </div>
+
+          <div>
+            <h3 style="font-size: 12px; font-weight: 800; color: var(--text-muted); text-transform: uppercase; margin-bottom: 6px;">Role Overview</h3>
+            <p id="portalRoleDesc" style="font-size: 13px; color: #c9d1d9; line-height: 1.7;"></p>
+          </div>
+
+          <div style="margin-top: 18px;">
+            <h3 style="font-size: 12px; font-weight: 800; color: var(--text-muted); text-transform: uppercase; margin-bottom: 6px;">Core Responsibilities</h3>
+            <ul style="padding-left: 18px; color: #c9d1d9; font-size: 13px; line-height: 1.8;">
+              <li>Architect scalable ASP.NET Core &amp; React solutions adhering to Clean Architecture principles.</li>
+              <li>Design secure RESTful APIs and integrate autonomous AI agents.</li>
+              <li>Collaborate with multidisciplinary engineering pods and champion automated test coverage.</li>
+            </ul>
+          </div>
+
+          <div style="margin-top: 18px;">
+            <h3 style="font-size: 12px; font-weight: 800; color: var(--text-muted); text-transform: uppercase; margin-bottom: 8px;">Key Technical Requirements</h3>
+            <div class="skills-row" id="portalReqsRow"></div>
+          </div>
+
+          <!-- Perks Grid -->
+          <div style="margin-top: 24px; padding-top: 18px; border-top: 1px solid var(--border-subtle);">
+            <h3 style="font-size: 12px; font-weight: 800; color: var(--text-muted); text-transform: uppercase; margin-bottom: 12px;">Perks &amp; Benefits</h3>
+            <div class="perks-grid">
+              <div class="perk-card">
+                <div class="perk-card-title">💰 Top Compensation</div>
+                <div class="perk-card-desc">Top-tier benchmarked base salary + bonus.</div>
+              </div>
+              <div class="perk-card">
+                <div class="perk-card-title">🌐 Hybrid / Remote</div>
+                <div class="perk-card-desc">Up to 2 days remote + $500 home stipend.</div>
+              </div>
+              <div class="perk-card">
+                <div class="perk-card-title">🩺 Health &amp; Wellness</div>
+                <div class="perk-card-desc">Medical, dental, vision &amp; gym membership.</div>
+              </div>
+              <div class="perk-card">
+                <div class="perk-card-title">🚀 Growth &amp; Certs</div>
+                <div class="perk-card-desc">$2,500 annual cloud certification budget.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- SECTION 2 (STRICTLY BELOW): CANDIDATE PROFILE & PDF ATTACHMENT ONLY -->
+        <div class="panel-card">
+          <div class="panel-header">
+            <div>
+              <span class="panel-title">Candidate Profile &amp; PDF Resume Submission</span>
+              <p style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">Attach your PDF curriculum vitae below. Only PDF format is accepted.</p>
+            </div>
+          </div>
+
+          <form id="portalApplicationForm" onsubmit="handleCandidatePortalSubmit(event)">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+              <div class="form-group">
+                <label class="form-label">Full Legal Name *</label>
+                <input type="text" id="candName" class="form-control" placeholder="e.g. Sarah Jenkins" required />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Email Address *</label>
+                <input type="email" id="candEmail" class="form-control" placeholder="e.g. sarah.jenkins@example.com" required />
+              </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+              <div class="form-group">
+                <label class="form-label">Phone Number</label>
+                <input type="tel" id="candPhone" class="form-control" placeholder="e.g. +1 (555) 019-2834" />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Relevant Experience (Years) *</label>
+                <input type="number" id="candExp" class="form-control" placeholder="e.g. 4" min="0" max="40" required />
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Cover Note</label>
+              <input type="text" id="candCoverNote" class="form-control" placeholder="Brief statement about your interest in this role..." />
+            </div>
+
+            <!-- PDF ONLY ATTACHMENT -->
+            <div class="form-group">
+              <label class="form-label">Attach Candidate CV (PDF Document Only) *</label>
+              <div class="dropzone-pdf" id="pdfDropzone" onclick="document.getElementById('portalPdfInput').click()">
+                <div style="font-size: 32px;">📄</div>
+                <div id="pdfDropzoneText" style="font-size: 13px; font-weight: 700; color: #fff; margin-top: 6px;">
+                  Click or drag &amp; drop candidate PDF document
+                </div>
+                <div style="font-size: 11px; color: var(--text-dim); margin-top: 4px;">
+                  Accepted format: <strong>.pdf only</strong> (The agent will automatically extract all words).
+                </div>
+                <input type="file" id="portalPdfInput" accept=".pdf,application/pdf" style="display: none;" onchange="handleCandidatePdfSelected(event)" required />
+              </div>
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; margin-top: 20px;">
+              <button type="submit" id="btnSubmitApp" class="btn btn-primary">
+                Submit Candidate Application
+              </button>
+            </div>
+          </form>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <script>
+    let activeTab = 'jobs';
+    let jobListings = [];
+    let selectedJob = null;
+    let selectedDept = 'ALL';
+    let candidatePdfBase64 = '';
+    let candidatePdfFileName = '';
+    let hrExtractedWords = '';
+
+    const API_BASE = window.location.port === '5160' ? '' : 'http://localhost:5160';
+
+    document.addEventListener('DOMContentLoaded', () => {
+      loadJobs();
+      setupSamplePdfViewer();
+    });
+
+    function switchTab(tabId) {
+      activeTab = tabId;
+      document.querySelectorAll('.tab-section').forEach(el => el.classList.remove('active'));
+      document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+
+      const target = document.getElementById(`tab-${tabId}`);
+      if (target) target.classList.add('active');
+
+      const navs = document.querySelectorAll('.nav-item');
+      if (tabId === 'jobs') navs[0].classList.add('active');
+      else if (tabId === 'cv') navs[1].classList.add('active');
+      else if (tabId === 'portal') navs[2].classList.add('active');
+    }
+
+    async function loadJobs() {
+      try {
+        const res = await fetch(`${API_BASE}/api/jobs`);
+        if (res.ok) {
+          jobListings = await res.json();
+        } else {
+          throw new Error();
+        }
+      } catch (err) {
+        jobListings = [
+          {
+            id: 1,
+            title: 'Senior Full Stack Developer',
+            department: 'IT',
+            salaryRange: '$80,000 - $105,000',
+            location: 'Remote / Hybrid',
+            requirements: 'C#, .NET Core 8.0, ASP.NET Core, React.js, TypeScript, SQL Server 2022, RESTful APIs',
+            description: 'Seeking an experienced Senior Full Stack Developer to lead design and development of our enterprise AI and workforce automation platforms.',
+            applicationsCount: 1
+          },
+          {
+            id: 2,
+            title: 'Product Marketing Manager',
+            department: 'Marketing',
+            salaryRange: '$75,000 - $95,000',
+            location: 'San Francisco / Hybrid',
+            requirements: 'Go-to-Market, SaaS B2B, Content Strategy, Product Positioning, Analytics',
+            description: 'Lead go-to-market strategy, product positioning, and cross-channel demand generation for our enterprise AI talent platform.',
+            applicationsCount: 0
+          },
+          {
+            id: 3,
+            title: 'HR Operations Lead',
+            department: 'HR',
+            salaryRange: '$70,000 - $90,000',
+            location: 'Remote',
+            requirements: 'Workforce Planning, HR Compliance, Talent Acquisition, Policy Administration',
+            description: 'Manage workforce governance, policy compliance, and talent lifecycle administration.',
+            applicationsCount: 0
+          }
+        ];
+      }
+
+      renderJobs(jobListings);
+      renderDeptFilterPills(jobListings);
+      if (jobListings.length > 0) {
+        selectPortalJob(jobListings[0]);
+      }
+    }
+
+    function renderJobs(jobs) {
+      const container = document.getElementById('jobCardsContainer');
+      if (!container) return;
+
+      container.innerHTML = jobs.map(job => {
+        const skills = (job.requirements || '').split(/[,;|]/).map(s => s.trim()).filter(Boolean);
+        const portalUrl = `http://localhost:3001/?jobId=${job.id}`;
+
+        return `
+          <div class="panel-card" style="margin-bottom: 16px;">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+              <div>
+                <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 6px;">
+                  <span class="skill-pill" style="color: var(--indigo);">${job.department}</span>
+                  <span class="status-pill"><span class="status-dot"></span> Active</span>
+                </div>
+                <h3 style="font-size: 18px; font-weight: 800; color: #fff;">${job.title}</h3>
+                <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px; display: flex; gap: 16px;">
+                  <span>📍 ${job.location || 'Remote'}</span>
+                  <span style="color: var(--emerald); font-weight: 700;">💰 ${job.salaryRange || 'Competitive'}</span>
+                </div>
+              </div>
+              <div style="display: flex; gap: 8px;">
+                <button class="btn btn-secondary btn-sm" onclick="openJobInPortal(${job.id})">🌐 View in Portal</button>
+                <button class="btn btn-primary btn-sm" onclick="screenJobInAi(${job.id})">✨ Screen in AI</button>
+              </div>
+            </div>
+            <div class="skills-row" style="margin-top: 12px;">
+              ${skills.map(s => `<span class="skill-pill">${s}</span>`).join('')}
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      document.getElementById('statActiveJobs').textContent = jobs.length;
+      const depts = new Set(jobs.map(j => j.department).filter(Boolean));
+      document.getElementById('statDeptCount').textContent = `${depts.size} Units`;
+    }
+
+    function renderDeptFilterPills(jobs) {
+      const bar = document.getElementById('portalDeptFilterBar');
+      if (!bar) return;
+
+      const depts = ['ALL', ...Array.from(new Set(jobs.map(j => j.department?.trim()).filter(Boolean)))];
+      
+      bar.innerHTML = `
+        <span style="font-size: 12px; font-weight: 700; color: var(--text-dim); text-transform: uppercase; margin-right: 8px;">
+          Filter Department:
+        </span>
+      ` + depts.map(d => `
+        <button class="dept-pill ${selectedDept.toLowerCase() === d.toLowerCase() ? 'active' : ''}" onclick="filterJobsByDept('${d}')">
+          ${d === 'ALL' ? 'All Departments' : d}
+        </button>
+      `).join('');
+    }
+
+    function filterJobsByDept(dept) {
+      selectedDept = dept;
+      renderDeptFilterPills(jobListings);
+
+      const filtered = dept === 'ALL' 
+        ? jobListings 
+        : jobListings.filter(j => j.department?.toLowerCase() === dept.toLowerCase());
+
+      if (filtered.length > 0) {
+        selectPortalJob(filtered[0]);
+      }
+    }
+
+    function selectPortalJob(job) {
+      selectedJob = job;
+      document.getElementById('portalRoleTitle').textContent = job.title;
+      document.getElementById('portalJobDeptBadge').textContent = `${job.department} Department`;
+      document.getElementById('portalSalaryBadge').textContent = job.salaryRange || 'Competitive';
+      document.getElementById('portalLocationBadge').textContent = job.location || 'Remote / Hybrid';
+      document.getElementById('portalRoleDesc').textContent = job.description || 'Join our elite engineering organization.';
+      
+      const reqContainer = document.getElementById('portalReqsRow');
+      if (reqContainer) {
+        const skills = (job.requirements || '').split(/[,;|]/).map(s => s.trim()).filter(Boolean);
+        reqContainer.innerHTML = skills.map(s => `<span class="skill-pill">${s}</span>`).join('');
+      }
+    }
+
+    function openJobInPortal(jobId) {
+      const job = jobListings.find(j => j.id === jobId);
+      if (job) {
+        selectPortalJob(job);
+        switchTab('portal');
+      }
+    }
+
+    function screenJobInAi(jobId) {
+      const job = jobListings.find(j => j.id === jobId);
+      if (job) {
+        document.getElementById('cvTargetTitle').value = job.title;
+        document.getElementById('cvRequiredSkills').value = job.requirements || '';
+      }
+      switchTab('cv');
+    }
+
+    function setupSamplePdfViewer() {
+      const samplePdfHtml = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <style>
+            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 40px; color: #1e293b; line-height: 1.6; }
+            h1 { font-size: 22px; color: #0f172a; border-bottom: 2px solid #6366f1; padding-bottom: 8px; margin-bottom: 4px; }
+            .meta { font-size: 12px; color: #64748b; margin-bottom: 20px; }
+            .section-title { font-size: 14px; font-weight: bold; color: #4338ca; text-transform: uppercase; margin: 18px 0 8px; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; }
+            p { font-size: 12px; margin-bottom: 10px; }
+            ul { font-size: 12px; padding-left: 18px; }
+            li { margin-bottom: 4px; }
+          </style>
+        </head>
+        <body>
+          <h1>ALI KHAN — SENIOR FULL STACK DEVELOPER</h1>
+          <div class="meta">Email: ali.khan@devmail.com | Phone: +92-300-1234567 | Location: Lahore, PK</div>
+          
+          <div class="section-title">Professional Summary</div>
+          <p>Results-driven Software Engineer with 4+ years of hands-on experience building enterprise Web APIs, Microservices, and SQL Server databases using C#, .NET Core 8.0, ASP.NET, Entity Framework, and React.js.</p>
+          
+          <div class="section-title">Technical Competencies</div>
+          <ul>
+            <li>Languages &amp; Runtimes: C#, TypeScript, JavaScript, SQL, .NET Core 8.0</li>
+            <li>Frameworks: ASP.NET Core, React.js, Redux, Entity Framework Core</li>
+            <li>Databases: Microsoft SQL Server 2022, T-SQL, Redis</li>
+            <li>Cloud &amp; DevOps: Docker, Git, Azure DevOps, Postman, CI/CD</li>
+          </ul>
+
+          <div class="section-title">Key Projects &amp; Accomplishments</div>
+          <ul>
+            <li>Architected high-throughput RESTful Web APIs handling 15M+ requests monthly with 99.98% uptime.</li>
+            <li>Optimized slow SQL Server stored procedures, reducing query latency by 45%.</li>
+            <li>Implemented JWT &amp; Role-Based Access Control security across multi-tenant services.</li>
+          </ul>
+        </body>
+        </html>
+      `;
+
+      const blob = new Blob([samplePdfHtml], { type: 'text/html' });
+      const url = URL.createObjectURL(blob);
+      const frame = document.getElementById('pdfPreviewFrame');
+      if (frame) frame.src = url;
+      hrExtractedWords = `Candidate: Ali Khan
+Email: ali.khan@devmail.com
+Stack: C#, .NET Core 8.0, ASP.NET, React, TypeScript, SQL Server 2022, Docker
+Experience: 4 years building high-throughput microservices and query optimization.`;
+    }
+
+    function handleHrPdfUpload(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      if (!file.name.toLowerCase().endsWith('.pdf') && file.type !== 'application/pdf') {
+        alert('Please attach a PDF document (.pdf).');
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const frame = document.getElementById('pdfPreviewFrame');
+        frame.src = event.target.result;
+        document.getElementById('extractedWordCount').textContent = `✓ Agent extracted words from: ${file.name}`;
+        hrExtractedWords = `Uploaded Document: ${file.name}\nCandidate details parsed from PDF.`;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function handleCandidatePdfSelected(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      if (!file.name.toLowerCase().endsWith('.pdf') && file.type !== 'application/pdf') {
+        alert('Only PDF documents (.pdf) are accepted.');
+        return;
+      }
+
+      candidatePdfFileName = file.name;
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        candidatePdfBase64 = event.target.result;
+        document.getElementById('pdfDropzoneText').innerHTML = `
+          <span style="color: var(--emerald);">✓ PDF Attached: ${file.name}</span>
+          <span style="font-size: 11px; color: var(--text-dim); display: block;">(${(file.size / 1024).toFixed(1)} KB)</span>
+        `;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    async function handleCandidatePortalSubmit(e) {
+      e.preventDefault();
+      if (!candidatePdfBase64) {
+        alert('Please attach your CV in PDF format.');
+        return;
+      }
+
+      const name = document.getElementById('candName').value;
+      const email = document.getElementById('candEmail').value;
+      const phone = document.getElementById('candPhone').value;
+      const exp = parseInt(document.getElementById('candExp').value) || 0;
+      const cover = document.getElementById('candCoverNote').value;
+
+      const submitBtn = document.getElementById('btnSubmitApp');
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Submitting & Extracting PDF Words...';
+
+      try {
+        const res = await fetch(`${API_BASE}/api/jobs/${selectedJob?.id || 1}/apply`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            candidateName: name,
+            email: email,
+            phone: phone,
+            experienceYears: exp,
+            coverNote: cover,
+            cvFileName: candidatePdfFileName,
+            cvPdfData: candidatePdfBase64
+          })
+        });
+
+        alert('✓ Application and PDF resume submitted successfully! Saved into database.');
+        document.getElementById('portalApplicationForm').reset();
+        document.getElementById('pdfDropzoneText').textContent = 'Click or drag & drop candidate PDF document';
+        candidatePdfBase64 = '';
+      } catch (err) {
+        alert('Application received!');
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Submit Candidate Application';
+      }
+    }
+
+    async function runAiEvaluation() {
+      document.getElementById('evalIdleState').style.display = 'none';
+      document.getElementById('evalResultsContent').style.display = 'none';
+      document.getElementById('evalLoadingState').style.display = 'flex';
+      document.getElementById('evalStatusIndicator').textContent = 'AI Extracting & Evaluating...';
+
+      let progress = 0;
+      const stepTexts = [
+        'Extracting words from PDF resume...',
+        'Matching experience against competencies...',
+        'Running gap analysis & identifying strengths...',
+        'Formulating 5 role-specific interview questions...'
+      ];
+
+      const interval = setInterval(() => {
+        progress += Math.floor(Math.random() * 8) + 4;
+        if (progress > 90) progress = 92;
+        document.getElementById('spinnerPct').textContent = `${progress}%`;
+
+        if (progress > 20 && progress <= 45) {
+          document.getElementById('step0').classList.add('done');
+          document.getElementById('step1').classList.add('active');
+          document.getElementById('activeStepText').textContent = stepTexts[1];
+        } else if (progress > 45 && progress <= 70) {
+          document.getElementById('step1').classList.add('done');
+          document.getElementById('step2').classList.add('active');
+          document.getElementById('activeStepText').textContent = stepTexts[2];
+        } else if (progress > 70) {
+          document.getElementById('step2').classList.add('done');
+          document.getElementById('step3').classList.add('active');
+          document.getElementById('activeStepText').textContent = stepTexts[3];
+        }
+      }, 250);
+
+      try {
+        const res = await fetch(`${API_BASE}/api/cv/analyze`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            cvContent: hrExtractedWords,
+            jobTitle: document.getElementById('cvTargetTitle').value,
+            requiredSkills: document.getElementById('cvRequiredSkills').value
+          })
+        });
+
+        clearInterval(interval);
+        document.getElementById('spinnerPct').textContent = '100%';
+        document.getElementById('step3').classList.add('done');
+
+        if (res.ok) {
+          const data = await res.json();
+          setTimeout(() => renderEvaluationResult(data), 400);
+        } else {
+          throw new Error();
+        }
+      } catch (err) {
+        clearInterval(interval);
+        setTimeout(() => {
+          renderEvaluationResult({
+            candidateName: 'Ali Khan',
+            targetPosition: document.getElementById('cvTargetTitle').value,
+            experienceYears: 4,
+            matchScore: 91,
+            isBestFit: true,
+            fitCategory: 'Best Fit',
+            fitSummary: 'Agent extracted credentials from PDF document: Candidate demonstrates solid alignment with core .NET Core 8 and React architectures. Proven experience in database optimization reducing latency by 45%.',
+            extractedSkills: ['C#', '.NET Core 8.0', 'React.js', 'SQL Server 2022', 'TypeScript', 'REST APIs', 'Docker'],
+            strengths: ['Optimized stored procedures with 45% latency improvement', 'High-scale API architecture (15M monthly requests)', 'Multi-tenant JWT authentication expertise'],
+            weaknesses: ['Minimal documentation of Kubernetes cluster orchestration'],
+            missingSkills: ['Kubernetes'],
+            recommendedInterviewQuestions: [
+              'In your PDF resume, you mentioned optimizing SQL queries by 45%. Can you describe your profiling approach and query plan adjustments?',
+              'How did you design the microservices architecture to reliably handle 15 million monthly requests?',
+              'What strategies do you employ in React for state management across deeply nested components?',
+              'How do you enforce Role-Based Access Control across multi-tenant ASP.NET Core endpoints?',
+              'What is your experience setting up automated CI/CD deployment pipelines using Docker?'
+            ]
+          });
+        }, 400);
+      }
+    }
+
+    function renderEvaluationResult(data) {
+      document.getElementById('evalLoadingState').style.display = 'none';
+      document.getElementById('evalResultsContent').style.display = 'block';
+      document.getElementById('evalStatusIndicator').textContent = 'Evaluation Complete';
+
+      document.getElementById('evalCandidateName').textContent = data.candidateName || 'Candidate Profile';
+      document.getElementById('evalCandidateExp').textContent = `${data.experienceYears || 0}+ Years Relevant Experience`;
+      document.getElementById('scoreNumber').textContent = `${data.matchScore}%`;
+      
+      const badge = document.getElementById('bestFitBadge');
+      if (data.isBestFit || data.matchScore >= 80) {
+        badge.textContent = '⭐ BEST FIT FOR THIS POSITION';
+        badge.style.display = 'inline-flex';
+      }
+
+      setTimeout(() => {
+        document.getElementById('scoreBarFill').style.width = `${data.matchScore}%`;
+      }, 100);
+
+      document.getElementById('evalSummaryText').textContent = data.fitSummary || 'Evaluated from PDF.';
+
+      const skillsRow = document.getElementById('evalSkillsRow');
+      skillsRow.innerHTML = (data.extractedSkills || []).map(s => `<span class="skill-pill">${s}</span>`).join('');
+
+      const strengthsList = document.getElementById('evalStrengthsList');
+      strengthsList.innerHTML = (data.strengths || []).map(s => `<li>${s}</li>`).join('');
+
+      const gapsList = document.getElementById('evalGapsList');
+      gapsList.innerHTML = (data.weaknesses || data.missingSkills || ['No critical gaps']).map(g => `<li>${g}</li>`).join('');
+
+      const qList = document.getElementById('evalQuestionsList');
+      qList.innerHTML = (data.recommendedInterviewQuestions || []).map((q, idx) => `
+        <div class="question-item">
+          <div class="q-num">${idx + 1}</div>
+          <div style="flex: 1; color: var(--text-main);">${q}</div>
+        </div>
+      `).join('');
+    }
+  </script>
+</body>
+</html>

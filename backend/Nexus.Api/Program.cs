@@ -305,6 +305,61 @@ using (var scope = app.Services.CreateScope())
         try
         {
             db.Database.ExecuteSqlRaw(@"
+                IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'JobOpenings')
+                BEGIN
+                    CREATE TABLE JobOpenings (
+                        Id INT IDENTITY(1,1) PRIMARY KEY,
+                        Title NVARCHAR(150) NOT NULL,
+                        Department NVARCHAR(100) NOT NULL,
+                        Description NVARCHAR(MAX) NOT NULL,
+                        Requirements NVARCHAR(2000) NOT NULL,
+                        Location NVARCHAR(100) NOT NULL DEFAULT 'Remote / Hybrid',
+                        SalaryRange NVARCHAR(100) NOT NULL DEFAULT '$75,000 - $95,000',
+                        Status NVARCHAR(50) NOT NULL DEFAULT 'Active',
+                        CreatedAt DATETIME2 NOT NULL DEFAULT GETUTCDATE()
+                    );
+                    INSERT INTO JobOpenings (Title, Department, Description, Requirements, Location, SalaryRange, Status, CreatedAt)
+                    VALUES 
+                    ('Senior Full Stack Developer', 'IT', 'Seeking an experienced Senior Full Stack Developer to lead design and development of our enterprise AI and workforce automation platforms.', 'C#, .NET Core 8.0, ASP.NET Core, React.js, TypeScript, SQL Server 2022, Entity Framework Core, RESTful APIs, Microservices, Docker', 'Remote / Hybrid', '$80,000 - $105,000', 'Active', GETUTCDATE()),
+                    ('Web Developer', 'IT', 'Looking for a talented Web Developer to build high-performance, accessible, and responsive user interfaces for workforce management solutions.', 'React, TypeScript, JavaScript, HTML5, CSS3, REST APIs, Tailwind CSS, Component Design Systems, State Management', 'Remote / Hybrid', '$65,000 - $85,000', 'Active', GETUTCDATE());
+                END;
+
+                IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'CandidateApplications')
+                BEGIN
+                    CREATE TABLE CandidateApplications (
+                        Id INT IDENTITY(1,1) PRIMARY KEY,
+                        JobOpeningId INT NOT NULL FOREIGN KEY REFERENCES JobOpenings(Id) ON DELETE CASCADE,
+                        CandidateName NVARCHAR(150) NOT NULL,
+                        Email NVARCHAR(150) NOT NULL,
+                        Phone NVARCHAR(50) NOT NULL,
+                        ExperienceYears INT NOT NULL DEFAULT 3,
+                        CoverNote NVARCHAR(MAX) NOT NULL,
+                        CvText NVARCHAR(MAX) NOT NULL,
+                        CvFileName NVARCHAR(250) NOT NULL,
+                        Status NVARCHAR(50) NOT NULL DEFAULT 'Submitted',
+                        FitScore INT NULL,
+                        AiEvaluationJson NVARCHAR(MAX) NULL,
+                        SubmittedAt DATETIME2 NOT NULL DEFAULT GETUTCDATE()
+                    );
+                    INSERT INTO CandidateApplications (JobOpeningId, CandidateName, Email, Phone, ExperienceYears, CoverNote, CvText, CvFileName, Status, FitScore, SubmittedAt)
+                    VALUES 
+                    (1, 'Ali Khan', 'ali.khan@devmail.com', '+92-300-1234567', 4, 'Passionate Full Stack engineer with 4+ years building high-throughput .NET Core APIs and responsive React applications.', 'CANDIDATE RESUME: Ali Khan\r\nEmail: ali.khan@devmail.com | Phone: +92-300-1234567 | Location: Lahore, PK\r\n\r\nSUMMARY:\r\nResults-driven Software Engineer with 4+ years of hands-on experience building enterprise Web APIs, Microservices, and SQL Server databases using C#, .NET Core, ASP.NET, Entity Framework, and React.js.\r\n\r\nTECHNICAL SKILLS:\r\n- Languages: C#, JavaScript, TypeScript, SQL\r\n- Frameworks: .NET Core 8.0, ASP.NET Core, Entity Framework Core, React, Redux\r\n- Databases: SQL Server 2022, T-SQL, Redis\r\n- Tools: Git, Docker, Azure DevOps, Postman, Visual Studio 2022', 'Ali_Khan_Resume.pdf', 'Submitted', 88, GETUTCDATE());
+                END;
+
+                IF EXISTS (SELECT 1 FROM sys.tables WHERE name = 'Policies')
+                BEGIN
+                    IF NOT EXISTS (SELECT 1 FROM Policies WHERE Code = 'POL-HR-003')
+                    BEGIN
+                        INSERT INTO Policies (Code, Title, Category, DocumentPath, ContentSummary, IsActive, UpdatedAt)
+                        VALUES ('POL-HR-003', 'Remote Work & Hybrid Attendance Policy', 'HR', 'policies/Remote_Work_Policy.pdf', 'Eligible employees may work remotely up to 2 days per week. Core collaboration hours are 10:00 AM to 4:00 PM. A one-time home office equipment stipend of up to $500 is provided with manager approval.', 1, GETUTCDATE());
+                    END;
+                END;
+            ");
+        } catch { }
+
+        try
+        {
+            db.Database.ExecuteSqlRaw(@"
                 UPDATE Employees SET Email = '4t195es@gmail.com' WHERE Name LIKE '%Sufyan%' OR Name LIKE '%sufyan%';
                 UPDATE Employees SET Email = 'sufyankhankhattak33@gmail.com' WHERE Name LIKE '%Ali%' OR Name LIKE '%ali%';
                 UPDATE Employees SET Email = REPLACE(Email, '@nexus.local', '@gmail.com') WHERE Email LIKE '%@nexus.local';

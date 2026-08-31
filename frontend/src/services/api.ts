@@ -581,5 +581,150 @@ export async function triggerOnboardingWorkflow(prompt: string, userRole = 'Admi
   return executeAgentPrompt(prompt, userRole);
 }
 
+// ── Job Openings & Candidate Portal ───────────────────────────────────────
+
+export interface JobOpening {
+  id: number;
+  title: string;
+  department: string;
+  description: string;
+  requirements: string;
+  location: string;
+  salaryRange: string;
+  status: string;
+  createdAt: string;
+  applicationsCount?: number;
+  applications?: CandidateApplication[];
+}
+
+export interface CandidateApplication {
+  id: number;
+  jobOpeningId: number;
+  jobTitle?: string;
+  department?: string;
+  candidateName: string;
+  email: string;
+  phone: string;
+  experienceYears: number;
+  coverNote: string;
+  cvText: string;
+  cvFileName: string;
+  cvPdfData?: string;
+  status: string;
+  fitScore?: number;
+  aiEvaluationJson?: string;
+  submittedAt: string;
+}
+
+export interface CvAnalysisResult {
+  candidateName: string;
+  email: string;
+  targetPosition: string;
+  experienceYears: number;
+  extractedSkills: string[];
+  matchScore: number;
+  recommendation: string;
+  fitCategory: string;
+  isBestFit: boolean;
+  fitSummary: string;
+  strengths: string[];
+  weaknesses: string[];
+  missingSkills: string[];
+  recommendedInterviewQuestions: string[];
+  proposedRecord?: {
+    name: string;
+    email: string;
+    department: string;
+    designation: string;
+    suggestedSalary: number;
+  };
+}
+
+export async function fetchJobOpenings(): Promise<JobOpening[]> {
+  const res = await fetch(`${API_BASE}/jobs`);
+  if (!res.ok) return [];
+  return res.json();
+}
+
+export async function fetchJobOpening(id: number): Promise<JobOpening | null> {
+  const res = await fetch(`${API_BASE}/jobs/${id}`);
+  if (!res.ok) return null;
+  return res.json();
+}
+
+export async function createJobOpening(data: {
+  title: string;
+  department?: string;
+  description?: string;
+  requirements?: string;
+  location?: string;
+  salaryRange?: string;
+}): Promise<any> {
+  const res = await fetch(`${API_BASE}/jobs`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ message: 'Failed to create job opening' }));
+    throw new Error(err.message || 'Failed to create job opening');
+  }
+  return res.json();
+}
+
+export async function deleteJobOpening(id: number): Promise<any> {
+  const res = await fetch(`${API_BASE}/jobs/${id}`, { method: 'DELETE' });
+  if (!res.ok) throw new Error('Failed to delete job opening');
+  return res.json();
+}
+
+export async function submitCandidateApplication(jobId: number, data: {
+  candidateName: string;
+  email: string;
+  phone?: string;
+  experienceYears?: number;
+  coverNote?: string;
+  cvText?: string;
+  cvFileName?: string;
+  cvPdfData?: string;
+}): Promise<any> {
+  const res = await fetch(`${API_BASE}/jobs/${jobId}/apply`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ message: 'Failed to submit application' }));
+    throw new Error(err.message || 'Failed to submit application');
+  }
+  return res.json();
+}
+
+export async function fetchCandidateApplications(jobId?: number): Promise<CandidateApplication[]> {
+  const url = jobId ? `${API_BASE}/jobs/${jobId}/applications` : `${API_BASE}/jobs/applications`;
+  const res = await fetch(url);
+  if (!res.ok) return [];
+  return res.json();
+}
+
+export async function analyzeCandidateCv(data: {
+  cvContent?: string;
+  jobTitle?: string;
+  requiredSkills?: string;
+  jobOpeningId?: number;
+  candidateId?: number;
+}): Promise<CvAnalysisResult> {
+  const res = await fetch(`${API_BASE}/cv/analyze`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ message: 'CV analysis failed' }));
+    throw new Error(err.message || 'CV analysis failed');
+  }
+  return res.json();
+}
+
 
 

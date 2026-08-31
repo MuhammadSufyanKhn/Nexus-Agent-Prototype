@@ -69,6 +69,8 @@ public class IntentParser : IIntentParser
                 result.TargetEntity = rulesResult.TargetEntity;
                 result.Operation = rulesResult.Operation;
                 result.Confidence = rulesResult.Confidence;
+                foreach (var kv in rulesResult.Entities) result.Entities[kv.Key] = kv.Value;
+                foreach (var kv in rulesResult.Parameters) result.Parameters[kv.Key] = kv.Value;
             }
         }
 
@@ -831,6 +833,13 @@ User: ""Show all active employees in the Engineering department""
                 break;
 
             case IntentType.POLICY_DELETE:
+                if (!entities.ContainsKey("policyCode") && entities.TryGetValue("code", out var cVal)) entities["policyCode"] = cVal;
+                if (!entities.ContainsKey("policyCode") && entities.TryGetValue("policy", out var pVal)) entities["policyCode"] = pVal;
+                if (!entities.ContainsKey("policyCode") && entities.TryGetValue("policyTitle", out var tVal))
+                {
+                    var m = Regex.Match(tVal, @"\b(POL-[A-Za-z0-9\-]+)\b", RegexOptions.IgnoreCase);
+                    if (m.Success) entities["policyCode"] = m.Groups[1].Value.ToUpperInvariant();
+                }
                 if (scope != "ALL" && !entities.ContainsKey("policyTitle") && !entities.ContainsKey("policyCode"))
                 {
                     result.RequiresClarification = true;
@@ -960,11 +969,16 @@ User: ""Show all active employees in the Engineering department""
                                p.Contains("account credentials") || p.Contains("hardware replacement") ||
                                p.Contains("hardware request") || (p.Contains("provisioning") && (p.Contains("it") || p.Contains("hardware") || p.Contains("laptop")));
 
+        // Job Openings & Candidate Requisitions
+        bool isJobOpeningRelated = p.Contains("job opening") || p.Contains("job posting") || p.Contains("new opening") ||
+                                  (p.Contains("want") && (p.Contains("candidate") || p.Contains("opening") || p.Contains("hire")) && (p.Contains("requirements") || p.Contains("requiremnts") || p.Contains("web dev") || p.Contains("developer") || p.Contains("engineer"))) ||
+                                  (p.Contains("candidate") && (p.Contains("requirements") || p.Contains("requiremnts")) && (p.Contains("new") || p.Contains("create") || p.Contains("post")));
+
         // Candidate CV Screening
-        bool isCvRelated = p.Contains("screen candidate") || p.Contains("candidate cv") || p.Contains("candidate resume") ||
+        bool isCvRelated = !isJobOpeningRelated && (p.Contains("screen candidate") || p.Contains("candidate cv") || p.Contains("candidate resume") ||
                            p.Contains("resume fit score") || p.Contains("candidate qualifications") ||
                            p.Contains("interview question") || p.Contains("candidate technical skills") ||
-                           p.Contains("screen candidate resume") || (p.Contains("candidate") && (p.Contains("cv") || p.Contains("resume") || p.Contains("fit score") || p.Contains("applicant")));
+                           p.Contains("screen candidate resume") || (p.Contains("candidate") && (p.Contains("cv") || p.Contains("resume") || p.Contains("fit score") || p.Contains("applicant"))));
 
         // Approval Actions
         bool isApprovalAction = p.Contains("approve and apply") || p.Contains("confirm and execute") ||
@@ -1072,7 +1086,47 @@ User: ""Show all active employees in the Engineering department""
 
         // ══ INTENT ROUTING — highest priority first ══
 
-        if (isCvRelated)
+        if (isJobOpeningRelated)
+        {
+            result.TargetEntity = "JOB_OPENING";
+            if (isReadQuery)
+            {
+                result.Intent = IntentType.JOB_OPENING_READ.ToString();
+                result.Operation = "READ";
+            }
+            else
+            {
+                result.Intent = IntentType.JOB_OPENING_CREATE.ToString();
+                result.Operation = "CREATE";
+
+                string jobTitle = "Web Developer";
+                var titleMatch = Regex.Match(prompt, @"(?:for|position|role|opening\s+for|candidate\s+for)\s+([A-Za-z\s\.\+]+?)(?:\s+and\s+|\s+with\s+|\s+require|\s+department|$)", RegexOptions.IgnoreCase);
+                if (titleMatch.Success && !string.IsNullOrWhiteSpace(titleMatch.Groups[1].Value))
+                {
+                    jobTitle = titleMatch.Groups[1].Value.Trim();
+                    if (jobTitle.Equals("web dev", StringComparison.OrdinalIgnoreCase)) jobTitle = "Web Developer";
+                }
+                else if (p.Contains("web dev")) jobTitle = "Web Developer";
+                else if (p.Contains("full stack")) jobTitle = "Senior Full Stack Developer";
+
+                string reqs = "Relevant technical skills and experience";
+                var reqMatch = Regex.Match(prompt, @"(?:requirements|requiremnts|skills|requirements are|requiremnts are|below)\s*[:\-]?\s*(.+)", RegexOptions.IgnoreCase);
+                if (reqMatch.Success && !string.IsNullOrWhiteSpace(reqMatch.Groups[1].Value))
+                {
+                    reqs = reqMatch.Groups[1].Value.Trim();
+                }
+
+                result.Parameters["title"] = jobTitle;
+                result.Parameters["jobTitle"] = jobTitle;
+                result.Parameters["department"] = "IT";
+                result.Parameters["requirements"] = reqs;
+                result.Entities["title"] = jobTitle;
+                result.Entities["jobTitle"] = jobTitle;
+                result.Entities["department"] = "IT";
+                result.Entities["requirements"] = reqs;
+            }
+        }
+        else if (isCvRelated)
         {
             result.Intent = IntentType.CV_SCREEN.ToString();
             result.TargetEntity = "CV_CANDIDATE";
@@ -1081,20 +1135,20 @@ User: ""Show all active employees in the Engineering department""
         else if (isTicketRelated)
         {
             result.TargetEntity = "TICKET";
-            if (p.Contains("triage") || p.Contains("technician") || p.Contains("smart triage"))
+            if (isReadQuery)
             {
-                result.Intent = IntentType.TICKET_TRIAGE.ToString();
-                result.Operation = "UPDATE";
+                result.Intent = IntentType.TICKET_READ.ToString();
+                result.Operation = "READ";
             }
-            else if (p.Contains("resolved") || p.Contains("status to resolved") || p.Contains("close ticket"))
+            else if (p.Contains("resolved") || p.Contains("status to resolved") || p.Contains("close ticket") || p.Contains("as resolved"))
             {
                 result.Intent = IntentType.TICKET_UPDATE.ToString();
                 result.Operation = "UPDATE";
             }
-            else if (isReadQuery)
+            else if (p.Contains("triage") || p.Contains("smart triage"))
             {
-                result.Intent = IntentType.TICKET_READ.ToString();
-                result.Operation = "READ";
+                result.Intent = IntentType.TICKET_TRIAGE.ToString();
+                result.Operation = "UPDATE";
             }
             else
             {
@@ -1141,13 +1195,19 @@ User: ""Show all active employees in the Engineering department""
             result.TargetEntity = "EMPLOYEE";
             result.Operation = "READ";
         }
-        else if (isAnalyticsRead && p.Contains("department"))
+        else if (isDashboardRead)
+        {
+            result.Intent = IntentType.DASHBOARD_ANALYTICS.ToString();
+            result.TargetEntity = "EMPLOYEE";
+            result.Operation = "READ";
+        }
+        else if (isAnalyticsRead && p.Contains("department") && (p.Contains("budget") || p.Contains("spent") || p.Contains("allocated") || p.Contains("cost")))
         {
             result.Intent = IntentType.BUDGET_ANALYSIS.ToString();
             result.TargetEntity = "DEPARTMENT_BUDGET";
             result.Operation = "ANALYZE";
         }
-        else if (isAnalyticsRead || isDashboardRead)
+        else if (isAnalyticsRead)
         {
             result.Intent = IntentType.DASHBOARD_ANALYTICS.ToString();
             result.TargetEntity = "EMPLOYEE";

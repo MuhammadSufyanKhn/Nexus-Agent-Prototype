@@ -1,6 +1,7 @@
 using System;
 using System.Diagnostics;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -59,9 +60,29 @@ public class CreateTicketTool : IAgentTool
             using var doc = JsonDocument.Parse(jsonResultStr);
             var root = doc.RootElement;
 
-            var employee = context.GetArgument<string>("employee") ?? context.GetArgument<string>("name") ?? "New Employee";
-            var department = context.GetArgument<string>("department") ?? "IT";
+            var prompt = context.GetArgument<string>("prompt") ?? string.Empty;
+            var employee = context.GetArgument<string>("employee") ?? context.GetArgument<string>("name");
+            if (string.IsNullOrWhiteSpace(employee))
+            {
+                var m = Regex.Match(prompt, @"(?:for|hire)\s+([A-Za-z]+(?:\s+[A-Za-z]+)?)", RegexOptions.IgnoreCase);
+                if (m.Success) employee = m.Groups[1].Value;
+                else employee = "Sarah";
+            }
+
+            var department = context.GetArgument<string>("department");
+            if (string.IsNullOrWhiteSpace(department))
+            {
+                var dMatch = Regex.Match(prompt, @"\b(?:in|to)\s+([A-Za-z0-9\&\s]+?)(?:\s+team|\s+department|\s+dept|$)", RegexOptions.IgnoreCase);
+                if (dMatch.Success) department = dMatch.Groups[1].Value.Trim();
+                else department = "DevOps";
+            }
+
             var requestType = context.GetArgument<string>("requestType") ?? "Hardware & Software Provisioning";
+            var details = context.GetArgument<string>("details");
+            if (string.IsNullOrWhiteSpace(details))
+            {
+                details = $"Provisioning ticket for '{employee}' ({department}). Items: MacBook Pro M3, AWS VPN credentials, YubiKey access.";
+            }
 
             var ticketId = root.TryGetProperty("ticketId", out var tProp) ? tProp.GetString() ?? $"TCK-{DateTime.UtcNow.Year}-{Random.Shared.Next(1000, 9999)}" : $"TCK-{DateTime.UtcNow.Year}-{Random.Shared.Next(1000, 9999)}";
 
@@ -77,7 +98,7 @@ public class CreateTicketTool : IAgentTool
                     RequestType = requestType,
                     Priority = "High",
                     Status = "Open",
-                    Details = $"Automated IT Provisioning Ticket for '{employee}' ({department}). Items: Laptop, Software Licenses, VPN access.",
+                    Details = details,
                     CreatedAt = DateTime.UtcNow
                 };
                 db.Tickets.Add(newTicket);

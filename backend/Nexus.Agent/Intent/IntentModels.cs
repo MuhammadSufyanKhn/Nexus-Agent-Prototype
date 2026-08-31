@@ -73,8 +73,10 @@ public enum IntentType
     TICKET_TRIAGE = 52,
     TICKET_UPDATE = 53,
 
-    // ── Candidate CV Screening ───────────────────────────────────────────────
+    // ── Candidate CV Screening & Job Openings ───────────────────────────────
     CV_SCREEN = 54,
+    JOB_OPENING_CREATE = 57,
+    JOB_OPENING_READ = 58,
 
     // ── Approval Decisions & Review ───────────────────────────────────────────
     APPROVAL_ACTION = 55,

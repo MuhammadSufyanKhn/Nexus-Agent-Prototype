@@ -12,7 +12,8 @@ import {
   Activity,
   Shield,
   Ticket,
-  Sparkles
+  Sparkles,
+  Briefcase
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -39,11 +40,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
   ];
 
   const opsNav = [
+    { id: 'jobs',        label: 'Job Openings',        icon: Briefcase },
+    { id: 'cv',          label: 'CV Screening',        icon: Sparkles },
     { id: 'policies',    label: 'Policy Center',       icon: FileText },
     { id: 'tickets',     label: 'Service Desk',        icon: Ticket },
     { id: 'approvals',   label: 'HR Approvals',        icon: CheckSquare, badge: pendingCount },
     { id: 'expenses',    label: 'Expense Review',      icon: Receipt },
-    { id: 'cv',          label: 'CV Screening',        icon: Sparkles },
     { id: 'onboarding',  label: 'Onboarding Hub',      icon: UserPlus },
   ];
 

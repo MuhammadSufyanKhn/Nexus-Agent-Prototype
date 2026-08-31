@@ -256,6 +256,12 @@ Output: FALLBACK_TRIGGERED
     {
         var q = question.ToLower();
 
+        // 0. Executive Overview & Workforce Metrics
+        if (q.Contains("executive overview") || (q.Contains("workforce") && q.Contains("metrics")) || (q.Contains("department") && q.Contains("headcount") && q.Contains("overview")))
+        {
+            return "SELECT d.Name AS Department, COUNT(e.Id) AS ActiveHeadcount, ISNULL(AVG(e.Salary), 0) AS AverageSalary, ISNULL(SUM(e.Salary), 0) AS TotalPayrollCost FROM Departments d LEFT JOIN Employees e ON d.Id = e.DepartmentId AND e.Status = 1 GROUP BY d.Name";
+        }
+
         // 1. Average Salary & Compensation
         if ((q.Contains("salary") || q.Contains("compensation")) && (q.Contains("average") || q.Contains("avg") || q.Contains("distribution")))
         {
@@ -271,31 +277,40 @@ Output: FALLBACK_TRIGGERED
             return "SELECT d.Name AS Department, AVG(e.Salary) AS AverageSalary, MIN(e.Salary) AS MinSalary, MAX(e.Salary) AS MaxSalary, COUNT(e.Id) AS Headcount FROM Employees e JOIN Departments d ON e.DepartmentId = d.Id WHERE e.Status = 1 GROUP BY d.Name";
         }
 
-        // 2. Onboarding tasks & completions
+        // 2. Workplace Service Desk / Tickets (Open vs All)
+        if (q.Contains("ticket") || q.Contains("hardware") || q.Contains("laptop") || q.Contains("macbook") || q.Contains("service desk") || q.Contains("technician"))
+        {
+            if (q.Contains("open") || q.Contains("waiting") || q.Contains("technician") || q.Contains("pending") || q.Contains("unassigned"))
+                return "SELECT TicketId, EmployeeName, Department, RequestType, Priority, Status, Details, CreatedAt FROM Tickets WHERE Status = 'Open'";
+
+            return "SELECT TicketId, EmployeeName, Department, RequestType, Priority, Status, Details, CreatedAt FROM Tickets";
+        }
+
+        // 3. Unallocated pool & Master budget
+        if (q.Contains("unallocated") || (q.Contains("pool") && (q.Contains("balance") || q.Contains("remaining"))) || q.Contains("remaining unallocated") || q.Contains("master budget"))
+        {
+            return "SELECT mb.TotalBudgetPool AS TotalCorporatePool, ISNULL((SELECT SUM(AllocatedAmount) FROM Budgets), 0) AS TotalDepartmentAllocated, (mb.TotalBudgetPool - ISNULL((SELECT SUM(AllocatedAmount) FROM Budgets), 0)) AS RemainingUnallocatedBalance FROM MasterBudgets mb WHERE mb.Year = 2026";
+        }
+
+        // 4. Onboarding tasks & completions
         if (q.Contains("onboarding") || q.Contains("onboarded") || q.Contains("completion"))
         {
-            return "SELECT e.Name AS EmployeeName, d.Name AS Department, t.TaskName, t.Category, t.Status, t.DueDate FROM OnboardingTasks t JOIN Employees e ON t.EmployeeId = e.Id JOIN Departments d ON e.DepartmentId = d.Id";
+            return "SELECT e.Name AS EmployeeName, d.Name AS Department, t.TaskName, t.SystemTarget, t.Status, t.CreatedAt FROM OnboardingTasks t JOIN Employees e ON t.EmployeeId = e.Id JOIN Departments d ON e.DepartmentId = d.Id";
         }
 
-        // 3. Workplace Service Desk / Tickets
-        if (q.Contains("ticket") || q.Contains("hardware") || q.Contains("laptop") || q.Contains("macbook") || q.Contains("service desk"))
-        {
-            return "SELECT TicketId, EmployeeName, Department, RequestType, Priority, Status, CreatedAt FROM Tickets";
-        }
-
-        // 4. Leaves & Sick days
+        // 5. Leaves & Sick days
         if (q.Contains("leave") || q.Contains("sick") || q.Contains("pto") || q.Contains("vacation"))
         {
             return "SELECT e.Name AS EmployeeName, d.Name AS Department, l.LeaveType, l.StartDate, l.EndDate, l.Status FROM Leaves l JOIN Employees e ON l.EmployeeId = e.Id JOIN Departments d ON e.DepartmentId = d.Id";
         }
 
-        // 5. Expense claims & policy compliance
+        // 6. Expense claims & policy compliance
         if (q.Contains("expense") || q.Contains("claim") || q.Contains("reimbursement") || q.Contains("meal limit"))
         {
-            return "SELECT e.Name AS EmployeeName, exp.Category, exp.Amount, exp.Status, exp.Merchant, exp.Description FROM Expenses exp JOIN Employees e ON exp.EmployeeId = e.Id";
+            return "SELECT e.Name AS EmployeeName, exp.ExpenseType, exp.Amount, exp.Status, exp.Description, exp.ExpenseDate FROM Expenses exp JOIN Employees e ON exp.EmployeeId = e.Id";
         }
 
-        // 6. Employees & Directory filtering
+        // 7. Employees & Directory filtering
         if (q.Contains("employee") || q.Contains("headcount") || q.Contains("staff") || q.Contains("hire") || q.Contains("directory"))
         {
             if (q.Contains("marketing"))
@@ -310,16 +325,10 @@ Output: FALLBACK_TRIGGERED
             return "SELECT e.Name, d.Name AS Department, e.Designation, e.Salary, e.ManagerName, e.Status FROM Employees e JOIN Departments d ON e.DepartmentId = d.Id";
         }
 
-        // 7. Activity History / Audit Logs
+        // 8. Activity History / Audit Logs
         if (q.Contains("audit") || q.Contains("activity") || q.Contains("history") || q.Contains("log"))
         {
-            return "SELECT Action, ToolName, RiskLevel, Timestamp, Details FROM AuditLogs";
-        }
-
-        // 8. Unallocated pool & Master budget
-        if (q.Contains("unallocated") || q.Contains("pool") || q.Contains("balance") || q.Contains("remaining"))
-        {
-            return "SELECT mb.TotalBudgetPool, SUM(b.AllocatedAmount) AS TotalAllocated, (mb.TotalBudgetPool - SUM(b.AllocatedAmount)) AS RemainingUnallocated FROM MasterBudgets mb CROSS JOIN Budgets b GROUP BY mb.TotalBudgetPool";
+            return "SELECT Action, ToolName, Target, Result, Timestamp FROM AuditLogs";
         }
 
         // 9. Department Budgets
@@ -501,14 +510,58 @@ Output: FALLBACK_TRIGGERED
         }
         else
         {
-            // Budget over-spend summary
-            var overBudget = rows.Where(r =>
-                r.ContainsKey("SpentAmount") && r.ContainsKey("AllocatedAmount") &&
-                r["SpentAmount"] != null && r["AllocatedAmount"] != null &&
-                Convert.ToDecimal(r["SpentAmount"]) > Convert.ToDecimal(r["AllocatedAmount"])).ToList();
-
-            if (overBudget.Count > 0)
+            // Executive overview summary
+            if (columns.Contains("ActiveHeadcount") && columns.Contains("TotalPayrollCost"))
             {
+                int totalHeadcount = rows.Sum(r => r.ContainsKey("ActiveHeadcount") && r["ActiveHeadcount"] != null ? Convert.ToInt32(r["ActiveHeadcount"]) : 0);
+                decimal totalPayroll = rows.Sum(r => r.ContainsKey("TotalPayrollCost") && r["TotalPayrollCost"] != null ? Convert.ToDecimal(r["TotalPayrollCost"]) : 0m);
+                decimal avgSalary = totalHeadcount > 0 ? totalPayroll / totalHeadcount : 0m;
+
+                summary = $"Executive Workforce Overview: Active headcount is {totalHeadcount} across {rows.Count} departments, with a total annual payroll of ${totalPayroll:N2} (Average salary: ${avgSalary:N2}).";
+                foreach (var r in rows)
+                {
+                    var dept = r.GetValueOrDefault("Department")?.ToString() ?? "Unknown";
+                    var hc = r.GetValueOrDefault("ActiveHeadcount")?.ToString() ?? "0";
+                    var sal = r.ContainsKey("AverageSalary") && r["AverageSalary"] != null ? Convert.ToDecimal(r["AverageSalary"]).ToString("N2") : "0.00";
+                    insights.Add($"{dept}: {hc} active staff, Avg Salary: ${sal}");
+                }
+            }
+            // Unallocated budget pool summary
+            else if (columns.Contains("RemainingUnallocatedBalance"))
+            {
+                var first = rows[0];
+                var pool = first.ContainsKey("TotalCorporatePool") && first["TotalCorporatePool"] != null ? Convert.ToDecimal(first["TotalCorporatePool"]) : 1000000000.00m;
+                var alloc = first.ContainsKey("TotalDepartmentAllocated") && first["TotalDepartmentAllocated"] != null ? Convert.ToDecimal(first["TotalDepartmentAllocated"]) : 0m;
+                var rem = first.ContainsKey("RemainingUnallocatedBalance") && first["RemainingUnallocatedBalance"] != null ? Convert.ToDecimal(first["RemainingUnallocatedBalance"]) : pool - alloc;
+
+                summary = $"Remaining unallocated corporate budget pool balance is ${rem:N2} out of ${pool:N2} total corporate master pool (${alloc:N2} currently allocated across operational departments).";
+                insights.Add($"Total Master Budget Pool: ${pool:N2}");
+                insights.Add($"Total Department Allocated: ${alloc:N2}");
+                insights.Add($"Remaining Available Pool: ${rem:N2}");
+            }
+            // Service desk tickets
+            else if (columns.Contains("TicketId"))
+            {
+                summary = $"Retrieved {rows.Count} service desk ticket(s).";
+                foreach (var r in rows.Take(5))
+                {
+                    var tId = r.GetValueOrDefault("TicketId")?.ToString() ?? "";
+                    var emp = r.GetValueOrDefault("EmployeeName")?.ToString() ?? "";
+                    var req = r.GetValueOrDefault("RequestType")?.ToString() ?? "";
+                    var stat = r.GetValueOrDefault("Status")?.ToString() ?? "";
+                    insights.Add($"{tId} ({emp}, {req}) - Status: {stat}");
+                }
+            }
+            // Budget over-spend summary
+            else if (rows.Any(r => r.ContainsKey("SpentAmount") && r.ContainsKey("AllocatedAmount") &&
+                r["SpentAmount"] != null && r["AllocatedAmount"] != null &&
+                Convert.ToDecimal(r["SpentAmount"]) > Convert.ToDecimal(r["AllocatedAmount"])))
+            {
+                var overBudget = rows.Where(r =>
+                    r.ContainsKey("SpentAmount") && r.ContainsKey("AllocatedAmount") &&
+                    r["SpentAmount"] != null && r["AllocatedAmount"] != null &&
+                    Convert.ToDecimal(r["SpentAmount"]) > Convert.ToDecimal(r["AllocatedAmount"])).ToList();
+
                 var depts = string.Join(", ", overBudget.Select(r => r.GetValueOrDefault("Department")?.ToString() ?? r.GetValueOrDefault("DepartmentName")?.ToString() ?? r.GetValueOrDefault("Name")?.ToString() ?? "Unknown"));
                 summary = $"{overBudget.Count} department(s) ({depts}) have exceeded their allocated budget.";
                 foreach (var row in overBudget)

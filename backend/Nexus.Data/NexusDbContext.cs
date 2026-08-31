@@ -25,6 +25,8 @@ public class NexusDbContext : DbContext
     public DbSet<OnboardingTask> OnboardingTasks => Set<OnboardingTask>();
     public DbSet<Leave> Leaves => Set<Leave>();
     public DbSet<Ticket> Tickets => Set<Ticket>();
+    public DbSet<JobOpening> JobOpenings => Set<JobOpening>();
+    public DbSet<CandidateApplication> CandidateApplications => Set<CandidateApplication>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -196,6 +198,33 @@ public class NexusDbContext : DbContext
             entity.HasIndex(e => e.Status);
         });
 
+        // JobOpening Configuration
+        modelBuilder.Entity<JobOpening>(entity =>
+        {
+            entity.HasKey(j => j.Id);
+            entity.Property(j => j.Title).IsRequired().HasMaxLength(150);
+            entity.Property(j => j.Department).IsRequired().HasMaxLength(100);
+            entity.Property(j => j.Requirements).HasMaxLength(2000);
+            entity.Property(j => j.Location).HasMaxLength(100);
+            entity.Property(j => j.SalaryRange).HasMaxLength(100);
+            entity.Property(j => j.Status).HasMaxLength(50);
+        });
+
+        // CandidateApplication Configuration
+        modelBuilder.Entity<CandidateApplication>(entity =>
+        {
+            entity.HasKey(c => c.Id);
+            entity.Property(c => c.CandidateName).IsRequired().HasMaxLength(150);
+            entity.Property(c => c.Email).IsRequired().HasMaxLength(150);
+            entity.Property(c => c.Phone).HasMaxLength(50);
+            entity.Property(c => c.Status).HasMaxLength(50);
+            entity.HasOne(c => c.JobOpening)
+                  .WithMany(j => j.Applications)
+                  .HasForeignKey(c => c.JobOpeningId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.HasIndex(c => c.JobOpeningId);
+        });
+
         // Seed Initial Data
         SeedData(modelBuilder);
     }
@@ -245,7 +274,8 @@ public class NexusDbContext : DbContext
             new Policy { Id = 1, Code = "POL-HR-001", Title = "Employee Onboarding & Compensation Policy", Category = "HR", DocumentPath = "policies/HR_Policy.pdf", ContentSummary = "Covers onboarding requirements, standard salary bands (Mid-Level Developer $65k-$72k), equipment requests, and welcome procedures.", IsActive = true, UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc) },
             new Policy { Id = 2, Code = "POL-IT-001", Title = "IT System Access & Provisioning Policy", Category = "IT", DocumentPath = "policies/IT_Policy.pdf", ContentSummary = "Rules for developer web portal ticketing, LDAP/Active Directory provisioning, and security credentials.", IsActive = true, UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc) },
             new Policy { Id = 3, Code = "POL-FIN-002", Title = "Expense Reimbursement & Meal Policy", Category = "Finance", DocumentPath = "policies/Expense_Policy.pdf", ContentSummary = "Meal expenses are capped at $50 per person. Software tools require prior IT approval. Receipts mandatory above $25.", IsActive = true, UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc) },
-            new Policy { Id = 4, Code = "POL-HR-002", Title = "Salary Adjustment & Compensation Band Policy", Category = "HR", DocumentPath = "policies/Salary_Policy.pdf", ContentSummary = "Bulk salary increases above 5% require management approval and a formal Plan of Action impact assessment.", IsActive = true, UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc) }
+            new Policy { Id = 4, Code = "POL-HR-002", Title = "Salary Adjustment & Compensation Band Policy", Category = "HR", DocumentPath = "policies/Salary_Policy.pdf", ContentSummary = "Bulk salary increases above 5% require management approval and a formal Plan of Action impact assessment.", IsActive = true, UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc) },
+            new Policy { Id = 5, Code = "POL-HR-003", Title = "Remote Work & Hybrid Attendance Policy", Category = "HR", DocumentPath = "policies/Remote_Work_Policy.pdf", ContentSummary = "Eligible employees may work remotely up to 2 days per week. Core collaboration hours are 10:00 AM to 4:00 PM. A one-time home office equipment stipend of up to $500 is provided with manager approval.", IsActive = true, UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc) }
         );
 
         // 7. IT Provisioning Tickets
@@ -253,6 +283,77 @@ public class NexusDbContext : DbContext
             new Ticket { Id = 1, TicketId = "TCK-2026-4829", EmployeeName = "Tariq Mahmood", Department = "IT", RequestType = "Hardware & Software Provisioning", Priority = "High", Status = "Resolved", Details = "Workstation laptop, Visual Studio Pro, VPN access provisioned.", CreatedAt = new DateTime(2026, 8, 1, 10, 0, 0, DateTimeKind.Utc) },
             new Ticket { Id = 2, TicketId = "TCK-2026-5102", EmployeeName = "Sarah Jenkins", Department = "IT", RequestType = "Security Clearance & Admin Access", Priority = "High", Status = "Resolved", Details = "Elevated admin privileges and cloud infrastructure access granted.", CreatedAt = new DateTime(2026, 8, 10, 11, 30, 0, DateTimeKind.Utc) },
             new Ticket { Id = 3, TicketId = "TCK-2026-6941", EmployeeName = "Ahmed Khan", Department = "IT", RequestType = "Hardware Provisioning", Priority = "High", Status = "Open", Details = "MacBook Pro M3 Max 32GB, Dual 4K Monitors, YubiKey setup.", CreatedAt = new DateTime(2026, 8, 25, 09, 15, 0, DateTimeKind.Utc) }
+        );
+
+        // 8. Job Openings
+        modelBuilder.Entity<JobOpening>().HasData(
+            new JobOpening
+            {
+                Id = 1,
+                Title = "Senior Full Stack Developer",
+                Department = "IT",
+                Description = "Seeking an experienced Senior Full Stack Developer to lead design and development of our enterprise AI and workforce automation platforms.",
+                Requirements = "C#, .NET Core 8.0, ASP.NET Core, React.js, TypeScript, SQL Server 2022, Entity Framework Core, RESTful APIs, Microservices, Docker",
+                Location = "Remote / Hybrid",
+                SalaryRange = "$80,000 - $105,000",
+                Status = "Active",
+                CreatedAt = new DateTime(2026, 8, 15, 0, 0, 0, DateTimeKind.Utc)
+            },
+            new JobOpening
+            {
+                Id = 2,
+                Title = "Web Developer",
+                Department = "IT",
+                Description = "Looking for a talented Web Developer to build high-performance, accessible, and responsive user interfaces for workforce management solutions.",
+                Requirements = "React, TypeScript, JavaScript, HTML5, CSS3, REST APIs, Tailwind CSS, Component Design Systems, State Management",
+                Location = "Remote / Hybrid",
+                SalaryRange = "$65,000 - $85,000",
+                Status = "Active",
+                CreatedAt = new DateTime(2026, 8, 20, 0, 0, 0, DateTimeKind.Utc)
+            }
+        );
+
+        // 9. Initial Candidate Applications
+        modelBuilder.Entity<CandidateApplication>().HasData(
+            new CandidateApplication
+            {
+                Id = 1,
+                JobOpeningId = 1,
+                CandidateName = "Ali Khan",
+                Email = "ali.khan@devmail.com",
+                Phone = "+92-300-1234567",
+                ExperienceYears = 4,
+                CoverNote = "Passionate Full Stack engineer with 4+ years building high-throughput .NET Core APIs and responsive React applications.",
+                CvText = @"CANDIDATE RESUME: Ali Khan
+Email: ali.khan@devmail.com | Phone: +92-300-1234567 | Location: Lahore, PK
+
+SUMMARY:
+Results-driven Software Engineer with 4+ years of hands-on experience building enterprise Web APIs, Microservices, and SQL Server databases using C#, .NET Core, ASP.NET, Entity Framework, and React.js.
+
+TECHNICAL SKILLS:
+- Languages: C#, JavaScript, TypeScript, SQL
+- Frameworks: .NET Core 8.0, ASP.NET Core, Entity Framework Core, React, Redux
+- Databases: SQL Server 2022, T-SQL, Redis
+- Tools: Git, Docker, Azure DevOps, Postman, Visual Studio 2022
+
+EXPERIENCE:
+Senior Software Developer — TechCorp Solutions (2022 - Present)
+- Designed and delivered high-performance RESTful Web APIs serving 50k+ daily active users.
+- Optimized EF Core queries and SQL Server indexes, reducing DB query latency by 45%.
+- Implemented JWT authentication and Role-Based Access Control (RBAC) security matrix.
+
+WORK EXPERIENCE:
+Software Engineer — SoftCode Systems (2020 - 2022)
+- Built responsive React dashboards integrated with C# backend services.
+- Participated in CI/CD pipeline automation and unit testing using xUnit.
+
+EDUCATION:
+BS Computer Science — Fast University (2020)",
+                CvFileName = "Ali_Khan_Resume.pdf",
+                Status = "Submitted",
+                FitScore = 88,
+                SubmittedAt = new DateTime(2026, 8, 22, 10, 0, 0, DateTimeKind.Utc)
+            }
         );
     }
 }

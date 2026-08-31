@@ -1,0 +1,310 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Text;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using Nexus.Data;
+using Nexus.Data.Entities;
+using UglyToad.PdfPig;
+
+namespace Nexus.Api.Controllers;
+
+[ApiController]
+[Route("api/jobs")]
+public class JobOpeningsController : ControllerBase
+{
+    private readonly NexusDbContext _db;
+
+    public JobOpeningsController(NexusDbContext db)
+    {
+        _db = db;
+    }
+
+    public class JobOpeningDto
+    {
+        public int Id { get; set; }
+        public string Title { get; set; } = string.Empty;
+        public string Department { get; set; } = string.Empty;
+        public string Description { get; set; } = string.Empty;
+        public string Requirements { get; set; } = string.Empty;
+        public string Location { get; set; } = string.Empty;
+        public string SalaryRange { get; set; } = string.Empty;
+        public string Status { get; set; } = "Active";
+        public DateTime CreatedAt { get; set; }
+        public int ApplicationsCount { get; set; }
+    }
+
+    public class CreateJobOpeningRequest
+    {
+        public string Title { get; set; } = string.Empty;
+        public string? Department { get; set; }
+        public string? Description { get; set; }
+        public string Requirements { get; set; } = string.Empty;
+        public string? Location { get; set; }
+        public string? SalaryRange { get; set; }
+    }
+
+    public class ApplyJobRequest
+    {
+        public string CandidateName { get; set; } = string.Empty;
+        public string Email { get; set; } = string.Empty;
+        public string? Phone { get; set; }
+        public int ExperienceYears { get; set; }
+        public string? CoverNote { get; set; }
+        public string CvText { get; set; } = string.Empty;
+        public string? CvFileName { get; set; }
+        public string? CvPdfData { get; set; }
+    }
+
+    /// <summary>
+    /// GET /api/jobs - List all job openings with submitted resume/CV count
+    /// </summary>
+    [HttpGet]
+    [ProducesResponseType(typeof(IEnumerable<JobOpeningDto>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<IEnumerable<JobOpeningDto>>> GetAll(CancellationToken ct)
+    {
+        var jobs = await _db.JobOpenings
+            .Include(j => j.Applications)
+            .OrderByDescending(j => j.CreatedAt)
+            .Select(j => new JobOpeningDto
+            {
+                Id = j.Id,
+                Title = j.Title,
+                Department = j.Department,
+                Description = j.Description,
+                Requirements = j.Requirements,
+                Location = j.Location,
+                SalaryRange = j.SalaryRange,
+                Status = j.Status,
+                CreatedAt = j.CreatedAt,
+                ApplicationsCount = j.Applications.Count
+            })
+            .ToListAsync(ct);
+
+        return Ok(jobs);
+    }
+
+    /// <summary>
+    /// GET /api/jobs/{id} - Get single job opening and its candidate applications
+    /// </summary>
+    [HttpGet("{id:int}")]
+    public async Task<IActionResult> GetById(int id, CancellationToken ct)
+    {
+        var job = await _db.JobOpenings
+            .Include(j => j.Applications)
+            .FirstOrDefaultAsync(j => j.Id == id, ct);
+
+        if (job == null) return NotFound(new { message = $"Job opening ID {id} not found." });
+
+        return Ok(new
+        {
+            job.Id,
+            job.Title,
+            job.Department,
+            job.Description,
+            job.Requirements,
+            job.Location,
+            job.SalaryRange,
+            job.Status,
+            job.CreatedAt,
+            applicationsCount = job.Applications.Count,
+            applications = job.Applications.OrderByDescending(a => a.SubmittedAt).Select(a => new
+            {
+                a.Id,
+                a.JobOpeningId,
+                a.CandidateName,
+                a.Email,
+                a.Phone,
+                a.ExperienceYears,
+                a.CoverNote,
+                a.CvText,
+                a.CvFileName,
+                a.CvPdfData,
+                a.Status,
+                a.FitScore,
+                a.AiEvaluationJson,
+                a.SubmittedAt
+            })
+        });
+    }
+
+    /// <summary>
+    /// POST /api/jobs - Create a new job opening
+    /// </summary>
+    [HttpPost]
+    public async Task<IActionResult> Create([FromBody] CreateJobOpeningRequest req, CancellationToken ct)
+    {
+        if (req == null || string.IsNullOrWhiteSpace(req.Title))
+        {
+            return BadRequest(new { message = "Job title is required." });
+        }
+
+        var job = new JobOpening
+        {
+            Title = req.Title.Trim(),
+            Department = string.IsNullOrWhiteSpace(req.Department) ? "IT" : req.Department.Trim(),
+            Description = req.Description?.Trim() ?? $"Role opening for {req.Title.Trim()}",
+            Requirements = string.IsNullOrWhiteSpace(req.Requirements) ? "Relevant technical skills and experience" : req.Requirements.Trim(),
+            Location = string.IsNullOrWhiteSpace(req.Location) ? "Remote / Hybrid" : req.Location.Trim(),
+            SalaryRange = string.IsNullOrWhiteSpace(req.SalaryRange) ? "$70,000 - $95,000" : req.SalaryRange.Trim(),
+            Status = "Active",
+            CreatedAt = DateTime.UtcNow
+        };
+
+        _db.JobOpenings.Add(job);
+        await _db.SaveChangesAsync(ct);
+
+        return CreatedAtAction(nameof(GetById), new { id = job.Id }, new
+        {
+            message = $"Job opening '{job.Title}' created successfully in Job Opening tab.",
+            job.Id,
+            job.Title,
+            job.Department,
+            job.Requirements,
+            job.Status,
+            applicationLink = $"/apply/{job.Id}"
+        });
+    }
+
+    /// <summary>
+    /// DELETE /api/jobs/{id} - Delete or close job opening
+    /// </summary>
+    [HttpDelete("{id:int}")]
+    public async Task<IActionResult> Delete(int id, CancellationToken ct)
+    {
+        var job = await _db.JobOpenings.FindAsync(new object[] { id }, ct);
+        if (job == null) return NotFound(new { message = $"Job opening {id} not found." });
+
+        _db.JobOpenings.Remove(job);
+        await _db.SaveChangesAsync(ct);
+        return Ok(new { message = $"Job opening '{job.Title}' deleted successfully." });
+    }
+
+    /// <summary>
+    /// POST /api/jobs/{id}/apply - Public candidate application endpoint
+    /// Candidates enter details, attach/paste CV, and submit
+    /// </summary>
+    [HttpPost("{id:int}/apply")]
+    public async Task<IActionResult> Apply(int id, [FromBody] ApplyJobRequest req, CancellationToken ct)
+    {
+        if (req == null || string.IsNullOrWhiteSpace(req.CandidateName) || string.IsNullOrWhiteSpace(req.Email))
+        {
+            return BadRequest(new { message = "Candidate full name and email are required." });
+        }
+
+        var job = await _db.JobOpenings.FindAsync(new object[] { id }, ct);
+        if (job == null) return NotFound(new { message = $"Job opening ID {id} not found." });
+
+        var cvContent = !string.IsNullOrWhiteSpace(req.CvText) ? req.CvText : $"Candidate: {req.CandidateName}\nEmail: {req.Email}\nExperience: {req.ExperienceYears} years\nCover Note: {req.CoverNote}";
+
+        if (!string.IsNullOrWhiteSpace(req.CvPdfData))
+        {
+            try
+            {
+                var base64Part = req.CvPdfData;
+                if (base64Part.Contains(","))
+                {
+                    base64Part = base64Part.Substring(base64Part.IndexOf(",") + 1);
+                }
+                var pdfBytes = Convert.FromBase64String(base64Part);
+                using var doc = UglyToad.PdfPig.PdfDocument.Open(pdfBytes);
+                var sb = new StringBuilder();
+                foreach (var page in doc.GetPages())
+                {
+                    sb.AppendLine(page.Text);
+                }
+                var extracted = sb.ToString().Trim();
+                if (!string.IsNullOrWhiteSpace(extracted))
+                {
+                    cvContent = extracted;
+                }
+            }
+            catch
+            {
+                // Fallback to provided text if PDF extraction fails
+            }
+        }
+
+        var application = new CandidateApplication
+        {
+            JobOpeningId = id,
+            CandidateName = req.CandidateName.Trim(),
+            Email = req.Email.Trim(),
+            Phone = req.Phone?.Trim() ?? string.Empty,
+            ExperienceYears = req.ExperienceYears > 0 ? req.ExperienceYears : 1,
+            CoverNote = req.CoverNote?.Trim() ?? string.Empty,
+            CvText = cvContent,
+            CvFileName = string.IsNullOrWhiteSpace(req.CvFileName) ? $"{req.CandidateName.Replace(" ", "_")}_Resume.pdf" : req.CvFileName,
+            CvPdfData = req.CvPdfData,
+            Status = "Submitted",
+            SubmittedAt = DateTime.UtcNow
+        };
+
+        _db.CandidateApplications.Add(application);
+        await _db.SaveChangesAsync(ct);
+
+        // Get total count of applications for this job opening
+        var totalCount = await _db.CandidateApplications.CountAsync(a => a.JobOpeningId == id, ct);
+
+        return Ok(new
+        {
+            message = "Application submitted successfully! Your details and CV have been received for HR screening.",
+            applicationId = application.Id,
+            jobTitle = job.Title,
+            candidateName = application.CandidateName,
+            submittedAt = application.SubmittedAt,
+            jobTotalApplicationsCount = totalCount
+        });
+    }
+
+    /// <summary>
+    /// GET /api/jobs/{id}/applications - Get candidate applications for a specific job
+    /// </summary>
+    [HttpGet("{id:int}/applications")]
+    public async Task<IActionResult> GetApplications(int id, CancellationToken ct)
+    {
+        var applications = await _db.CandidateApplications
+            .Where(a => a.JobOpeningId == id)
+            .OrderByDescending(a => a.SubmittedAt)
+            .ToListAsync(ct);
+
+        return Ok(applications);
+    }
+
+    /// <summary>
+    /// GET /api/jobs/applications - Get all submitted candidate applications across all jobs
+    /// </summary>
+    [HttpGet("applications")]
+    public async Task<IActionResult> GetAllApplications(CancellationToken ct)
+    {
+        var applications = await _db.CandidateApplications
+            .Include(a => a.JobOpening)
+            .OrderByDescending(a => a.SubmittedAt)
+            .Select(a => new
+            {
+                a.Id,
+                a.JobOpeningId,
+                jobTitle = a.JobOpening != null ? a.JobOpening.Title : "General Opening",
+                department = a.JobOpening != null ? a.JobOpening.Department : "IT",
+                a.CandidateName,
+                a.Email,
+                a.Phone,
+                a.ExperienceYears,
+                a.CoverNote,
+                a.CvText,
+                a.CvFileName,
+                a.CvPdfData,
+                a.Status,
+                a.FitScore,
+                a.AiEvaluationJson,
+                a.SubmittedAt
+            })
+            .ToListAsync(ct);
+
+        return Ok(applications);
+    }
+}
