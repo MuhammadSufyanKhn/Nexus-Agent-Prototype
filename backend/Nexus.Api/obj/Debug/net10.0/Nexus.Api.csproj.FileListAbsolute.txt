@@ -343,3 +343,4 @@ E:\nexus\Nexus-Agent-Prototype\backend\Nexus.Api\obj\Debug\net10.0\Nexus.Api.pdb
 E:\nexus\Nexus-Agent-Prototype\backend\Nexus.Api\obj\Debug\net10.0\Nexus.Api.genruntimeconfig.cache
 E:\nexus\Nexus-Agent-Prototype\backend\Nexus.Api\obj\Debug\net10.0\ref\Nexus.Api.dll
 E:\nexus\Nexus-Agent-Prototype\backend\Nexus.Api\bin\Debug\net10.0\Microsoft.EntityFrameworkCore.InMemory.dll
+D:\.NET PROJECTS\NEXUS AGENT LITE\backend\Nexus.Api\bin\Debug\net10.0\Microsoft.EntityFrameworkCore.InMemory.dll
