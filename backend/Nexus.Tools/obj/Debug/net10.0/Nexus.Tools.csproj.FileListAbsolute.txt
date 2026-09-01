@@ -16,3 +16,21 @@ D:\.NET PROJECTS\NEXUS AGENT LITE\backend\Nexus.Tools\obj\Debug\net10.0\refint\N
 D:\.NET PROJECTS\NEXUS AGENT LITE\backend\Nexus.Tools\obj\Debug\net10.0\Nexus.Tools.pdb
 D:\.NET PROJECTS\NEXUS AGENT LITE\backend\Nexus.Tools\obj\Debug\net10.0\ref\Nexus.Tools.dll
 d:\.NET PROJECTS\NEXUS AGENT LITE\backend\Nexus.Tools\obj\Debug\net10.0\Nexus.Tools.sourcelink.json
+E:\nexus\Nexus-Agent-Prototype\backend\Nexus.Tools\bin\Debug\net10.0\Nexus.Tools.deps.json
+E:\nexus\Nexus-Agent-Prototype\backend\Nexus.Tools\bin\Debug\net10.0\Nexus.Tools.dll
+E:\nexus\Nexus-Agent-Prototype\backend\Nexus.Tools\bin\Debug\net10.0\Nexus.Tools.pdb
+E:\nexus\Nexus-Agent-Prototype\backend\Nexus.Tools\bin\Debug\net10.0\Nexus.Data.dll
+E:\nexus\Nexus-Agent-Prototype\backend\Nexus.Tools\bin\Debug\net10.0\Nexus.Security.dll
+E:\nexus\Nexus-Agent-Prototype\backend\Nexus.Tools\bin\Debug\net10.0\Nexus.Security.pdb
+E:\nexus\Nexus-Agent-Prototype\backend\Nexus.Tools\bin\Debug\net10.0\Nexus.Data.pdb
+E:\nexus\Nexus-Agent-Prototype\backend\Nexus.Tools\obj\Debug\net10.0\Nexus.Tools.csproj.AssemblyReference.cache
+E:\nexus\Nexus-Agent-Prototype\backend\Nexus.Tools\obj\Debug\net10.0\Nexus.Tools.GeneratedMSBuildEditorConfig.editorconfig
+E:\nexus\Nexus-Agent-Prototype\backend\Nexus.Tools\obj\Debug\net10.0\Nexus.Tools.AssemblyInfoInputs.cache
+E:\nexus\Nexus-Agent-Prototype\backend\Nexus.Tools\obj\Debug\net10.0\Nexus.Tools.AssemblyInfo.cs
+E:\nexus\Nexus-Agent-Prototype\backend\Nexus.Tools\obj\Debug\net10.0\Nexus.Tools.csproj.CoreCompileInputs.cache
+E:\nexus\Nexus-Agent-Prototype\backend\Nexus.Tools\obj\Debug\net10.0\Nexus.Tools.sourcelink.json
+E:\nexus\Nexus-Agent-Prototype\backend\Nexus.Tools\obj\Debug\net10.0\Nexus.To.5AC26EDC.Up2Date
+E:\nexus\Nexus-Agent-Prototype\backend\Nexus.Tools\obj\Debug\net10.0\Nexus.Tools.dll
+E:\nexus\Nexus-Agent-Prototype\backend\Nexus.Tools\obj\Debug\net10.0\refint\Nexus.Tools.dll
+E:\nexus\Nexus-Agent-Prototype\backend\Nexus.Tools\obj\Debug\net10.0\Nexus.Tools.pdb
+E:\nexus\Nexus-Agent-Prototype\backend\Nexus.Tools\obj\Debug\net10.0\ref\Nexus.Tools.dll

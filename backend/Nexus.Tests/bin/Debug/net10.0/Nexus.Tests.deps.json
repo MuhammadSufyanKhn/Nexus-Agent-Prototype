@@ -832,6 +832,7 @@
       "Nexus.Data/1.0.0": {
         "dependencies": {
           "Microsoft.EntityFrameworkCore": "9.0.2",
+          "Microsoft.EntityFrameworkCore.InMemory": "9.0.2",
           "Microsoft.EntityFrameworkCore.SqlServer": "9.0.2"
         },
         "runtime": {

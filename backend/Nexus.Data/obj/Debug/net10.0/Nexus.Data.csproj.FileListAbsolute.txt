@@ -13,3 +13,18 @@ D:\.NET PROJECTS\NEXUS AGENT LITE\backend\Nexus.Data\obj\Debug\net10.0\Nexus.Dat
 D:\.NET PROJECTS\NEXUS AGENT LITE\backend\Nexus.Data\obj\Debug\net10.0\Nexus.Data.genruntimeconfig.cache
 D:\.NET PROJECTS\NEXUS AGENT LITE\backend\Nexus.Data\obj\Debug\net10.0\ref\Nexus.Data.dll
 d:\.NET PROJECTS\NEXUS AGENT LITE\backend\Nexus.Data\obj\Debug\net10.0\Nexus.Data.sourcelink.json
+E:\nexus\Nexus-Agent-Prototype\backend\Nexus.Data\bin\Debug\net10.0\Nexus.Data.deps.json
+E:\nexus\Nexus-Agent-Prototype\backend\Nexus.Data\bin\Debug\net10.0\Nexus.Data.runtimeconfig.json
+E:\nexus\Nexus-Agent-Prototype\backend\Nexus.Data\bin\Debug\net10.0\Nexus.Data.dll
+E:\nexus\Nexus-Agent-Prototype\backend\Nexus.Data\bin\Debug\net10.0\Nexus.Data.pdb
+E:\nexus\Nexus-Agent-Prototype\backend\Nexus.Data\obj\Debug\net10.0\Nexus.Data.csproj.AssemblyReference.cache
+E:\nexus\Nexus-Agent-Prototype\backend\Nexus.Data\obj\Debug\net10.0\Nexus.Data.GeneratedMSBuildEditorConfig.editorconfig
+E:\nexus\Nexus-Agent-Prototype\backend\Nexus.Data\obj\Debug\net10.0\Nexus.Data.AssemblyInfoInputs.cache
+E:\nexus\Nexus-Agent-Prototype\backend\Nexus.Data\obj\Debug\net10.0\Nexus.Data.AssemblyInfo.cs
+E:\nexus\Nexus-Agent-Prototype\backend\Nexus.Data\obj\Debug\net10.0\Nexus.Data.csproj.CoreCompileInputs.cache
+E:\nexus\Nexus-Agent-Prototype\backend\Nexus.Data\obj\Debug\net10.0\Nexus.Data.sourcelink.json
+E:\nexus\Nexus-Agent-Prototype\backend\Nexus.Data\obj\Debug\net10.0\Nexus.Data.dll
+E:\nexus\Nexus-Agent-Prototype\backend\Nexus.Data\obj\Debug\net10.0\refint\Nexus.Data.dll
+E:\nexus\Nexus-Agent-Prototype\backend\Nexus.Data\obj\Debug\net10.0\Nexus.Data.pdb
+E:\nexus\Nexus-Agent-Prototype\backend\Nexus.Data\obj\Debug\net10.0\Nexus.Data.genruntimeconfig.cache
+E:\nexus\Nexus-Agent-Prototype\backend\Nexus.Data\obj\Debug\net10.0\ref\Nexus.Data.dll

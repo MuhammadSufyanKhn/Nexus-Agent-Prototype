@@ -11,12 +11,32 @@ using Nexus.Tools.Implementations;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add Database Context
+// Add Database Context with SQL Server probe & In-Memory fallback
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") 
     ?? "Server=(localdb)\\mssqllocaldb;Database=NexusAgentDb;Trusted_Connection=True;TrustServerCertificate=True;";
 
-builder.Services.AddDbContext<NexusDbContext>(options =>
-    options.UseSqlServer(connectionString, b => b.MigrationsAssembly("Nexus.Data")));
+bool isSqlServerAvailable = false;
+try
+{
+    using var testConn = new Microsoft.Data.SqlClient.SqlConnection(connectionString);
+    testConn.Open();
+    isSqlServerAvailable = true;
+}
+catch
+{
+    isSqlServerAvailable = false;
+}
+
+if (isSqlServerAvailable)
+{
+    builder.Services.AddDbContext<NexusDbContext>(options =>
+        options.UseSqlServer(connectionString, b => b.MigrationsAssembly("Nexus.Data")));
+}
+else
+{
+    builder.Services.AddDbContext<NexusDbContext>(options =>
+        options.UseInMemoryDatabase("NexusAgentDb"));
+}
 
 // Register Security & Policy Engines
 builder.Services.AddSingleton<ISqlValidator, SqlValidator>();
@@ -179,8 +199,10 @@ using (var scope = app.Services.CreateScope())
         var db = scope.ServiceProvider.GetRequiredService<NexusDbContext>();
         db.Database.EnsureCreated();
 
-        try
+        if (db.Database.IsSqlServer())
         {
+            try
+            {
             db.Database.ExecuteSqlRaw(@"
                 IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Employees') AND name = 'Location')
                     ALTER TABLE Employees ADD Location NVARCHAR(255) NULL;
@@ -381,6 +403,7 @@ using (var scope = app.Services.CreateScope())
                 UPDATE Employees SET Email = REPLACE(Email, '@nexus.local', '@gmail.com') WHERE Email LIKE '%@nexus.local';
             ");
         } catch { }
+        }
 
         // Auto-reseed defaults on startup removed so deleted entities stay deleted across app restarts.
     }

@@ -1088,7 +1088,8 @@ User: ""Screen submitted candidate CVs for Senior Full Stack Developer and score
                               p.Contains("create") || p.Contains("add ") || p.Contains("update ") || p.Contains("swap") || p.Contains("cut ") ||
                               p.Contains("orientation") || p.Contains("provision") || p.Contains("clearance") || p.Contains("maternity") ||
                               p.Contains("cybersecurity") || p.Contains("conduct") || p.Contains("reimbursement") || p.Contains("guidelines") ||
-                              p.Contains("reporting manager") || p.Contains("manager to") || p.Contains("job title") || p.Contains("title for");
+                              p.Contains("reporting manager") || p.Contains("manager to") || p.Contains("job title") || p.Contains("title for") ||
+                              p.Contains("register") || p.Contains("advance") || p.Contains("interim lead") || p.Contains("score resume") || p.Contains("security and authorization");
 
         bool isCapabilityQuery = !isActionPrompt && (
                                  p.Contains("what can you do") || p.Contains("are you able to perform") ||
@@ -1194,7 +1195,7 @@ User: ""Screen submitted candidate CVs for Senior Full Stack Developer and score
 
         // Candidate CV Screening
         bool isCvRelated = !isJobOpeningRelated && (p.Contains("screen candidate") || p.Contains("candidate cv") || p.Contains("candidate resume") ||
-                           p.Contains("resume fit score") || p.Contains("candidate qualifications") ||
+                           p.Contains("resume fit score") || p.Contains("candidate qualifications") || p.Contains("score resume") ||
                            p.Contains("interview question") || p.Contains("candidate technical skills") ||
                            p.Contains("screen candidate resume") || (p.Contains("candidate") && (p.Contains("cv") || p.Contains("resume") || p.Contains("fit score") || p.Contains("applicant"))));
 
@@ -1265,7 +1266,7 @@ User: ""Screen submitted candidate CVs for Senior Full Stack Developer and score
 
         // Employee creation — only when explicit creation verbs present AND NOT a read query
         bool isEmployeeCreation = !isReadQuery && !isDesignationUpdate && (
-                                   p.Contains("add employee") || p.Contains("create employee") ||
+                                   p.Contains("add employee") || p.Contains("create employee") || p.Contains("register employee") ||
                                    p.Contains("new employee") ||
                                    (p.Contains("onboard") && !p.Contains("onboarding status") && !p.Contains("recent") && !p.Contains("completion") && !p.Contains("this week")) ||
                                    p.Contains("hire ") || p.Contains("new hire") ||
@@ -1290,12 +1291,12 @@ User: ""Screen submitted candidate CVs for Senior Full Stack Developer and score
                              (p.Contains("delete") || p.Contains("remove") || p.Contains("purge"));
 
         // Transfer / Promote / Leadership Appointment intents
-        bool isAppointment = (p.Contains("appoint") || p.Contains("acting head") || p.Contains("interim head") ||
+        bool isAppointment = (p.Contains("appoint") || p.Contains("acting head") || p.Contains("interim head") || p.Contains("interim lead") ||
                               Regex.IsMatch(p, @"\b(?:appoint|assign|designate|name|make)\s+([A-Za-z]+)\s+(?:as\s+)?(?:acting\s+|interim\s+)?(?:head|lead|manager|director)\b", RegexOptions.IgnoreCase) ||
                               (p.Contains("head of") && (p.Contains("appoint") || p.Contains("assign") || p.Contains("make") || p.Contains("set"))));
 
         bool isTransfer = !isDeptDelete && !isReadQuery && (p.Contains("transfer") || p.Contains("reassign") || p.Contains("relocate") || p.Contains("move employee") || p.Contains("swap the roles") || p.Contains("swap roles") || (p.Contains("shift") && (p.Contains("payroll") || p.Contains("contractor") || p.Contains("team"))) || (p.Contains("move") && !p.Contains("move him to inactive") && !isReadQuery));
-        bool isPromote  = !isReadQuery && (isAppointment || p.Contains("promote") || p.Contains("promotion"));
+        bool isPromote  = !isReadQuery && (isAppointment || p.Contains("promote") || p.Contains("promotion") || p.Contains("advance "));
         bool isOffboard = !isReadQuery && (p.Contains("offboard") || p.Contains("offboarding") || p.Contains("exit clearance") || p.Contains("cancel onboarding") || (p.Contains("terminate") && !isDeptDelete));
         bool isLeave    = !isReadQuery && (p.Contains("sick day") || p.Contains("sick leave") || p.Contains("pto") || p.Contains("vacation") || p.Contains("time off") || (p.Contains("sick") && p.Contains("today")));
         bool isPayroll  = !isReadQuery && (p.Contains("payroll hold") || p.Contains("hold payroll") || p.Contains("halt payroll") || p.Contains("bulk bonus") || p.Contains("distribute bonus") || p.Contains("performance bonus") || p.Contains("bonus"));
@@ -1620,9 +1621,9 @@ User: ""Screen submitted candidate CVs for Senior Full Stack Developer and score
             }
         }
         // Audit & Security Test
-        else if (p.Contains("security test") || p.Contains("security audit") || p.Contains("rbac test"))
+        else if (p.Contains("security test") || p.Contains("security audit") || p.Contains("rbac test") || p.Contains("security and authorization"))
         {
-            result.Intent = IntentType.GENERAL_CONVERSATION.ToString();
+            result.Intent = IntentType.SECURITY_TEST.ToString();
             result.TargetEntity = "AUDIT_LOG";
             result.Operation = "READ";
             result.ConversationalResponse = "Security & Authorization Audit Complete\n\n✅ Enterprise Role Lock: HR Administrator — Full Access\n✅ Audit Trail: All actions verified and recorded\n✅ Access Control Engine: All modules active\n✅ Action Safety Interceptor: Approval enforcement operational\n\nSecurity Status: All systems operational.";

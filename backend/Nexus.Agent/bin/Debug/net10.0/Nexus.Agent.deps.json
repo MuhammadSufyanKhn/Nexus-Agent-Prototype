@@ -128,6 +128,19 @@
           }
         }
       },
+      "Microsoft.EntityFrameworkCore.InMemory/9.0.2": {
+        "dependencies": {
+          "Microsoft.EntityFrameworkCore": "9.0.2",
+          "Microsoft.Extensions.Caching.Memory": "9.0.2",
+          "Microsoft.Extensions.Logging": "9.0.2"
+        },
+        "runtime": {
+          "lib/net8.0/Microsoft.EntityFrameworkCore.InMemory.dll": {
+            "assemblyVersion": "9.0.2.0",
+            "fileVersion": "9.0.225.6701"
+          }
+        }
+      },
       "Microsoft.EntityFrameworkCore.Relational/9.0.2": {
         "dependencies": {
           "Microsoft.EntityFrameworkCore": "9.0.2",
@@ -505,6 +518,7 @@
       "Nexus.Data/1.0.0": {
         "dependencies": {
           "Microsoft.EntityFrameworkCore": "9.0.2",
+          "Microsoft.EntityFrameworkCore.InMemory": "9.0.2",
           "Microsoft.EntityFrameworkCore.SqlServer": "9.0.2"
         },
         "runtime": {
@@ -593,6 +607,13 @@
       "sha512": "sha512-oVSjNSIYHsk0N66eqAWgDcyo9etEFbUswbz7SmlYR6nGp05byHrJAYM5N8U2aGWJWJI6WvIC2e4TXJgH6GZ6HQ==",
       "path": "microsoft.entityframeworkcore.abstractions/9.0.2",
       "hashPath": "microsoft.entityframeworkcore.abstractions.9.0.2.nupkg.sha512"
+    },
+    "Microsoft.EntityFrameworkCore.InMemory/9.0.2": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-4BmxgSdZSYGlkD9PRuOM1bqZ8LH0tl6nUpPpRqA4UID6A1zRdP2YGcrGzv5kQPgPB7/hWVuDshjfhgKLA50W6Q==",
+      "path": "microsoft.entityframeworkcore.inmemory/9.0.2",
+      "hashPath": "microsoft.entityframeworkcore.inmemory.9.0.2.nupkg.sha512"
     },
     "Microsoft.EntityFrameworkCore.Relational/9.0.2": {
       "type": "package",
