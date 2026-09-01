@@ -200,7 +200,6 @@ public class AgentOrchestrator : IAgentOrchestrator
             || parsedIntent.ParsedIntentType == IntentType.TICKET_TRIAGE
             || parsedIntent.ParsedIntentType == IntentType.TICKET_UPDATE
             || parsedIntent.ParsedIntentType == IntentType.CV_SCREEN
-            || parsedIntent.ParsedIntentType == IntentType.JOB_OPENING_CREATE
             || parsedIntent.ParsedIntentType == IntentType.JOB_OPENING_READ
             || parsedIntent.ParsedIntentType == IntentType.WORKFLOW_EXECUTE
             || parsedIntent.Operation == "READ"
@@ -210,7 +209,6 @@ public class AgentOrchestrator : IAgentOrchestrator
             || string.Equals(parsedIntent.Intent, "ONBOARDING_READ", StringComparison.OrdinalIgnoreCase)
             || string.Equals(parsedIntent.Intent, "TICKET_READ", StringComparison.OrdinalIgnoreCase)
             || string.Equals(parsedIntent.Intent, "JOB_OPENING_READ", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(parsedIntent.Intent, "JOB_OPENING_CREATE", StringComparison.OrdinalIgnoreCase)
             || string.Equals(parsedIntent.Intent, "CV_SCREEN", StringComparison.OrdinalIgnoreCase);
 
         // UPDATE_SALARY always triggers approval even if not flagged as high-risk by the plan, because it is a financial mutation
@@ -220,7 +218,10 @@ public class AgentOrchestrator : IAgentOrchestrator
             !promptLower.Contains("paperwork") && !promptLower.Contains("document") && !promptLower.Contains("orientation") && !promptLower.Contains("schedule");
 
         bool isExplicitMutationVerb = isOnboardingRequest ||
+            parsedIntent.ParsedIntentType == IntentType.JOB_OPENING_CREATE ||
             parsedIntent.ParsedIntentType == IntentType.DEPARTMENT_DELETE ||
+            promptLower.Contains("job opening") || promptLower.Contains("new opening") ||
+            promptLower.Contains("create opening") || promptLower.Contains("post a job") ||
             promptLower.Contains("onboard ") ||
             promptLower.Contains("add employee") || promptLower.Contains("create employee") ||
             promptLower.Contains("hire employee") || promptLower.Contains("delete employee") ||
@@ -723,13 +724,40 @@ Built high-performance Web APIs, optimized SQL queries, implemented RBAC.";
             var analysis = CvAnalysisTool.AnalyzeCvText(cvText, jobTitle, "C#, .NET Core, React, SQL Server, Entity Framework, REST APIs, Microservices, Docker");
             lastResultData = analysis;
         }
+        else if (parsedIntent.ParsedIntentType == IntentType.JOB_OPENING_READ)
+        {
+            var allJobs = await _db.JobOpenings.Include(j => j.Applications).OrderByDescending(j => j.CreatedAt).ToListAsync(cancellationToken);
+            var jobSummaries = allJobs.Select(j => new
+            {
+                Id = j.Id,
+                Title = j.Title,
+                Department = j.Department,
+                SalaryRange = j.SalaryRange,
+                Location = j.Location,
+                Status = j.Status,
+                ApplicationsCount = j.Applications?.Count ?? 0
+            }).ToList();
+
+            var summaryList = string.Join("; ", jobSummaries.Select(j => $"{j.Title} ({j.Department}): {j.ApplicationsCount} application(s)"));
+            lastResultData = new
+            {
+                totalOpenings = allJobs.Count,
+                openings = jobSummaries,
+                summary = $"Found {allJobs.Count} active job requisition(s) in database. {summaryList}"
+            };
+        }
 
         // Build execution payload for READY_TO_EXECUTE state
         var execPayload = BuildExecutionPayload(parsedIntent, lastResultData);
         var choices = GenerateNextActionChoices(parsedIntent, lastResultData);
 
         string dynamicUserMsg = $"Request completed successfully. Intent: {parsedIntent.Intent}.";
-        if (parsedIntent.ParsedIntentType == IntentType.JOB_OPENING_CREATE)
+        if (parsedIntent.ParsedIntentType == IntentType.JOB_OPENING_READ && lastResultData != null)
+        {
+            var prop = lastResultData.GetType().GetProperty("summary");
+            dynamicUserMsg = prop?.GetValue(lastResultData)?.ToString() ?? "Retrieved active job requisitions.";
+        }
+        else if (parsedIntent.ParsedIntentType == IntentType.JOB_OPENING_CREATE)
         {
             dynamicUserMsg = "The new job opening has been created in the Job Opening tab.";
         }
@@ -1490,6 +1518,47 @@ Built high-performance Web APIs, optimized SQL queries, implemented RBAC.";
                 resultMessage = "Leave record created successfully by tool.";
             }
         }
+        else if (intentType == IntentType.JOB_OPENING_CREATE)
+        {
+            var jobTitle = parsedIntent?.Entities?.GetValueOrDefault("title")
+                ?? parsedIntent?.Entities?.GetValueOrDefault("jobTitle")
+                ?? parsedIntent?.Parameters?.GetValueOrDefault("title")?.ToString()
+                ?? "Lead Cloud Architect";
+            var dept = parsedIntent?.Entities?.GetValueOrDefault("department")
+                ?? parsedIntent?.Parameters?.GetValueOrDefault("department")?.ToString()
+                ?? "IT";
+            var salaryRange = parsedIntent?.Entities?.GetValueOrDefault("salaryRange")
+                ?? parsedIntent?.Parameters?.GetValueOrDefault("salaryRange")?.ToString()
+                ?? "$95,000 - $125,000";
+            var reqs = parsedIntent?.Entities?.GetValueOrDefault("requirements")
+                ?? parsedIntent?.Parameters?.GetValueOrDefault("requirements")?.ToString()
+                ?? "AWS, Kubernetes, Terraform, Docker, CI/CD";
+            var loc = parsedIntent?.Entities?.GetValueOrDefault("location")
+                ?? parsedIntent?.Parameters?.GetValueOrDefault("location")?.ToString()
+                ?? "Remote / Hybrid";
+            var desc = parsedIntent?.Entities?.GetValueOrDefault("description")
+                ?? parsedIntent?.Parameters?.GetValueOrDefault("description")?.ToString()
+                ?? $"Lead enterprise architecture, container orchestration, and cloud infrastructure for {dept} department.";
+
+            var newJob = new Nexus.Data.Entities.JobOpening
+            {
+                Title = jobTitle,
+                Department = dept,
+                SalaryRange = salaryRange,
+                Location = loc,
+                Requirements = reqs,
+                Description = desc,
+                Status = "Active",
+                CreatedAt = DateTime.UtcNow
+            };
+
+            _db.JobOpenings.Add(newJob);
+            await _db.SaveChangesAsync(cancellationToken);
+
+            affectedCount = 1;
+            resultMessage = $"Job opening for '{jobTitle}' in '{dept}' department has been successfully created in the SQL database and published to the Candidate Portal (Requisition ID: #{newJob.Id}).";
+            feed.Add(AgentEvent.Create(AgentEventType.TOOL_COMPLETED, resultMessage));
+        }
         else
         {
             resultMessage = $"Approved action for prompt '{prompt}' executed successfully.";
@@ -1520,6 +1589,8 @@ Built high-performance Web APIs, optimized SQL queries, implemented RBAC.";
             OriginalPrompt = agentRun.OriginalPrompt ?? string.Empty,
             Intent = agentRun.Intent ?? string.Empty,
             IsSuccess = true,
+            UserMessage = resultMessage,
+            State = WorkflowState.READY_TO_EXECUTE.ToString(),
             ResultData = new { message = resultMessage, affectedCount },
             ExecutionFeed = feed,
             ExecutionTimeMs = sw.ElapsedMilliseconds,
@@ -1716,8 +1787,11 @@ Built high-performance Web APIs, optimized SQL queries, implemented RBAC.";
 
             // Candidate CV Screening & Job Openings
             case IntentType.JOB_OPENING_CREATE:
+                plan.Steps.Add(new AgentStep { StepNumber = 1, ToolName = "sql.analytics", Description = "Publish new Job Opening to SQL Server and Candidate Portal", RiskLevel = RiskLevel.High });
+                break;
+
             case IntentType.JOB_OPENING_READ:
-                plan.Steps.Add(new AgentStep { StepNumber = 1, ToolName = "sql.analytics", Description = "Process Job Opening requisition", RiskLevel = RiskLevel.Low });
+                plan.Steps.Add(new AgentStep { StepNumber = 1, ToolName = "sql.analytics", Description = "Query active Job Openings and candidate submission metrics", RiskLevel = RiskLevel.Low });
                 break;
 
             case IntentType.CV_SCREEN:
@@ -1816,6 +1890,15 @@ Built high-performance Web APIs, optimized SQL queries, implemented RBAC.";
                 message = "I am ready to trigger the automation workflow. Please confirm:";
                 proposed = "Execute automated workflow pipeline";
                 summary = $"Target: {target} | Action: EXECUTE";
+                break;
+
+            case IntentType.JOB_OPENING_CREATE:
+                var jTitle = e.GetValueOrDefault("title") ?? e.GetValueOrDefault("jobTitle") ?? intent.Parameters.GetValueOrDefault("title")?.ToString() ?? "Lead Cloud Architect";
+                var jDept = e.GetValueOrDefault("department") ?? intent.Parameters.GetValueOrDefault("department")?.ToString() ?? "IT";
+                var jSal = e.GetValueOrDefault("salaryRange") ?? intent.Parameters.GetValueOrDefault("salaryRange")?.ToString() ?? "$95,000 - $125,000";
+                message = $"I have prepared a new job opening for '{jTitle}' in {jDept}. Please review and confirm before publishing to the candidate portal:";
+                proposed = $"Publish Job Opening: {jTitle}";
+                summary = $"Role: {jTitle} | Department: {jDept} | Salary Range: {jSal}";
                 break;
 
             default:
@@ -2482,6 +2565,62 @@ Built high-performance Web APIs, optimized SQL queries, implemented RBAC.";
             actionPlan.Warnings.Add($"Salary modification affects {employees.Count} employee record(s).");
             actionPlan.Warnings.Add($"Total annual payroll increase is ${totalImpact:N2}. Requires explicit executive authorization.");
 
+            return actionPlan;
+        }
+
+        // ── 5.2. JOB OPENING REQUISITION (JOB_OPENING_CREATE) ──
+        if (intentType == IntentType.JOB_OPENING_CREATE)
+        {
+            var jobTitle = intent.Entities.GetValueOrDefault("title") 
+                ?? intent.Entities.GetValueOrDefault("jobTitle")
+                ?? intent.Parameters.GetValueOrDefault("title")?.ToString()
+                ?? "Lead Cloud Architect";
+            var dept = intent.Entities.GetValueOrDefault("department")
+                ?? intent.Parameters.GetValueOrDefault("department")?.ToString()
+                ?? "IT";
+            var salaryRange = intent.Entities.GetValueOrDefault("salaryRange")
+                ?? intent.Parameters.GetValueOrDefault("salaryRange")?.ToString()
+                ?? "$95,000 - $125,000";
+            var reqs = intent.Entities.GetValueOrDefault("requirements")
+                ?? intent.Parameters.GetValueOrDefault("requirements")?.ToString()
+                ?? "AWS, Kubernetes, Terraform, Docker, CI/CD";
+            var loc = intent.Entities.GetValueOrDefault("location")
+                ?? intent.Parameters.GetValueOrDefault("location")?.ToString()
+                ?? "Remote / Hybrid";
+
+            var actionPlan = new Nexus.Data.ActionPlan.ActionPlan
+            {
+                Title = $"Plan of Action: Create Job Opening ({jobTitle} - {dept})",
+                RiskLevel = RiskLevel.Medium,
+                Status = "AWAITING_APPROVAL",
+                Metadata = JsonSerializer.Serialize(intent)
+            };
+
+            actionPlan.AffectedRecords.Add(new Nexus.Data.ActionPlan.AffectedRecord
+            {
+                RecordId = 0,
+                EntityName = "Job Opening Requisition",
+                PrimaryLabel = $"{jobTitle} ({dept})",
+                Changes = new List<Nexus.Data.ActionPlan.ChangePreview>
+                {
+                    new() { FieldName = "Position Title", OldValue = "(None - New Opening)", NewValue = jobTitle, Difference = "NEW" },
+                    new() { FieldName = "Department", OldValue = "(None)", NewValue = dept, Difference = "ASSIGNED" },
+                    new() { FieldName = "Salary Range", OldValue = "(Unspecified)", NewValue = salaryRange, Difference = "BUDGETED" },
+                    new() { FieldName = "Location", OldValue = "(Unspecified)", NewValue = loc, Difference = "SET" },
+                    new() { FieldName = "Requirements", OldValue = "(None)", NewValue = reqs, Difference = "SET" }
+                }
+            });
+
+            actionPlan.Steps.Add(new Nexus.Data.ActionPlan.ActionPlanStep
+            {
+                StepNumber = 1,
+                ToolName = "sql.analytics",
+                Description = $"Create job opening '{jobTitle}' in {dept} department with salary {salaryRange}",
+                RiskLevel = RiskLevel.Medium
+            });
+
+            actionPlan.Warnings.Add($"This will publish an active job opening '{jobTitle}' to the candidate portal and database.");
+            actionPlan.Warnings.Add($"Candidates will be able to apply and submit their PDF CVs immediately upon approval.");
             return actionPlan;
         }
 

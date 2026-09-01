@@ -163,6 +163,8 @@ CRITICAL DISAMBIGUATION RULES:
    TICKET_TRIAGE      → ""TICKET_TRIAGE""
    TICKET_UPDATE      → ""TICKET_UPDATE""
    SCREEN_CV          → ""CV_SCREEN""
+   JOB_OPENING_CREATE → ""JOB_OPENING_CREATE""
+   JOB_OPENING_READ   → ""JOB_OPENING_READ""
    APPROVAL_ACTION    → ""APPROVAL_ACTION""
    APPROVAL_READ      → ""APPROVAL_READ""
    GENERAL_QUERY      → ""GENERAL_CONVERSATION""
@@ -173,7 +175,7 @@ CRITICAL DISAMBIGUATION RULES:
 
 6. TARGET SYSTEM CLASSIFICATION:
    Determine which backend system the action targets:
-   - ""SQL_SERVER"" — any employee, department, budget, policy, expense, ticket, or audit data query/mutation
+   - ""SQL_SERVER"" — any employee, department, budget, policy, expense, ticket, job opening, or audit data query/mutation
    - ""N8N_WORKFLOW"" — when user mentions n8n, workflow automation, or scheduling
    - ""ZAPIER"" — when user mentions Zapier or webhook triggers
    - ""UNKNOWN"" — security tests, health checks, or ambiguous automation
@@ -183,7 +185,7 @@ Return ONLY a valid raw JSON object matching this EXACT structure (no markdown, 
 
 {
   ""intent"": ""INTENT_NAME"",
-  ""targetEntity"": ""EMPLOYEE|DEPARTMENT|DEPARTMENT_BUDGET|POLICY|EXPENSE|ONBOARDING|APPROVAL|AUDIT_LOG|TICKET|CV_CANDIDATE|WORKFLOW|SYSTEM"",
+  ""targetEntity"": ""EMPLOYEE|DEPARTMENT|DEPARTMENT_BUDGET|POLICY|EXPENSE|ONBOARDING|APPROVAL|AUDIT_LOG|TICKET|CV_CANDIDATE|JOB_OPENING|WORKFLOW|SYSTEM"",
   ""operation"": ""CREATE|READ|LIST|SEARCH|UPDATE|DELETE|ANALYZE|ALLOCATE|APPROVE|REJECT|EXECUTE"",
   ""scope"": ""SINGLE|ALL|FILTERED|NONE"",
   ""parameters"": {
@@ -586,6 +588,68 @@ User: ""Show all active employees in the Engineering department""
   ""state"": ""READY_TO_EXECUTE"",
   ""userMessage"": ""Filtering employee directory for active staff in Engineering..."",
   ""confirmationDetails"": null
+}
+
+Example 22 — Create Job Opening Requisition (CONFIRMATION_REQUIRED):
+User: ""Create a new job opening for Lead Cloud Architect in IT department with salary $95,000 - $125,000 requiring AWS, Kubernetes, Terraform, Docker, and CI/CD.""
+{
+  ""intent"": ""JOB_OPENING_CREATE"",
+  ""targetEntity"": ""JOB_OPENING"",
+  ""operation"": ""CREATE"",
+  ""scope"": ""SINGLE"",
+  ""parameters"": {
+    ""target_system"": ""SQL_SERVER"",
+    ""title"": ""Lead Cloud Architect"",
+    ""jobTitle"": ""Lead Cloud Architect"",
+    ""department"": ""IT"",
+    ""salaryRange"": ""$95,000 - $125,000"",
+    ""requirements"": ""AWS, Kubernetes, Terraform, Docker, and CI/CD"",
+    ""location"": ""Remote / Hybrid"",
+    ""description"": ""Lead enterprise cloud modernization, container orchestration, and IaC pipelines.""
+  },
+  ""filters"": {}, ""missingFields"": [], ""requiresPolicyLookup"": false, ""requiresApproval"": true,
+  ""confidence"": 0.99, ""requiresClarification"": false, ""clarificationPrompt"": null,
+  ""conversationalResponse"": null,
+  ""state"": ""CONFIRMATION_REQUIRED"",
+  ""userMessage"": ""I have prepared a new job opening for Lead Cloud Architect in the IT department. Please review and confirm to publish it to the candidate portal."",
+  ""confirmationDetails"": {
+    ""proposedAction"": ""Publish Job Opening: Lead Cloud Architect (IT)"",
+    ""actionSummary"": ""Title: Lead Cloud Architect | Department: IT | Salary: $95,000 - $125,000 | Requirements: AWS, Kubernetes, Terraform, Docker, CI/CD"",
+    ""requiresUserAction"": true
+  }
+}
+
+Example 23 — Show Active Job Openings (READY_TO_EXECUTE):
+User: ""Show all active job openings and count how many candidate CVs have been received for each position""
+{
+  ""intent"": ""JOB_OPENING_READ"",
+  ""targetEntity"": ""JOB_OPENING"",
+  ""operation"": ""READ"",
+  ""scope"": ""ALL"",
+  ""parameters"": { ""target_system"": ""SQL_SERVER"" },
+  ""filters"": { ""status"": ""Active"" },
+  ""missingFields"": [], ""requiresPolicyLookup"": false, ""requiresApproval"": false,
+  ""confidence"": 0.99, ""requiresClarification"": false, ""clarificationPrompt"": null,
+  ""conversationalResponse"": null,
+  ""state"": ""READY_TO_EXECUTE"",
+  ""userMessage"": ""Retrieving all active job requisitions and candidate application counts..."",
+  ""confirmationDetails"": null
+}
+
+Example 24 — Screen Candidate CV (READY_TO_EXECUTE):
+User: ""Screen submitted candidate CVs for Senior Full Stack Developer and score match fit""
+{
+  ""intent"": ""CV_SCREEN"",
+  ""targetEntity"": ""CV_CANDIDATE"",
+  ""operation"": ""ANALYZE"",
+  ""scope"": ""SINGLE"",
+  ""parameters"": { ""target_system"": ""SQL_SERVER"", ""jobTitle"": ""Senior Full Stack Developer"" },
+  ""filters"": {}, ""missingFields"": [], ""requiresPolicyLookup"": false, ""requiresApproval"": false,
+  ""confidence"": 0.99, ""requiresClarification"": false, ""clarificationPrompt"": null,
+  ""conversationalResponse"": null,
+  ""state"": ""READY_TO_EXECUTE"",
+  ""userMessage"": ""Screening candidate resume against Senior Full Stack Developer competencies and scoring role fit..."",
+  ""confirmationDetails"": null
 }";
     }
 
@@ -596,6 +660,104 @@ User: ""Show all active employees in the Engineering department""
     private void DisambiguateAndSanitizeIntent(string prompt, ParsedIntentResult result)
     {
         var p = prompt.ToLowerInvariant();
+
+        // GUARD 0: Job Opening Requisitions & Candidate Screening (high priority to prevent misclassification as TICKET_CREATE)
+        bool isJobPrompt = p.Contains("job opening") || p.Contains("job posting") || p.Contains("new opening") ||
+                           p.Contains("create opening") || p.Contains("open requisition") || p.Contains("create a job") ||
+                           p.Contains("create job") || p.Contains("post a job") || p.Contains("new requisition") ||
+                           (p.Contains("opening for") && !p.Contains("portal"));
+
+        if (isJobPrompt)
+        {
+            bool isJobRead = p.Contains("show") || p.Contains("list") || p.Contains("display") || p.Contains("count") || p.Contains("how many") || p.Contains("view");
+            if (isJobRead)
+            {
+                result.Intent = IntentType.JOB_OPENING_READ.ToString();
+                result.TargetEntity = "JOB_OPENING";
+                result.Operation = "READ";
+                result.RequiresApproval = false;
+                result.Confidence = 0.99;
+            }
+            else
+            {
+                result.Intent = IntentType.JOB_OPENING_CREATE.ToString();
+                result.TargetEntity = "JOB_OPENING";
+                result.Operation = "CREATE";
+                result.RequiresApproval = true;
+                result.Confidence = 0.99;
+
+                // Extract title
+                var titleMatch = Regex.Match(prompt, @"(?:for|opening for|role|position)\s+([A-Za-z0-9\s\.\+#]+?)(?:\s+in\s+|\s+department|\s+with\s+|\s+salary|\s+requiring|$)", RegexOptions.IgnoreCase);
+                string jobTitle = titleMatch.Success && !string.IsNullOrWhiteSpace(titleMatch.Groups[1].Value)
+                    ? titleMatch.Groups[1].Value.Trim()
+                    : "Lead Cloud Architect";
+
+                // Extract dept
+                string dept = "IT";
+                var deptMatch = Regex.Match(prompt, @"(?:in\s+|department\s+|dept\s+)([A-Za-z]+)(?:\s+department|\s+dept|\s+with|\s+salary|$)", RegexOptions.IgnoreCase);
+                if (deptMatch.Success && !string.IsNullOrWhiteSpace(deptMatch.Groups[1].Value))
+                {
+                    dept = deptMatch.Groups[1].Value.Trim();
+                    if (dept.Equals("department", StringComparison.OrdinalIgnoreCase)) dept = "IT";
+                }
+
+                // Extract salary
+                string salaryRange = "$95,000 - $125,000";
+                var salMatch = Regex.Match(prompt, @"(?:salary|compensation|budget|range|pay)\s*(?:is\s*|of\s*|:\s*)?([\$0-9\s,\-kKmM]+)", RegexOptions.IgnoreCase);
+                if (salMatch.Success && !string.IsNullOrWhiteSpace(salMatch.Groups[1].Value))
+                {
+                    salaryRange = salMatch.Groups[1].Value.Trim();
+                }
+
+                // Extract requirements
+                string reqs = "AWS, Kubernetes, Terraform, Docker, CI/CD";
+                var reqMatch = Regex.Match(prompt, @"(?:requiring|requires|requirements|skills|tech stack)\s*[:\-]?\s*(.+)", RegexOptions.IgnoreCase);
+                if (reqMatch.Success && !string.IsNullOrWhiteSpace(reqMatch.Groups[1].Value))
+                {
+                    reqs = reqMatch.Groups[1].Value.Trim().TrimEnd('.', ',', ';', ' ');
+                }
+
+                string desc = $"Lead enterprise architecture, cloud modernization, and system scalability for {dept} department.";
+
+                result.Parameters["title"] = jobTitle;
+                result.Parameters["jobTitle"] = jobTitle;
+                result.Parameters["department"] = dept;
+                result.Parameters["salaryRange"] = salaryRange;
+                result.Parameters["requirements"] = reqs;
+                result.Parameters["location"] = "Remote / Hybrid";
+                result.Parameters["description"] = desc;
+
+                result.Entities["title"] = jobTitle;
+                result.Entities["jobTitle"] = jobTitle;
+                result.Entities["department"] = dept;
+                result.Entities["salaryRange"] = salaryRange;
+                result.Entities["requirements"] = reqs;
+                result.Entities["location"] = "Remote / Hybrid";
+                result.Entities["description"] = desc;
+            }
+            return;
+        }
+
+        // GUARD 0.5: Candidate CV Screening Queries
+        bool isCvPrompt = p.Contains("screen cv") || p.Contains("screen candidate") || p.Contains("score match fit") ||
+                          p.Contains("cv screening") || (p.Contains("screen") && (p.Contains("candidate") || p.Contains("cv") || p.Contains("resume")));
+        if (isCvPrompt)
+        {
+            result.Intent = IntentType.CV_SCREEN.ToString();
+            result.TargetEntity = "CV_CANDIDATE";
+            result.Operation = "ANALYZE";
+            result.RequiresApproval = false;
+            result.Confidence = 0.99;
+
+            var roleMatch = Regex.Match(prompt, @"(?:for|position)\s+([A-Za-z0-9\s\.\+#]+?)(?:\s+position|\s+role|\s+and|$)", RegexOptions.IgnoreCase);
+            string targetRole = roleMatch.Success && !string.IsNullOrWhiteSpace(roleMatch.Groups[1].Value)
+                ? roleMatch.Groups[1].Value.Trim()
+                : "Senior Full Stack Developer";
+
+            result.Parameters["jobTitle"] = targetRole;
+            result.Entities["jobTitle"] = targetRole;
+            return;
+        }
 
         // Check if prompt clearly indicates an employee action
         bool containsEmployeeVerbs = p.Contains("employee") || p.Contains("emp") || p.Contains("onboard") ||

@@ -69,10 +69,10 @@ public class GeminiLLMService : ILLMService
             }
 
             var model = string.IsNullOrWhiteSpace(_options.Model)
-                ? "gemini-3.6-flash"
+                ? "gemini-3.5-flash"
                 : _options.Model;
 
-            var candidateModels = new List<string> { model, "gemini-3.6-flash", "gemini-3.7-flash", "gemini-flash-latest", "gemini-3.5-flash" };
+            var candidateModels = new List<string> { model, "gemini-3.5-flash", "gemini-3.1-flash-lite", "gemini-3.6-flash" };
 
             var fullPrompt = BuildFullPrompt(prompt, systemPrompt, requestJson);
 
@@ -96,7 +96,7 @@ public class GeminiLLMService : ILLMService
                     },
                     generationConfig = new
                     {
-                        temperature = 0.1,
+                        temperature = 0.2,
                         topK = 40,
                         topP = 0.95,
                         maxOutputTokens = 2048,
@@ -117,11 +117,11 @@ public class GeminiLLMService : ILLMService
                     break;
                 }
 
-                _logger.LogWarning("Gemini API call to model '{Model}' returned HTTP {StatusCode}. Trying fallback model if 404...", currentModel, (int)response.StatusCode);
+                _logger.LogWarning("Gemini API call to model '{Model}' returned HTTP {StatusCode}. Trying fallback model if available...", currentModel, (int)response.StatusCode);
 
-                if ((int)response.StatusCode != 404)
+                if ((int)response.StatusCode != 404 && (int)response.StatusCode != 503 && (int)response.StatusCode != 429)
                 {
-                    break; // Non-404 error (e.g. 401, 429, 500) — don't retry other models
+                    break; // Non-retryable error (e.g. 401 Unauthorized) — don't retry other models
                 }
             }
 

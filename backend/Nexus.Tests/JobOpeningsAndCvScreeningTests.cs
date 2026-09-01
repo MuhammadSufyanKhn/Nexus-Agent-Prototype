@@ -39,6 +39,21 @@ public class JobOpeningsAndCvScreeningTests
     }
 
     [Fact]
+    public async Task Parse_LeadCloudArchitect_CorrectlyClassifiedAsJobOpeningCreate()
+    {
+        var parser = CreateParser();
+        var prompt = "Create a new job opening for Lead Cloud Architect in IT department with salary $95,000 - $125,000 requiring AWS, Kubernetes, Terraform, Docker, and CI/CD.";
+        var result = await parser.ParseIntentAsync(prompt);
+
+        Assert.Equal(IntentType.JOB_OPENING_CREATE, result.ParsedIntentType);
+        Assert.True(result.RequiresApproval);
+        Assert.Equal("IT", result.Entities["department"]);
+        Assert.Equal("Lead Cloud Architect", result.Entities["title"]);
+        Assert.Equal("$95,000 - $125,000", result.Entities["salaryRange"]);
+        Assert.Equal("AWS, Kubernetes, Terraform, Docker, and CI/CD", result.Entities["requirements"]);
+    }
+
+    [Fact]
     public async Task Parse_TicketResolution_RoutesToTicketUpdate()
     {
         var parser = CreateParser();
@@ -112,6 +127,36 @@ Designed Web APIs, optimized SQL Server queries by 45%, implemented RBAC securit
         Assert.NotEmpty(analysis.Strengths);
         Assert.NotEmpty(analysis.RecommendedInterviewQuestions);
         Assert.True(analysis.RecommendedInterviewQuestions.Count >= 3);
+    }
+
+    [Fact]
+    public void CvAnalysisTool_AccuratelyScoresLowForCandidateMissingRequiredCompetencies()
+    {
+        // Muhammad Sufyan Khan's CV (Junior .NET Developer) applying to Lead Cloud Architect
+        var cvText = @"MUHAMMAD SUFYAN KHAN UNDERGRADUATE STUDENT
+PROFESSIONAL OVERVIEW Dedicated .NET Developer and Computer Science student combining strong academic foundations with practical software engineering experience. Proficient in building robust applications using C#, .NET Core and modern database systems.
+WORK EXPERIENCE
+.NET Fullstack (.NET+ReactJS) intern 10Pearls Pakistan, Karachi | April 2026 – June 2026
+• Developed a full-stack task management solution using ASP.NET Core Web API and React (Vite).
+• Incorporated xUnit and Moq to perform unit testing.
+TECHNICAL SKILLS
+• ASP.NET • Entity Framework • Web API development • Database Management • Unit Testing • SQL";
+
+        var analysis = CvAnalysisTool.AnalyzeCvText(
+            cvText,
+            "Lead Cloud Architect",
+            "AWS, Kubernetes, Terraform, Docker, and CI/CD"
+        );
+
+        Assert.NotNull(analysis);
+        // Candidate has 0 of the 5 required cloud competencies (AWS, K8s, Terraform, Docker, CI/CD)
+        // Score must NOT be inflated to 88%
+        Assert.True(analysis.MatchScore <= 35, $"Expected honest score <= 35 for 0 matching competencies, but got {analysis.MatchScore}");
+        Assert.False(analysis.IsBestFit);
+        Assert.Contains(analysis.FitCategory, new[] { "Not a Fit", "Moderate Fit" });
+        Assert.Equal("Muhammad Sufyan Khan", analysis.CandidateName);
+        Assert.NotEmpty(analysis.MissingSkills);
+        Assert.All(analysis.RecommendedInterviewQuestions, q => Assert.DoesNotContain("TechCorp Solutions", q));
     }
 
     [Fact]

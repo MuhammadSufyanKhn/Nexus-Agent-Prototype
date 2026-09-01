@@ -108,6 +108,62 @@ public class AgentOrchestratorTests
         Assert.NotNull(audit.CurrentHash);
     }
 
+    [Fact]
+    public async Task AgentOrchestrator_JobOpeningCreation_RequiresApproval_AndCreatesInDbUponApproval()
+    {
+        // 1. Arrange
+        using var db = GetInMemoryDbContext("JobOpeningOrchestratorDb");
+        var registry = new ToolRegistry();
+        var mockLlm = new MockLLMService(new ParsedIntentResult
+        {
+            Intent = "JOB_OPENING_CREATE",
+            TargetEntity = "JOB_OPENING",
+            Operation = "CREATE",
+            RequiresApproval = true,
+            Confidence = 0.99
+        });
+
+        var intentParser = new IntentParser(mockLlm, NullLogger<IntentParser>.Instance);
+        var orchestrator = new AgentOrchestrator(intentParser, registry, db, NullLogger<AgentOrchestrator>.Instance);
+
+        var prompt = "Create a new job opening for Lead Cloud Architect in IT department with salary $95,000 - $125,000 requiring AWS, Kubernetes, Terraform, Docker, and CI/CD.";
+
+        // 2. Act (Step 1: Execute initial request)
+        var result = await orchestrator.ExecuteAsync(prompt);
+
+        // 3. Assert Approval Gate is Triggered
+        Assert.NotNull(result);
+        Assert.True(result.RequiresApproval);
+        Assert.Equal("CONFIRMATION_REQUIRED", result.State);
+        Assert.NotNull(result.ActionPlan);
+        Assert.NotEqual(Guid.Empty, result.ActionPlan.ApprovalId);
+        Assert.Equal(RiskLevel.Medium, result.ActionPlan.RiskLevel);
+        Assert.Contains(result.ActionPlan.AffectedRecords, r => r.PrimaryLabel.Contains("Lead Cloud Architect"));
+
+        // Verify nothing created in DB yet
+        var existingJob = await db.JobOpenings.FirstOrDefaultAsync(j => j.Title == "Lead Cloud Architect");
+        Assert.Null(existingJob);
+
+        // 4. Act (Step 2: Authorize & Approve)
+        var approvalDecision = await orchestrator.ResumeApprovedRunAsync(
+            result.RunId,
+            result.ActionPlan.ApprovalId,
+            approvedBy: "Engineering Director"
+        );
+
+        // 5. Assert Job Opening is successfully published in SQL Database
+        Assert.NotNull(approvalDecision);
+        Assert.True(approvalDecision.IsSuccess);
+        Assert.Contains("successfully created in the SQL database", approvalDecision.UserMessage);
+
+        var createdJob = await db.JobOpenings.FirstOrDefaultAsync(j => j.Title == "Lead Cloud Architect");
+        Assert.NotNull(createdJob);
+        Assert.Equal("IT", createdJob.Department);
+        Assert.Equal("$95,000 - $125,000", createdJob.SalaryRange);
+        Assert.Equal("Active", createdJob.Status);
+        Assert.Contains("AWS", createdJob.Requirements);
+    }
+
     private class MockLLMService : ILLMService
     {
         private readonly object? _responseObject;

@@ -726,5 +726,26 @@ export async function analyzeCandidateCv(data: {
   return res.json();
 }
 
+export async function refreshInterviewQuestions(data: {
+  cvContent?: string;
+  jobTitle?: string;
+  requiredSkills?: string;
+  jobOpeningId?: number;
+  candidateId?: number;
+  existingQuestions?: string[];
+}): Promise<string[]> {
+  const res = await fetch(`${API_BASE}/cv/refresh-questions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ message: 'Failed to refresh interview questions' }));
+    throw new Error(err.message || 'Failed to refresh interview questions');
+  }
+  const json = await res.json();
+  return json.questions || [];
+}
+
 
 

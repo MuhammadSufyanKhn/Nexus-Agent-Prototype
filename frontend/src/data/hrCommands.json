@@ -1,5 +1,81 @@
 [
   {
+    "id": "create_job_opening",
+    "intent": "JOB_OPENING_CREATE",
+    "category": "Talent Acquisition",
+    "label": "Create Job Opening Requisition",
+    "keywords": [
+      "create job opening",
+      "create a new job opening",
+      "job opening",
+      "post job",
+      "new opening",
+      "open requisition",
+      "hire for position"
+    ],
+    "aliases": [
+      "Create a new job opening for Lead Cloud Architect in IT department",
+      "create job opening in it",
+      "post new job opening"
+    ],
+    "examples": [
+      "Create a new job opening for Lead Cloud Architect in IT department with salary $95,000 - $125,000 requiring AWS, Kubernetes, Terraform, Docker, and CI/CD.",
+      "Create a new job opening for Senior Full Stack Developer in IT department with salary $80,000 - $105,000 requiring React, .NET Core, SQL Server, and TypeScript.",
+      "Create a new job opening for Product Marketing Manager in Marketing department with salary $75,000 - $95,000 requiring SaaS B2B, GTM Strategy, and Analytics."
+    ],
+    "template": "Create a new job opening for {role} in {department} department with salary {salaryRange} requiring {skills}."
+  },
+  {
+    "id": "show_job_openings",
+    "intent": "JOB_OPENING_READ",
+    "category": "Talent Acquisition",
+    "label": "Show Active Job Openings & Pipeline",
+    "keywords": [
+      "show job openings",
+      "show all active job openings",
+      "list job openings",
+      "count candidate cvs",
+      "candidate applications count",
+      "hiring pipeline"
+    ],
+    "aliases": [
+      "Show all active job openings and count how many candidate CVs have been received for each position",
+      "show active job requisitions",
+      "view job openings"
+    ],
+    "examples": [
+      "Show all active job openings and count how many candidate CVs have been received for each position.",
+      "List active job openings in IT department.",
+      "Show all active job requisitions and candidate counts."
+    ],
+    "template": "Show all active job openings and count how many candidate CVs have been received for each position."
+  },
+  {
+    "id": "screen_candidate_cv",
+    "intent": "CV_SCREEN",
+    "category": "Talent Acquisition",
+    "label": "Screen Candidate CV & Best Fit",
+    "keywords": [
+      "screen candidate cv",
+      "screen cv",
+      "candidate cv screening",
+      "score match fit",
+      "best fit candidate",
+      "interview questions"
+    ],
+    "aliases": [
+      "Screen submitted candidate CVs for Senior Full Stack Developer and score match fit",
+      "screen candidate resume",
+      "evaluate candidate cv"
+    ],
+    "examples": [
+      "Screen submitted candidate CVs for Senior Full Stack Developer and score match fit.",
+      "Screen candidate CV for Lead Cloud Architect and generate 5 technical interview questions.",
+      "Evaluate candidate fit score against role competencies."
+    ],
+    "template": "Screen submitted candidate CVs for {role} and score match fit."
+  },
+  {
     "id": "appoint_leadership",
     "intent": "EMPLOYEE_PROMOTE",
     "category": "Employee Management",

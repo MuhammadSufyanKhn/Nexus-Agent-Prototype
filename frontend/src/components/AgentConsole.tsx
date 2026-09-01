@@ -117,6 +117,24 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
 
   const quickPrompts = [
     {
+      label: 'Create Job Opening',
+      icon: Briefcase,
+      type: 'job_create',
+      prompt: 'Create a new job opening for Lead Cloud Architect in IT department with salary $95,000 - $125,000 requiring AWS, Kubernetes, Terraform, Docker, and CI/CD.'
+    },
+    {
+      label: 'Show Job Openings',
+      icon: Briefcase,
+      type: 'job_read',
+      prompt: 'Show all active job openings and count how many candidate CVs have been received for each position.'
+    },
+    {
+      label: 'Screen Candidate CV',
+      icon: Sparkles,
+      type: 'cv_screen',
+      prompt: 'Screen submitted candidate CVs for Senior Full Stack Developer and score match fit.'
+    },
+    {
       label: 'Onboard Employee',
       icon: UserPlus,
       type: 'onboard',
@@ -172,6 +190,7 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
     policies: 'HR Policy Center', expenses: 'Expense Review',
     onboarding: 'Onboarding Hub', audit: 'Activity History',
     approvals: 'HR Approval Center', dashboard: 'Workforce Dashboard', tickets: 'Workplace Service Desk',
+    jobs: 'Job Openings & Requisitions',
     cv: 'Candidate CV Screening'
   };
 
@@ -189,6 +208,7 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
       APPROVAL_READ: 'approvals', AUDIT_READ: 'audit', DASHBOARD_ANALYTICS: 'dashboard',
       EXECUTE_AUTOMATION: 'audit', PAYROLL_HOLD: 'departments', PAYROLL_BONUS: 'departments',
       LEAVE_CREATE: 'employees', UPDATE_SALARY: 'employees',
+      JOB_OPENING_CREATE: 'jobs', JOB_OPENING_READ: 'jobs',
       CV_SCREEN: 'cv', TICKET_READ: 'tickets', TICKET_CREATE: 'tickets', TICKET_TRIAGE: 'tickets',
       SECURITY_TEST: 'audit', SQL_AGENT: 'dashboard'
     };
@@ -239,7 +259,7 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
   };
 
   const handleQuickActionClick = (q: typeof quickPrompts[0]) => {
-    if (q.type === 'budget' || q.type === 'security') {
+    if (q.type === 'budget' || q.type === 'security' || q.type === 'job_create' || q.type === 'job_read' || q.type === 'cv_screen') {
       setPrompt(q.prompt);
       handleExecute(q.prompt);
     } else {

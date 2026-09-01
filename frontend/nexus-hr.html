@@ -65,7 +65,7 @@
       justify-content: space-between;
       padding: 24px 16px;
       z-index: 40;
-      shrink: 0;
+      flex-shrink: 0;
     }
 
     .brand {
@@ -562,7 +562,7 @@
       justify-content: center;
       font-size: 11px;
       font-weight: 700;
-      shrink: 0;
+      flex-shrink: 0;
     }
 
     /* PDF Dropzone (PDF ONLY) */
@@ -850,8 +850,18 @@
 
             <!-- 5 Role-Specific Interview Questions -->
             <div class="eval-section" style="margin-top: 20px;">
-              <div class="eval-title" style="color: var(--indigo);">5 Role-Specific Interview Questions (AI Generated)</div>
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <div class="eval-title" style="color: var(--indigo); margin-bottom: 0;">5 Role-Specific Interview Questions (Dynamic AI Generated)</div>
+              </div>
               <div class="questions-list" id="evalQuestionsList"></div>
+
+              <!-- Refresh Button Directly Below Questions -->
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 12px; padding: 12px; background: rgba(30, 41, 59, 0.4); border: 1px solid var(--border-subtle); border-radius: 8px;">
+                <span style="font-size: 11px; color: var(--text-dim);">Need different questions? Gemini will formulate 5 fresh, non-duplicate technical questions.</span>
+                <button type="button" class="btn btn-outline" id="btnRefreshQuestions" onclick="refreshInterviewQuestions()" style="font-size: 11px; padding: 6px 14px; display: inline-flex; align-items: center; gap: 6px; cursor: pointer;">
+                  <span>🔄 Generate More Questions</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -1400,19 +1410,52 @@ Experience: 4 years building high-throughput microservices and query optimizatio
 
       document.getElementById('evalCandidateName').textContent = data.candidateName || 'Candidate Profile';
       document.getElementById('evalCandidateExp').textContent = `${data.experienceYears || 0}+ Years Relevant Experience`;
-      document.getElementById('scoreNumber').textContent = `${data.matchScore}%`;
       
+      const scoreNum = document.getElementById('scoreNumber');
+      const scoreFill = document.getElementById('scoreBarFill');
       const badge = document.getElementById('bestFitBadge');
-      if (data.isBestFit || data.matchScore >= 80) {
+      const score = typeof data.matchScore === 'number' ? data.matchScore : 0;
+      scoreNum.textContent = `${score}%`;
+
+      if (data.isBestFit || score >= 80) {
         badge.textContent = '⭐ BEST FIT FOR THIS POSITION';
         badge.style.display = 'inline-flex';
+        badge.style.background = 'rgba(35, 134, 54, 0.2)';
+        badge.style.borderColor = 'var(--emerald)';
+        badge.style.color = '#3fb950';
+        scoreNum.style.color = 'var(--emerald)';
+        if (scoreFill) scoreFill.style.background = 'var(--emerald)';
+      } else if (score >= 60) {
+        badge.textContent = `👍 ${data.fitCategory || 'STRONG MATCH'}`;
+        badge.style.display = 'inline-flex';
+        badge.style.background = 'rgba(88, 166, 255, 0.2)';
+        badge.style.borderColor = 'var(--blue)';
+        badge.style.color = 'var(--blue)';
+        scoreNum.style.color = 'var(--blue)';
+        if (scoreFill) scoreFill.style.background = 'var(--blue)';
+      } else if (score >= 40) {
+        badge.textContent = `⚡ ${data.fitCategory || 'MODERATE FIT'}`;
+        badge.style.display = 'inline-flex';
+        badge.style.background = 'rgba(210, 153, 34, 0.2)';
+        badge.style.borderColor = 'var(--amber)';
+        badge.style.color = 'var(--amber)';
+        scoreNum.style.color = 'var(--amber)';
+        if (scoreFill) scoreFill.style.background = 'var(--amber)';
+      } else {
+        badge.textContent = `⚠️ ${data.fitCategory || 'NOT A FIT FOR THIS ROLE'}`;
+        badge.style.display = 'inline-flex';
+        badge.style.background = 'rgba(248, 81, 73, 0.2)';
+        badge.style.borderColor = 'var(--rose)';
+        badge.style.color = 'var(--rose)';
+        scoreNum.style.color = 'var(--rose)';
+        if (scoreFill) scoreFill.style.background = 'var(--rose)';
       }
 
       setTimeout(() => {
-        document.getElementById('scoreBarFill').style.width = `${data.matchScore}%`;
+        if (scoreFill) scoreFill.style.width = `${score}%`;
       }, 100);
 
-      document.getElementById('evalSummaryText').textContent = data.fitSummary || 'Evaluated from PDF.';
+      document.getElementById('evalSummaryText').textContent = data.fitSummary || 'Evaluated against role requirements.';
 
       const skillsRow = document.getElementById('evalSkillsRow');
       skillsRow.innerHTML = (data.extractedSkills || []).map(s => `<span class="skill-pill">${s}</span>`).join('');
@@ -1421,7 +1464,11 @@ Experience: 4 years building high-throughput microservices and query optimizatio
       strengthsList.innerHTML = (data.strengths || []).map(s => `<li>${s}</li>`).join('');
 
       const gapsList = document.getElementById('evalGapsList');
-      gapsList.innerHTML = (data.weaknesses || data.missingSkills || ['No critical gaps']).map(g => `<li>${g}</li>`).join('');
+      const gaps = [
+        ...(data.missingSkills || []).map(m => `Missing required competency: ${m}`),
+        ...(data.weaknesses || [])
+      ];
+      gapsList.innerHTML = (gaps.length > 0 ? gaps : ['No critical skill gaps identified']).map(g => `<li>${g}</li>`).join('');
 
       const qList = document.getElementById('evalQuestionsList');
       qList.innerHTML = (data.recommendedInterviewQuestions || []).map((q, idx) => `
@@ -1430,6 +1477,57 @@ Experience: 4 years building high-throughput microservices and query optimizatio
           <div style="flex: 1; color: var(--text-main);">${q}</div>
         </div>
       `).join('');
+
+      currentEvaluationData = data;
+    }
+
+    let currentEvaluationData = null;
+
+    async function refreshInterviewQuestions() {
+      if (!currentEvaluationData) {
+        alert('Please run AI evaluation first.');
+        return;
+      }
+
+      const btn = document.getElementById('btnRefreshQuestions');
+      if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span>⏳ Generating 5 Fresh Questions...</span>';
+      }
+
+      try {
+        const res = await fetch(`${API_BASE}/api/cv/refresh-questions`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            cvContent: hrExtractedWords,
+            jobTitle: document.getElementById('cvTargetTitle').value,
+            requiredSkills: document.getElementById('cvRequiredSkills').value,
+            existingQuestions: currentEvaluationData.recommendedInterviewQuestions || []
+          })
+        });
+
+        if (res.ok) {
+          const result = await res.json();
+          if (result.questions && result.questions.length > 0) {
+            currentEvaluationData.recommendedInterviewQuestions = result.questions;
+            const qList = document.getElementById('evalQuestionsList');
+            qList.innerHTML = result.questions.map((q, idx) => `
+              <div class="question-item" style="animation: fadeIn 0.3s ease;">
+                <div class="q-num">${idx + 1}</div>
+                <div style="flex: 1; color: var(--text-main);">${q}</div>
+              </div>
+            `).join('');
+          }
+        }
+      } catch (err) {
+        console.error('Failed to refresh questions', err);
+      } finally {
+        if (btn) {
+          btn.disabled = false;
+          btn.innerHTML = '<span>🔄 Generate More Questions</span>';
+        }
+      }
     }
   </script>
 </body>
