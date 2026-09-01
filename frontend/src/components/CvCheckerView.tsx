@@ -19,14 +19,16 @@ import {
   Eye,
   FileCode,
   RefreshCw,
-  BookmarkCheck
+  BookmarkCheck,
+  XCircle
 } from 'lucide-react';
 import { 
   fetchJobOpenings,
   fetchCandidateApplications,
   analyzeCandidateCv,
   refreshInterviewQuestions,
-  shortlistCandidate
+  shortlistCandidate,
+  rejectCandidate
 } from '../services/api';
 import type {
   JobOpening,
@@ -59,7 +61,8 @@ export const CvCheckerView: React.FC<CvCheckerViewProps> = ({
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<CvAnalysisResult | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [candidateShortlisted, setCandidateShortlisted] = useState<boolean | null>(null);
+  const [candidateDecision, setCandidateDecision] = useState<'shortlisted' | 'rejected' | null>(null);
+  const [rejectionMsg, setRejectionMsg] = useState<string | null>(null);
   const [refreshingQuestions, setRefreshingQuestions] = useState(false);
 
   // Animated loading sequence states
@@ -201,13 +204,15 @@ KEY ACHIEVEMENTS:
   const handleSelectJob = (jobId: number) => {
     setSelectedJobId(jobId);
     setResult(null);
-    setCandidateShortlisted(null);
+    setCandidateDecision(null);
+    setRejectionMsg(null);
   };
 
   const handleSelectCandidate = (candId: number | 'custom') => {
     setSelectedCandidateId(candId);
     setResult(null);
-    setCandidateShortlisted(null);
+    setCandidateDecision(null);
+    setRejectionMsg(null);
 
     if (candId === 'custom') {
       loadSamplePdf();
@@ -251,7 +256,8 @@ KEY ACHIEVEMENTS:
     setLoading(true);
     setErrorMsg(null);
     setResult(null);
-    setCandidateShortlisted(null);
+    setCandidateDecision(null);
+    setRejectionMsg(null);
     setEvalProgress(0);
     setCurrentStepIndex(0);
 
@@ -292,21 +298,34 @@ KEY ACHIEVEMENTS:
     }
   };
 
-  const handleShortlistCandidate = async (shortlist: boolean) => {
-    if (!shortlist) {
-      setCandidateShortlisted(false);
-      return;
-    }
-
+  const handleShortlistCandidate = async () => {
     setLoading(true);
     setErrorMsg(null);
     try {
       if (typeof selectedCandidateId === 'number') {
         await shortlistCandidate(selectedCandidateId);
       }
-      setCandidateShortlisted(true);
+      setCandidateDecision('shortlisted');
     } catch (err: any) {
       setErrorMsg(err.message || 'Failed to shortlist candidate.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRejectCandidate = async () => {
+    setLoading(true);
+    setErrorMsg(null);
+    try {
+      if (typeof selectedCandidateId === 'number') {
+        const res = await rejectCandidate(selectedCandidateId, 'Screening');
+        setRejectionMsg(res.message);
+      } else {
+        setRejectionMsg('Candidate marked as rejected. Pre-screening rejection email dispatched.');
+      }
+      setCandidateDecision('rejected');
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Failed to reject candidate.');
     } finally {
       setLoading(false);
     }
@@ -822,34 +841,36 @@ KEY ACHIEVEMENTS:
                   <span>Candidate Shortlist Decision</span>
                 </div>
                 <p className="text-[11px] text-slate-500 mt-0.5">
-                  {candidateShortlisted === true ? (
+                  {candidateDecision === 'shortlisted' ? (
                     <span className="text-emerald-700 font-semibold flex items-center gap-1 justify-center sm:justify-start">
-                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                       Candidate shortlisted! Now visible under "{jobTitle}" in the Job Openings tab to schedule an interview.
                     </span>
-                  ) : candidateShortlisted === false ? (
-                    <span className="text-slate-600 font-medium">
-                      Candidate kept in review (not shortlisted for this requisition).
+                  ) : candidateDecision === 'rejected' ? (
+                    <span className="text-rose-700 font-semibold flex items-center gap-1 justify-center sm:justify-start">
+                      <XCircle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                      {rejectionMsg || `Candidate rejected. Pre-screening rejection email dispatched to ${result.email || 'applicant'}.`}
                     </span>
                   ) : (
-                    <span>Shortlist this candidate to schedule an interview and send an official invitation?</span>
+                    <span>Shortlist this candidate to schedule an interview, or reject application and send formal notice?</span>
                   )}
                 </p>
               </div>
 
-              {candidateShortlisted === null && (
+              {candidateDecision === null && (
                 <div className="flex items-center gap-2.5 w-full sm:w-auto shrink-0">
                   <button
                     type="button"
-                    onClick={() => handleShortlistCandidate(false)}
+                    onClick={handleRejectCandidate}
                     disabled={loading}
-                    className="flex-1 sm:flex-none px-4 py-2 rounded-lg border border-slate-300 hover:bg-slate-100 text-slate-700 text-xs font-semibold transition-all cursor-pointer"
+                    className="flex-1 sm:flex-none px-4 py-2 rounded-lg border border-rose-200 bg-rose-50/70 hover:bg-rose-100 text-rose-700 text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer"
                   >
-                    No (Keep in Review)
+                    <XCircle className="w-3.5 h-3.5 text-rose-600" />
+                    <span>No (Reject)</span>
                   </button>
                   <button
                     type="button"
-                    onClick={() => handleShortlistCandidate(true)}
+                    onClick={handleShortlistCandidate}
                     disabled={loading}
                     className="flex-1 sm:flex-none px-5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer"
                   >
@@ -859,21 +880,18 @@ KEY ACHIEVEMENTS:
                 </div>
               )}
 
-              {candidateShortlisted === true && (
+              {candidateDecision === 'shortlisted' && (
                 <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 shrink-0">
                   <CheckCircle2 className="w-4 h-4 text-emerald-600" />
                   Shortlisted for Interview
                 </span>
               )}
 
-              {candidateShortlisted === false && (
-                <button
-                  type="button"
-                  onClick={() => setCandidateShortlisted(null)}
-                  className="text-xs text-slate-500 underline hover:text-slate-800 cursor-pointer shrink-0"
-                >
-                  Change Decision
-                </button>
+              {candidateDecision === 'rejected' && (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-rose-100 text-rose-800 border border-rose-300 shrink-0">
+                  <XCircle className="w-4 h-4 text-rose-600" />
+                  Application Rejected
+                </span>
               )}
             </div>
           </div>

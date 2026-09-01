@@ -98,6 +98,12 @@ public class JobOpeningsController : ControllerBase
         public string? Notes { get; set; }
     }
 
+    public class RejectCandidateRequest
+    {
+        public string? Stage { get; set; } = "Screening";
+        public string? RejectionReason { get; set; }
+    }
+
     /// <summary>
     /// GET /api/jobs - List all job openings with submitted resume/CV count
     /// </summary>
@@ -471,6 +477,56 @@ public class JobOpeningsController : ControllerBase
                 mode,
                 locationOrLink
             }
+        });
+    }
+
+    /// <summary>
+    /// POST /api/jobs/applications/{id}/reject - Reject a candidate application and dispatch rejection notification email
+    /// </summary>
+    [HttpPost("applications/{id:int}/reject")]
+    public async Task<IActionResult> RejectCandidate(int id, [FromBody] RejectCandidateRequest? req, CancellationToken ct)
+    {
+        var application = await _db.CandidateApplications
+            .Include(a => a.JobOpening)
+            .FirstOrDefaultAsync(a => a.Id == id, ct);
+
+        if (application == null)
+            return NotFound(new { message = $"Candidate application ID {id} not found." });
+
+        var stage = req?.Stage?.Trim().ToLowerInvariant() ?? "screening";
+        application.Status = "Rejected";
+        await _db.SaveChangesAsync(ct);
+
+        var job = application.JobOpening;
+        var operationName = stage.Contains("interview") ? "email.interview_rejection" : "email.screening_rejection";
+
+        // Dispatch email notification asynchronously
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                var payload = System.Text.Json.JsonSerializer.Serialize(new
+                {
+                    name = application.CandidateName,
+                    email = application.Email,
+                    position = job?.Title ?? "Open Position",
+                    department = job?.Department ?? "IT",
+                    stage = stage
+                });
+                await _pythonService.ExecuteOperationAsync(operationName, payload, CancellationToken.None);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to dispatch rejection email to {Email}", application.Email);
+            }
+        });
+
+        return Ok(new
+        {
+            message = $"Candidate {application.CandidateName} application rejected. Notification email dispatched to {application.Email}.",
+            applicationId = application.Id,
+            status = application.Status,
+            stage = stage
         });
     }
 }

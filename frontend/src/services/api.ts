@@ -781,3 +781,16 @@ export async function sendInterviewInvitation(applicationId: number, data: {
   }
   return res.json();
 }
+
+export async function rejectCandidate(applicationId: number, stage: 'Screening' | 'Interview' = 'Screening'): Promise<{ message: string; applicationId: number; status: string; stage: string }> {
+  const res = await fetch(`${API_BASE}/jobs/applications/${applicationId}/reject`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ stage })
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ message: 'Failed to reject candidate' }));
+    throw new Error(err.message || 'Failed to reject candidate');
+  }
+  return res.json();
+}
