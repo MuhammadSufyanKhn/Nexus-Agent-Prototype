@@ -54,6 +54,35 @@ public class JobOpeningsAndCvScreeningTests
     }
 
     [Fact]
+    public async Task Parse_JobOpeningCreate_WithRoleOverviewAndResponsibilities_ClassifiedAsJobOpeningCreate()
+    {
+        var parser = CreateParser();
+        var prompt = "Create a new job opening for .NET Developer in IT department with location Remote / Hybrid, salary $50,000 - $60,000. Role Overview: Lead enterprise architecture, cloud modernization, and system scalability for IT department. Key Technical Requirements: ASP.NET, C#, Entity Framework, Web API development, Database Management, SQL, LINQ. Core Responsibilities: Design, build, and maintain production-grade scalable systems adhering to Clean Architecture principles. • Collaborate across multidisciplinary engineering, C#, and sql database. • Optimize query execution, conduct peer code reviews, and champion continuous automated testing.";
+        var result = await parser.ParseIntentAsync(prompt);
+
+        Assert.Equal(IntentType.JOB_OPENING_CREATE, result.ParsedIntentType);
+        Assert.True(result.RequiresApproval);
+        Assert.Equal(".NET Developer", result.Entities["title"]);
+        Assert.Equal("IT", result.Entities["department"]);
+        Assert.Equal("Remote / Hybrid", result.Entities["location"]);
+        Assert.Equal("$50,000 - $60,000", result.Entities["salaryRange"]);
+        Assert.Contains("enterprise architecture", result.Entities["description"]);
+        Assert.Contains("Clean Architecture", result.Entities["responsibilities"]);
+        Assert.Contains("Entity Framework", result.Entities["requirements"]);
+    }
+
+    [Fact]
+    public async Task Parse_CvScreen_WithRoleAndScoreMatchFit_ExtractsTargetRoleCorrectly()
+    {
+        var parser = CreateParser();
+        var prompt = "Screen submitted candidate CVs for Junior SQA Engineer and score match fit.";
+        var result = await parser.ParseIntentAsync(prompt);
+
+        Assert.Equal(IntentType.CV_SCREEN, result.ParsedIntentType);
+        Assert.Equal("Junior SQA Engineer", result.Entities["jobTitle"]);
+    }
+
+    [Fact]
     public async Task Parse_TicketResolution_RoutesToTicketUpdate()
     {
         var parser = CreateParser();

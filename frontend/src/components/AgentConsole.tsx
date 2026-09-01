@@ -117,6 +117,12 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
 
   const quickPrompts = [
     {
+      label: 'Job Requisition Template',
+      icon: FileText,
+      type: 'job_template',
+      prompt: 'Create a new job opening for .NET Developer in IT department with location Remote / Hybrid, salary $50,000 - $60,000. Role Overview: Lead enterprise architecture, cloud modernization, and system scalability for IT department. Key Technical Requirements: ASP.NET, C#, Entity Framework, Web API development, Database Management, SQL, LINQ. Core Responsibilities: Design, build, and maintain production-grade scalable systems adhering to Clean Architecture principles. • Collaborate across multidisciplinary engineering, UX, and AI agent automation pods. • Optimize query execution, conduct peer code reviews, and champion continuous automated testing.'
+    },
+    {
       label: 'Create Job Opening',
       icon: Briefcase,
       type: 'job_create',
@@ -259,6 +265,10 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
   };
 
   const handleQuickActionClick = (q: typeof quickPrompts[0]) => {
+    if (q.type === 'job_template') {
+      setPrompt(q.prompt);
+      return;
+    }
     if (q.type === 'budget' || q.type === 'security' || q.type === 'job_create' || q.type === 'job_read' || q.type === 'cv_screen') {
       setPrompt(q.prompt);
       handleExecute(q.prompt);

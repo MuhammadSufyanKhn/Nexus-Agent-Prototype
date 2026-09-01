@@ -669,7 +669,12 @@ User: ""Screen submitted candidate CVs for Senior Full Stack Developer and score
 
         if (isJobPrompt)
         {
-            bool isJobRead = p.Contains("show") || p.Contains("list") || p.Contains("display") || p.Contains("count") || p.Contains("how many") || p.Contains("view");
+            bool isJobCreate = p.Contains("create") || p.Contains("new") || p.Contains("post") || p.Contains("hire") || p.Contains("add") || p.Contains("requisition");
+            bool isJobRead = !isJobCreate && (
+                p.Contains("show") || p.Contains("list") || p.Contains("display") || p.Contains("count") || p.Contains("how many") ||
+                (p.Contains("view") && !p.Contains("overview") && !p.Contains("review"))
+            );
+
             if (isJobRead)
             {
                 result.Intent = IntentType.JOB_OPENING_READ.ToString();
@@ -687,18 +692,38 @@ User: ""Screen submitted candidate CVs for Senior Full Stack Developer and score
                 result.Confidence = 0.99;
 
                 // Extract title
-                var titleMatch = Regex.Match(prompt, @"(?:for|opening for|role|position)\s+([A-Za-z0-9\s\.\+#]+?)(?:\s+in\s+|\s+department|\s+with\s+|\s+salary|\s+requiring|$)", RegexOptions.IgnoreCase);
+                var titleMatch = Regex.Match(prompt, @"(?:for|opening for|role|position)\s+([A-Za-z0-9\s\.\+#]+?)(?:\s+in\s+|\s+department|\s+with\s+|\s+salary|\s+location|\s+overview|\s+requiring|$)", RegexOptions.IgnoreCase);
                 string jobTitle = titleMatch.Success && !string.IsNullOrWhiteSpace(titleMatch.Groups[1].Value)
                     ? titleMatch.Groups[1].Value.Trim()
                     : "Lead Cloud Architect";
 
                 // Extract dept
                 string dept = "IT";
-                var deptMatch = Regex.Match(prompt, @"(?:in\s+|department\s+|dept\s+)([A-Za-z]+)(?:\s+department|\s+dept|\s+with|\s+salary|$)", RegexOptions.IgnoreCase);
+                var deptMatch = Regex.Match(prompt, @"(?:in\s+|department\s+|dept\s+)([A-Za-z]+)(?:\s+department|\s+dept|\s+with|\s+salary|\s+location|\s+overview|$)", RegexOptions.IgnoreCase);
                 if (deptMatch.Success && !string.IsNullOrWhiteSpace(deptMatch.Groups[1].Value))
                 {
                     dept = deptMatch.Groups[1].Value.Trim();
                     if (dept.Equals("department", StringComparison.OrdinalIgnoreCase)) dept = "IT";
+                }
+
+                // Extract location
+                string location = "Remote / Hybrid";
+                var locMatch = Regex.Match(prompt, @"(?:location|workplace|mode)\s*(?:is\s*|:\s*)?([A-Za-z0-9\s/]+?)(?=(?:\s+salary|\s+overview|\s+responsibilities|\s+skills|\s+requiring|\.|$))", RegexOptions.IgnoreCase);
+                if (locMatch.Success && !string.IsNullOrWhiteSpace(locMatch.Groups[1].Value))
+                {
+                    location = locMatch.Groups[1].Value.Trim();
+                }
+                else if (prompt.IndexOf("remote", StringComparison.OrdinalIgnoreCase) >= 0 && prompt.IndexOf("hybrid", StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    location = "Remote / Hybrid";
+                }
+                else if (prompt.IndexOf("remote", StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    location = "Remote";
+                }
+                else if (prompt.IndexOf("onsite", StringComparison.OrdinalIgnoreCase) >= 0 || prompt.IndexOf("on-site", StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    location = "Onsite";
                 }
 
                 // Extract salary
@@ -709,31 +734,55 @@ User: ""Screen submitted candidate CVs for Senior Full Stack Developer and score
                     salaryRange = salMatch.Groups[1].Value.Trim();
                 }
 
-                // Extract requirements
-                string reqs = "AWS, Kubernetes, Terraform, Docker, CI/CD";
-                var reqMatch = Regex.Match(prompt, @"(?:requiring|requires|requirements|skills|tech stack)\s*[:\-]?\s*(.+)", RegexOptions.IgnoreCase);
+                // Extract overview / description
+                string desc = $"Lead design, architecture, and production delivery for the {jobTitle} role in the {dept} department.";
+                var descMatch = Regex.Match(prompt, @"(?:role overview|overview|description|about the role)\s*[:\-]?\s*(.+?)(?=(?:\s+responsibilities|\s+core responsibilities|\s+requirements|\s+skills|\s+key technical requirements|\s+salary|\s+location|$))", RegexOptions.IgnoreCase | RegexOptions.Singleline);
+                if (descMatch.Success && !string.IsNullOrWhiteSpace(descMatch.Groups[1].Value))
+                {
+                    desc = descMatch.Groups[1].Value.Trim().TrimEnd('.', ';', ',');
+                }
+
+                // Extract responsibilities
+                string responsibilities = "Design, build, and maintain production-grade scalable systems adhering to Clean Architecture principles. • Collaborate across multidisciplinary engineering, UX, and AI agent automation pods. • Optimize query execution, conduct peer code reviews, and champion continuous automated testing.";
+                var respMatch = Regex.Match(prompt, @"(?:core responsibilities|responsibilities|duties)\s*[:\-]?\s*(.+?)(?=(?:\s+overview|\s+requirements|\s+skills|\s+key technical requirements|\s+why join|\s+salary|\s+location|$))", RegexOptions.IgnoreCase | RegexOptions.Singleline);
+                if (respMatch.Success && !string.IsNullOrWhiteSpace(respMatch.Groups[1].Value))
+                {
+                    responsibilities = respMatch.Groups[1].Value.Trim();
+                }
+
+                // Extract requirements / skills
+                string reqs = "C#, .NET Core, ASP.NET Core, SQL Server, Entity Framework, REST API";
+                var reqMatch = Regex.Match(prompt, @"(?:key technical requirements|requiring|requires|requirements|skills|tech stack)\s*[:\-]?\s*(.+?)(?=(?:\s+role overview|\s+overview|\s+responsibilities|\s+core responsibilities|\s+why join|\s+salary|\s+location|$))", RegexOptions.IgnoreCase | RegexOptions.Singleline);
                 if (reqMatch.Success && !string.IsNullOrWhiteSpace(reqMatch.Groups[1].Value))
                 {
                     reqs = reqMatch.Groups[1].Value.Trim().TrimEnd('.', ',', ';', ' ');
                 }
-
-                string desc = $"Lead enterprise architecture, cloud modernization, and system scalability for {dept} department.";
+                else
+                {
+                    var fallbackReqMatch = Regex.Match(prompt, @"(?:requiring|requires)\s*[:\-]?\s*(.+)", RegexOptions.IgnoreCase);
+                    if (fallbackReqMatch.Success && !string.IsNullOrWhiteSpace(fallbackReqMatch.Groups[1].Value))
+                    {
+                        reqs = fallbackReqMatch.Groups[1].Value.Trim().TrimEnd('.', ',', ';', ' ');
+                    }
+                }
 
                 result.Parameters["title"] = jobTitle;
                 result.Parameters["jobTitle"] = jobTitle;
                 result.Parameters["department"] = dept;
                 result.Parameters["salaryRange"] = salaryRange;
                 result.Parameters["requirements"] = reqs;
-                result.Parameters["location"] = "Remote / Hybrid";
+                result.Parameters["location"] = location;
                 result.Parameters["description"] = desc;
+                result.Parameters["responsibilities"] = responsibilities;
 
                 result.Entities["title"] = jobTitle;
                 result.Entities["jobTitle"] = jobTitle;
                 result.Entities["department"] = dept;
                 result.Entities["salaryRange"] = salaryRange;
                 result.Entities["requirements"] = reqs;
-                result.Entities["location"] = "Remote / Hybrid";
+                result.Entities["location"] = location;
                 result.Entities["description"] = desc;
+                result.Entities["responsibilities"] = responsibilities;
             }
             return;
         }
@@ -749,7 +798,7 @@ User: ""Screen submitted candidate CVs for Senior Full Stack Developer and score
             result.RequiresApproval = false;
             result.Confidence = 0.99;
 
-            var roleMatch = Regex.Match(prompt, @"(?:for|position)\s+([A-Za-z0-9\s\.\+#]+?)(?:\s+position|\s+role|\s+and|$)", RegexOptions.IgnoreCase);
+            var roleMatch = Regex.Match(prompt, @"(?:for|position)\s+([A-Za-z0-9\s\.\+#]+?)(?=(?:\s+position|\s+role|\s+and|\s+with|\s+requiring|\.|$))", RegexOptions.IgnoreCase);
             string targetRole = roleMatch.Success && !string.IsNullOrWhiteSpace(roleMatch.Groups[1].Value)
                 ? roleMatch.Groups[1].Value.Trim()
                 : "Senior Full Stack Developer";
@@ -1112,9 +1161,16 @@ User: ""Screen submitted candidate CVs for Senior Full Stack Developer and score
         bool isAppointmentAction = p.Contains("appoint") || p.Contains("acting head") || p.Contains("interim head") ||
                                    (p.Contains("head of") && (p.Contains("make") || p.Contains("assign") || p.Contains("appoint") || p.Contains("set")));
 
+        bool isJobCreateAction = p.Contains("create a new job") || p.Contains("create job opening") ||
+                                 p.Contains("create a job") || p.Contains("create job") || p.Contains("create opening") ||
+                                 p.Contains("post a job") || p.Contains("post job") || p.Contains("new job opening") ||
+                                 p.Contains("open requisition") || p.Contains("new requisition") ||
+                                 (p.Contains("opening for") && (p.Contains("create") || p.Contains("post") || p.Contains("new")));
+
         // ══ PRIMARY READ GUARD — prevents any CREATE/UPDATE from firing on read/search/analytics prompts ══
-        bool isReadQuery = !isLeaveAction && !isSalaryReviewAction && !isPolicyDeleteAction && !isPolicyUpdateAction && !isDeptCreateAction && !isAppointmentAction && (
-                           Regex.IsMatch(p, @"\b(show|find|search|list|get|display|view|check|see|lookup)\b") ||
+        bool isReadQuery = !isLeaveAction && !isSalaryReviewAction && !isPolicyDeleteAction && !isPolicyUpdateAction && !isDeptCreateAction && !isAppointmentAction && !isJobCreateAction && (
+                           Regex.IsMatch(p, @"\b(show|find|search|list|get|display|check|see|lookup)\b") ||
+                           (Regex.IsMatch(p, @"\bview\b") && !p.Contains("overview") && !p.Contains("review")) ||
                            p.Contains("recent") || p.Contains("completions") ||
                            p.Contains("this week") || p.Contains("last week") ||
                            p.Contains("calculate") || p.Contains("average") || p.Contains("avg") ||
@@ -1251,7 +1307,7 @@ User: ""Screen submitted candidate CVs for Senior Full Stack Developer and score
         if (isJobOpeningRelated)
         {
             result.TargetEntity = "JOB_OPENING";
-            if (isReadQuery)
+            if (isReadQuery && !isJobCreateAction)
             {
                 result.Intent = IntentType.JOB_OPENING_READ.ToString();
                 result.Operation = "READ";

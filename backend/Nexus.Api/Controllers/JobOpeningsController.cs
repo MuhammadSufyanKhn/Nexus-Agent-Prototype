@@ -9,6 +9,8 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Nexus.Data;
 using Nexus.Data.Entities;
+using Nexus.Tools.Automation;
+using Microsoft.Extensions.Logging;
 using UglyToad.PdfPig;
 
 namespace Nexus.Api.Controllers;
@@ -18,10 +20,34 @@ namespace Nexus.Api.Controllers;
 public class JobOpeningsController : ControllerBase
 {
     private readonly NexusDbContext _db;
+    private readonly IPythonAutomationService _pythonService;
+    private readonly ILogger<JobOpeningsController> _logger;
 
-    public JobOpeningsController(NexusDbContext db)
+    public JobOpeningsController(
+        NexusDbContext db,
+        IPythonAutomationService pythonService,
+        ILogger<JobOpeningsController> logger)
     {
         _db = db;
+        _pythonService = pythonService;
+        _logger = logger;
+    }
+
+    public class CandidateApplicationDto
+    {
+        public int Id { get; set; }
+        public int JobOpeningId { get; set; }
+        public string CandidateName { get; set; } = string.Empty;
+        public string Email { get; set; } = string.Empty;
+        public string Phone { get; set; } = string.Empty;
+        public int ExperienceYears { get; set; }
+        public string CoverNote { get; set; } = string.Empty;
+        public string CvText { get; set; } = string.Empty;
+        public string CvFileName { get; set; } = string.Empty;
+        public string Status { get; set; } = "In Progress";
+        public int? FitScore { get; set; }
+        public string? AiEvaluationJson { get; set; }
+        public DateTime SubmittedAt { get; set; }
     }
 
     public class JobOpeningDto
@@ -30,12 +56,14 @@ public class JobOpeningsController : ControllerBase
         public string Title { get; set; } = string.Empty;
         public string Department { get; set; } = string.Empty;
         public string Description { get; set; } = string.Empty;
+        public string Responsibilities { get; set; } = string.Empty;
         public string Requirements { get; set; } = string.Empty;
         public string Location { get; set; } = string.Empty;
         public string SalaryRange { get; set; } = string.Empty;
         public string Status { get; set; } = "Active";
         public DateTime CreatedAt { get; set; }
         public int ApplicationsCount { get; set; }
+        public List<CandidateApplicationDto> Applications { get; set; } = new();
     }
 
     public class CreateJobOpeningRequest
@@ -43,6 +71,7 @@ public class JobOpeningsController : ControllerBase
         public string Title { get; set; } = string.Empty;
         public string? Department { get; set; }
         public string? Description { get; set; }
+        public string? Responsibilities { get; set; }
         public string Requirements { get; set; } = string.Empty;
         public string? Location { get; set; }
         public string? SalaryRange { get; set; }
@@ -58,6 +87,15 @@ public class JobOpeningsController : ControllerBase
         public string CvText { get; set; } = string.Empty;
         public string? CvFileName { get; set; }
         public string? CvPdfData { get; set; }
+    }
+
+    public class SendInterviewInvitationRequest
+    {
+        public string? InterviewDate { get; set; }
+        public string? InterviewTime { get; set; }
+        public string? Mode { get; set; } = "Online";
+        public string? LocationOrLink { get; set; }
+        public string? Notes { get; set; }
     }
 
     /// <summary>
@@ -76,12 +114,29 @@ public class JobOpeningsController : ControllerBase
                 Title = j.Title,
                 Department = j.Department,
                 Description = j.Description,
+                Responsibilities = j.Responsibilities,
                 Requirements = j.Requirements,
                 Location = j.Location,
                 SalaryRange = j.SalaryRange,
                 Status = j.Status,
                 CreatedAt = j.CreatedAt,
-                ApplicationsCount = j.Applications.Count
+                ApplicationsCount = j.Applications.Count,
+                Applications = j.Applications.OrderByDescending(a => a.SubmittedAt).Select(a => new CandidateApplicationDto
+                {
+                    Id = a.Id,
+                    JobOpeningId = a.JobOpeningId,
+                    CandidateName = a.CandidateName,
+                    Email = a.Email,
+                    Phone = a.Phone,
+                    ExperienceYears = a.ExperienceYears,
+                    CoverNote = a.CoverNote,
+                    CvText = a.CvText,
+                    CvFileName = a.CvFileName,
+                    Status = a.Status,
+                    FitScore = a.FitScore,
+                    AiEvaluationJson = a.AiEvaluationJson,
+                    SubmittedAt = a.SubmittedAt
+                }).ToList()
             })
             .ToListAsync(ct);
 
@@ -106,6 +161,7 @@ public class JobOpeningsController : ControllerBase
             job.Title,
             job.Department,
             job.Description,
+            job.Responsibilities,
             job.Requirements,
             job.Location,
             job.SalaryRange,
@@ -148,6 +204,7 @@ public class JobOpeningsController : ControllerBase
             Title = req.Title.Trim(),
             Department = string.IsNullOrWhiteSpace(req.Department) ? "IT" : req.Department.Trim(),
             Description = req.Description?.Trim() ?? $"Role opening for {req.Title.Trim()}",
+            Responsibilities = req.Responsibilities?.Trim() ?? string.Empty,
             Requirements = string.IsNullOrWhiteSpace(req.Requirements) ? "Relevant technical skills and experience" : req.Requirements.Trim(),
             Location = string.IsNullOrWhiteSpace(req.Location) ? "Remote / Hybrid" : req.Location.Trim(),
             SalaryRange = string.IsNullOrWhiteSpace(req.SalaryRange) ? "$70,000 - $95,000" : req.SalaryRange.Trim(),
@@ -240,7 +297,7 @@ public class JobOpeningsController : ControllerBase
             CvText = cvContent,
             CvFileName = string.IsNullOrWhiteSpace(req.CvFileName) ? $"{req.CandidateName.Replace(" ", "_")}_Resume.pdf" : req.CvFileName,
             CvPdfData = req.CvPdfData,
-            Status = "Submitted",
+            Status = "In Progress",
             SubmittedAt = DateTime.UtcNow
         };
 
@@ -249,6 +306,26 @@ public class JobOpeningsController : ControllerBase
 
         // Get total count of applications for this job opening
         var totalCount = await _db.CandidateApplications.CountAsync(a => a.JobOpeningId == id, ct);
+
+        // Trigger automated candidate application acknowledgment email via Python automation
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                var payload = System.Text.Json.JsonSerializer.Serialize(new
+                {
+                    name = application.CandidateName,
+                    email = application.Email,
+                    position = job.Title,
+                    department = job.Department
+                });
+                await _pythonService.ExecuteOperationAsync("email.application_acknowledgment", payload, CancellationToken.None);
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogWarning(ex, "Failed to send automated candidate acknowledgment email to {Email}", application.Email);
+            }
+        });
 
         return Ok(new
         {
@@ -306,5 +383,94 @@ public class JobOpeningsController : ControllerBase
             .ToListAsync(ct);
 
         return Ok(applications);
+    }
+
+    /// <summary>
+    /// POST /api/jobs/applications/{id}/shortlist - Shortlist a candidate for interview
+    /// </summary>
+    [HttpPost("applications/{id:int}/shortlist")]
+    public async Task<IActionResult> ShortlistCandidate(int id, CancellationToken ct)
+    {
+        var application = await _db.CandidateApplications
+            .Include(a => a.JobOpening)
+            .FirstOrDefaultAsync(a => a.Id == id, ct);
+
+        if (application == null)
+            return NotFound(new { message = $"Candidate application ID {id} not found." });
+
+        application.Status = "Shortlisted";
+        await _db.SaveChangesAsync(ct);
+
+        return Ok(new
+        {
+            message = $"Candidate {application.CandidateName} has been shortlisted for {application.JobOpening?.Title ?? "the position"}.",
+            applicationId = application.Id,
+            status = application.Status
+        });
+    }
+
+    /// <summary>
+    /// POST /api/jobs/applications/{id}/send-interview-invitation - Schedule interview and dispatch automated invitation email
+    /// </summary>
+    [HttpPost("applications/{id:int}/send-interview-invitation")]
+    public async Task<IActionResult> SendInterviewInvitation(int id, [FromBody] SendInterviewInvitationRequest req, CancellationToken ct)
+    {
+        var application = await _db.CandidateApplications
+            .Include(a => a.JobOpening)
+            .FirstOrDefaultAsync(a => a.Id == id, ct);
+
+        if (application == null)
+            return NotFound(new { message = $"Candidate application ID {id} not found." });
+
+        var job = application.JobOpening;
+        var date = !string.IsNullOrWhiteSpace(req.InterviewDate) ? req.InterviewDate.Trim() : DateTime.UtcNow.AddDays(3).ToString("MMMM dd, yyyy");
+        var time = !string.IsNullOrWhiteSpace(req.InterviewTime) ? req.InterviewTime.Trim() : "11:00 AM PKT";
+        var mode = !string.IsNullOrWhiteSpace(req.Mode) ? req.Mode.Trim() : "Online";
+        var locationOrLink = !string.IsNullOrWhiteSpace(req.LocationOrLink)
+            ? req.LocationOrLink.Trim()
+            : (mode.ToLower().Contains("online") ? "https://meet.google.com/nex-us-rec" : "Nexus Enterprise Tech Tower, Level 4, IT Wing");
+
+        // Update application status
+        application.Status = "Interview Scheduled";
+        await _db.SaveChangesAsync(ct);
+
+        // Execute Python email service asynchronously
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                var payload = System.Text.Json.JsonSerializer.Serialize(new
+                {
+                    name = application.CandidateName,
+                    email = application.Email,
+                    position = job?.Title ?? "Open Position",
+                    department = job?.Department ?? "IT",
+                    interviewDate = date,
+                    interviewTime = time,
+                    mode = mode,
+                    locationOrLink = locationOrLink,
+                    notes = req.Notes?.Trim() ?? string.Empty
+                });
+                await _pythonService.ExecuteOperationAsync("email.interview_invitation", payload, CancellationToken.None);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to send interview invitation email to {Email}", application.Email);
+            }
+        });
+
+        return Ok(new
+        {
+            message = $"Interview invitation successfully sent to {application.CandidateName} ({application.Email}).",
+            applicationId = application.Id,
+            status = application.Status,
+            interviewDetails = new
+            {
+                date,
+                time,
+                mode,
+                locationOrLink
+            }
+        });
     }
 }

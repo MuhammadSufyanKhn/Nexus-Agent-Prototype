@@ -894,9 +894,14 @@
               </div>
               <h2 id="portalRoleTitle" style="font-size: 22px; font-weight: 800; color: #fff;">Senior Full Stack Developer</h2>
             </div>
-            <div style="text-align: right;">
-              <div id="portalSalaryBadge" style="font-size: 15px; font-weight: 800; color: var(--emerald);">$80,000 - $105,000</div>
-              <div id="portalLocationBadge" style="font-size: 12px; color: var(--text-muted);">Remote / Hybrid</div>
+            <div style="display: flex; gap: 14px; align-items: center;">
+              <div style="text-align: right;">
+                <div id="portalSalaryBadge" style="font-size: 15px; font-weight: 800; color: var(--emerald);">$80,000 - $105,000</div>
+                <div id="portalLocationBadge" style="font-size: 12px; color: var(--text-muted);">Remote / Hybrid</div>
+              </div>
+              <button type="button" class="btn btn-primary" onclick="openApplyModal()" style="padding: 8px 18px; font-size: 12px; font-weight: 700;">
+                Apply Now
+              </button>
             </div>
           </div>
 
@@ -907,10 +912,10 @@
 
           <div style="margin-top: 18px;">
             <h3 style="font-size: 12px; font-weight: 800; color: var(--text-muted); text-transform: uppercase; margin-bottom: 6px;">Core Responsibilities</h3>
-            <ul style="padding-left: 18px; color: #c9d1d9; font-size: 13px; line-height: 1.8;">
-              <li>Architect scalable ASP.NET Core &amp; React solutions adhering to Clean Architecture principles.</li>
-              <li>Design secure RESTful APIs and integrate autonomous AI agents.</li>
-              <li>Collaborate with multidisciplinary engineering pods and champion automated test coverage.</li>
+            <ul id="portalResponsibilitiesList" style="padding-left: 18px; color: #c9d1d9; font-size: 13px; line-height: 1.8;">
+              <li>Design, build, and maintain production-grade scalable systems adhering to Clean Architecture principles.</li>
+              <li>Collaborate across multidisciplinary engineering, UX, and AI agent automation pods.</li>
+              <li>Optimize query execution, conduct peer code reviews, and champion continuous automated testing.</li>
             </ul>
           </div>
 
@@ -921,7 +926,7 @@
 
           <!-- Perks Grid -->
           <div style="margin-top: 24px; padding-top: 18px; border-top: 1px solid var(--border-subtle);">
-            <h3 style="font-size: 12px; font-weight: 800; color: var(--text-muted); text-transform: uppercase; margin-bottom: 12px;">Perks &amp; Benefits</h3>
+            <h3 style="font-size: 12px; font-weight: 800; color: var(--text-muted); text-transform: uppercase; margin-bottom: 12px;">Why Join Nexus Enterprise</h3>
             <div class="perks-grid">
               <div class="perk-card">
                 <div class="perk-card-title">💰 Top Compensation</div>
@@ -941,66 +946,81 @@
               </div>
             </div>
           </div>
+
+          <!-- Bottom Apply Callout Banner -->
+          <div style="margin-top: 24px; padding: 18px 20px; background: rgba(56, 189, 248, 0.08); border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 12px; display: flex; justify-content: space-between; align-items: center; gap: 16px;">
+            <div>
+              <div style="font-weight: 800; color: #fff; font-size: 14px;">Ready to join Nexus Enterprise?</div>
+              <div style="color: var(--text-muted); font-size: 12px; margin-top: 2px;">Submit your resume for this position. An acknowledgment email will be sent automatically.</div>
+            </div>
+            <button type="button" class="btn btn-primary" onclick="openApplyModal()" style="padding: 10px 22px; font-size: 13px; font-weight: 700; white-space: nowrap;">
+              Apply for this Position
+            </button>
+          </div>
         </div>
 
-        <!-- SECTION 2 (STRICTLY BELOW): CANDIDATE PROFILE & PDF ATTACHMENT ONLY -->
-        <div class="panel-card">
-          <div class="panel-header">
-            <div>
-              <span class="panel-title">Candidate Profile &amp; PDF Resume Submission</span>
-              <p style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">Attach your PDF curriculum vitae below. Only PDF format is accepted.</p>
+        <!-- APPLY MODAL POPUP DIALOG -->
+        <div id="applyModal" style="display: none; position: fixed; inset: 0; z-index: 9999; background: rgba(0, 0, 0, 0.75); backdrop-filter: blur(4px); align-items: center; justify-content: center; padding: 20px;">
+          <div class="panel-card" style="width: 100%; max-width: 640px; max-height: 90vh; overflow-y: auto; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7); border: 1px solid rgba(56, 189, 248, 0.3);">
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-subtle); padding-bottom: 12px; margin-bottom: 16px;">
+              <div>
+                <span class="panel-title" id="applyModalRoleTitle">Apply for Position</span>
+                <p style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">Attach your PDF curriculum vitae below. Only PDF format is accepted.</p>
+              </div>
+              <button type="button" onclick="closeApplyModal()" style="background: transparent; border: none; color: var(--text-muted); font-size: 20px; cursor: pointer; padding: 4px 8px;">✕</button>
             </div>
+
+            <form id="portalApplicationForm" onsubmit="handleCandidatePortalSubmit(event)">
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                <div class="form-group">
+                  <label class="form-label">Full Legal Name *</label>
+                  <input type="text" id="candName" class="form-control" placeholder="e.g. Sarah Jenkins" required />
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Email Address *</label>
+                  <input type="email" id="candEmail" class="form-control" placeholder="e.g. sarah.jenkins@example.com" required />
+                </div>
+              </div>
+
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                <div class="form-group">
+                  <label class="form-label">Phone Number</label>
+                  <input type="tel" id="candPhone" class="form-control" placeholder="e.g. +1 (555) 019-2834" />
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Relevant Experience (Years) *</label>
+                  <input type="number" id="candExp" class="form-control" placeholder="e.g. 4" min="0" max="40" required />
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Cover Note</label>
+                <input type="text" id="candCoverNote" class="form-control" placeholder="Brief statement about your interest in this role..." />
+              </div>
+
+              <!-- PDF ONLY ATTACHMENT -->
+              <div class="form-group">
+                <label class="form-label">Attach Candidate CV (PDF Document Only) *</label>
+                <div class="dropzone-pdf" id="pdfDropzone" onclick="document.getElementById('portalPdfInput').click()">
+                  <div style="font-size: 32px;">📄</div>
+                  <div id="pdfDropzoneText" style="font-size: 13px; font-weight: 700; color: #fff; margin-top: 6px;">
+                    Click or drag &amp; drop candidate PDF document
+                  </div>
+                  <div style="font-size: 11px; color: var(--text-dim); margin-top: 4px;">
+                    Accepted format: <strong>.pdf only</strong> (The agent will automatically extract all words).
+                  </div>
+                  <input type="file" id="portalPdfInput" accept=".pdf,application/pdf" style="display: none;" onchange="handleCandidatePdfSelected(event)" required />
+                </div>
+              </div>
+
+              <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
+                <button type="button" class="btn btn-outline" onclick="closeApplyModal()">Cancel</button>
+                <button type="submit" id="btnSubmitApp" class="btn btn-primary">
+                  Submit Candidate Application
+                </button>
+              </div>
+            </form>
           </div>
-
-          <form id="portalApplicationForm" onsubmit="handleCandidatePortalSubmit(event)">
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
-              <div class="form-group">
-                <label class="form-label">Full Legal Name *</label>
-                <input type="text" id="candName" class="form-control" placeholder="e.g. Sarah Jenkins" required />
-              </div>
-              <div class="form-group">
-                <label class="form-label">Email Address *</label>
-                <input type="email" id="candEmail" class="form-control" placeholder="e.g. sarah.jenkins@example.com" required />
-              </div>
-            </div>
-
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
-              <div class="form-group">
-                <label class="form-label">Phone Number</label>
-                <input type="tel" id="candPhone" class="form-control" placeholder="e.g. +1 (555) 019-2834" />
-              </div>
-              <div class="form-group">
-                <label class="form-label">Relevant Experience (Years) *</label>
-                <input type="number" id="candExp" class="form-control" placeholder="e.g. 4" min="0" max="40" required />
-              </div>
-            </div>
-
-            <div class="form-group">
-              <label class="form-label">Cover Note</label>
-              <input type="text" id="candCoverNote" class="form-control" placeholder="Brief statement about your interest in this role..." />
-            </div>
-
-            <!-- PDF ONLY ATTACHMENT -->
-            <div class="form-group">
-              <label class="form-label">Attach Candidate CV (PDF Document Only) *</label>
-              <div class="dropzone-pdf" id="pdfDropzone" onclick="document.getElementById('portalPdfInput').click()">
-                <div style="font-size: 32px;">📄</div>
-                <div id="pdfDropzoneText" style="font-size: 13px; font-weight: 700; color: #fff; margin-top: 6px;">
-                  Click or drag &amp; drop candidate PDF document
-                </div>
-                <div style="font-size: 11px; color: var(--text-dim); margin-top: 4px;">
-                  Accepted format: <strong>.pdf only</strong> (The agent will automatically extract all words).
-                </div>
-                <input type="file" id="portalPdfInput" accept=".pdf,application/pdf" style="display: none;" onchange="handleCandidatePdfSelected(event)" required />
-              </div>
-            </div>
-
-            <div style="display: flex; justify-content: flex-end; margin-top: 20px;">
-              <button type="submit" id="btnSubmitApp" class="btn btn-primary">
-                Submit Candidate Application
-              </button>
-            </div>
-          </form>
         </div>
       </section>
 
@@ -1169,6 +1189,30 @@
         const skills = (job.requirements || '').split(/[,;|]/).map(s => s.trim()).filter(Boolean);
         reqContainer.innerHTML = skills.map(s => `<span class="skill-pill">${s}</span>`).join('');
       }
+
+      const respContainer = document.getElementById('portalResponsibilitiesList');
+      if (respContainer) {
+        const resps = (job.responsibilities || '')
+          .split(/[\n•;]+/)
+          .map(s => s.trim())
+          .filter(Boolean);
+        const finalResps = resps.length > 0 ? resps : [
+          'Design, build, and maintain production-grade scalable systems adhering to Clean Architecture principles.',
+          'Collaborate across multidisciplinary engineering, UX, and AI agent automation pods.',
+          'Optimize query execution, conduct peer code reviews, and champion continuous automated testing.'
+        ];
+        respContainer.innerHTML = finalResps.map(r => `<li>${r}</li>`).join('');
+      }
+    }
+
+    function openApplyModal() {
+      if (!selectedJob) return;
+      document.getElementById('applyModalRoleTitle').textContent = `Apply for ${selectedJob.title} (${selectedJob.department})`;
+      document.getElementById('applyModal').style.display = 'flex';
+    }
+
+    function closeApplyModal() {
+      document.getElementById('applyModal').style.display = 'none';
     }
 
     function openJobInPortal(jobId) {
@@ -1309,12 +1353,14 @@ Experience: 4 years building high-throughput microservices and query optimizatio
           })
         });
 
-        alert('✓ Application and PDF resume submitted successfully! Saved into database.');
+        alert(`✓ Application and PDF resume submitted successfully!\n\nAn official acknowledgment email has been dispatched to ${email} from nexusagent.notifications@gmail.com.`);
         document.getElementById('portalApplicationForm').reset();
         document.getElementById('pdfDropzoneText').textContent = 'Click or drag & drop candidate PDF document';
         candidatePdfBase64 = '';
+        closeApplyModal();
       } catch (err) {
         alert('Application received!');
+        closeApplyModal();
       } finally {
         submitBtn.disabled = false;
         submitBtn.textContent = 'Submit Candidate Application';

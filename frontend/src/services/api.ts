@@ -588,6 +588,7 @@ export interface JobOpening {
   title: string;
   department: string;
   description: string;
+  responsibilities?: string;
   requirements: string;
   location: string;
   salaryRange: string;
@@ -656,6 +657,7 @@ export async function createJobOpening(data: {
   title: string;
   department?: string;
   description?: string;
+  responsibilities?: string;
   requirements?: string;
   location?: string;
   salaryRange?: string;
@@ -709,6 +711,8 @@ export async function fetchCandidateApplications(jobId?: number): Promise<Candid
 
 export async function analyzeCandidateCv(data: {
   cvContent?: string;
+  pdfBase64?: string;
+  fileName?: string;
   jobTitle?: string;
   requiredSkills?: string;
   jobOpeningId?: number;
@@ -747,5 +751,33 @@ export async function refreshInterviewQuestions(data: {
   return json.questions || [];
 }
 
+export async function shortlistCandidate(applicationId: number): Promise<{ message: string; applicationId: number; status: string }> {
+  const res = await fetch(`${API_BASE}/jobs/applications/${applicationId}/shortlist`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' }
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ message: 'Failed to shortlist candidate' }));
+    throw new Error(err.message || 'Failed to shortlist candidate');
+  }
+  return res.json();
+}
 
-
+export async function sendInterviewInvitation(applicationId: number, data: {
+  interviewDate?: string;
+  interviewTime?: string;
+  mode?: string;
+  locationOrLink?: string;
+  notes?: string;
+}): Promise<{ message: string; applicationId: number; status: string; interviewDetails: any }> {
+  const res = await fetch(`${API_BASE}/jobs/applications/${applicationId}/send-interview-invitation`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ message: 'Failed to send interview invitation' }));
+    throw new Error(err.message || 'Failed to send interview invitation');
+  }
+  return res.json();
+}

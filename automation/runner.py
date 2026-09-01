@@ -8,6 +8,8 @@ if current_dir not in sys.path:
 
 from email_services.welcome_email import generate_welcome_email
 from email_services.sick_leave_email import generate_sick_leave_email
+from email_services.application_acknowledgment_email import generate_application_acknowledgment_email
+from email_services.interview_invitation_email import generate_interview_invitation_email
 from tickets.create_ticket import create_provisioning_ticket
 from browser.legacy_hr_portal import submit_legacy_hr_form
 
@@ -71,6 +73,10 @@ def main():
         result = generate_welcome_email(args_dict)
     elif operation in ["email.sick_leave", "email.notify", "slack.notify", "sick_leave_email"]:
         result = generate_sick_leave_email(args_dict)
+    elif operation in ["email.application_acknowledgment", "email.candidate_ack", "candidate_application_email"]:
+        result = generate_application_acknowledgment_email(args_dict)
+    elif operation in ["email.interview_invitation", "email.interview", "interview_invitation"]:
+        result = generate_interview_invitation_email(args_dict)
     elif operation in ["ticket.create", "create_ticket"]:
         result = create_provisioning_ticket(args_dict)
     elif operation in ["onboarding.submit_legacy_form", "portal.legacy_submit", "submit_legacy_form"]:

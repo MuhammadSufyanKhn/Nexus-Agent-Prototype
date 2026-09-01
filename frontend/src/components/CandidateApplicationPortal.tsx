@@ -36,6 +36,7 @@ export const CandidateApplicationPortal: React.FC<CandidateApplicationPortalProp
   const [submitting, setSubmitting] = useState(false);
   const [submittedSuccess, setSubmittedSuccess] = useState<any | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isApplyModalOpen, setIsApplyModalOpen] = useState(false);
 
   // Form fields — ZERO DEFAULT PRE-FILLED VALUES
   const [candidateName, setCandidateName] = useState('');
@@ -155,6 +156,7 @@ export const CandidateApplicationPortal: React.FC<CandidateApplicationPortalProp
         cvPdfData: cvPdfDataUrl
       });
 
+      setIsApplyModalOpen(false);
       setSubmittedSuccess(res);
     } catch (err: any) {
       setError(err.message || 'Submission failed. Please verify your details.');
@@ -261,10 +263,21 @@ export const CandidateApplicationPortal: React.FC<CandidateApplicationPortalProp
                   {cvFileName}
                 </span>
               </div>
-              <div className="flex justify-between">
+              <div className="flex justify-between items-center">
                 <span className="text-slate-400">Status:</span>
-                <span className="font-bold text-emerald-600">Queued for AI Fit Evaluation</span>
+                <span className="font-bold text-amber-600 bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200">In Progress</span>
               </div>
+            </div>
+
+            {/* Automated Email Confirmation Banner */}
+            <div className="p-3.5 bg-blue-50 border border-blue-200 rounded-xl text-left space-y-1">
+              <div className="flex items-center gap-2 text-xs font-bold text-blue-900">
+                <Check className="w-4 h-4 text-blue-600 shrink-0" />
+                <span>Confirmation Email Dispatched</span>
+              </div>
+              <p className="text-[11px] text-blue-800 leading-relaxed pl-6">
+                An official acknowledgment notification has been sent to <strong>{email}</strong> from <code>nexusagent.notifications@gmail.com</code> outlining the 7-day talent acquisition review timeline.
+              </p>
             </div>
 
             <div className="pt-2 flex justify-center gap-3">
@@ -375,285 +388,349 @@ export const CandidateApplicationPortal: React.FC<CandidateApplicationPortalProp
             </div>
 
             {/* SECTION 1 (TOP): Full Job Details, Responsibilities & Perks */}
-            {selectedJob ? (
-              <div className="bg-white rounded-xl border border-slate-200 p-6 sm:p-8 shadow-2xs space-y-6">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-5">
-                  <div className="space-y-1.5">
-                    <div className="flex items-center gap-2">
-                      <span className="text-[11px] font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2.5 py-0.5 rounded">
-                        {selectedJob.department} Department
-                      </span>
-                      <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded flex items-center gap-1.5">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                        Active Opening
-                      </span>
+            {selectedJob ? (() => {
+              const responsibilitiesList = (selectedJob.responsibilities || '')
+                .split(/[\n•;]+/)
+                .map(r => r.trim())
+                .filter(Boolean);
+
+              const displayResponsibilities = responsibilitiesList.length > 0
+                ? responsibilitiesList
+                : [
+                    `Design, build, and maintain production-grade scalable systems adhering to Clean Architecture principles.`,
+                    `Collaborate across multidisciplinary engineering, UX, and AI agent automation pods.`,
+                    `Optimize query execution, conduct peer code reviews, and champion continuous automated testing.`
+                  ];
+
+              return (
+                <div className="bg-white rounded-xl border border-slate-200 p-6 sm:p-8 shadow-2xs space-y-6">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-5">
+                    <div className="space-y-1.5">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[11px] font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2.5 py-0.5 rounded">
+                          {selectedJob.department} Department
+                        </span>
+                        <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded flex items-center gap-1.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                          Active Opening
+                        </span>
+                      </div>
+                      <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">{selectedJob.title}</h1>
                     </div>
-                    <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">{selectedJob.title}</h1>
-                  </div>
 
-                  <div className="flex flex-wrap items-center gap-4 text-xs font-semibold">
-                    {selectedJob.location && (
-                      <span className="flex items-center gap-1.5 text-slate-600">
-                        <MapPin className="w-4 h-4 text-slate-400" />
-                        {selectedJob.location}
-                      </span>
-                    )}
-                    {selectedJob.salaryRange && (
-                      <span className="flex items-center gap-1.5 text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-lg">
-                        <DollarSign className="w-4 h-4" />
-                        {selectedJob.salaryRange}
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                {/* Role Description */}
-                <div>
-                  <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Role Overview</h3>
-                  <p className="text-xs text-slate-600 leading-relaxed">{selectedJob.description}</p>
-                </div>
-
-                {/* Key Technical Requirements */}
-                {selectedJob.requirements && (
-                  <div>
-                    <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2.5">Key Technical Requirements</h3>
-                    <div className="flex flex-wrap gap-1.5">
-                      {selectedJob.requirements.split(/[,;|]/).map((req, idx) => {
-                        const trimmed = req.trim();
-                        if (!trimmed) return null;
-                        return (
-                          <span 
-                            key={idx}
-                            className="text-xs bg-slate-100 text-slate-800 border border-slate-200 px-2.5 py-1 rounded font-medium"
-                          >
-                            {trimmed}
+                    <div className="flex flex-wrap items-center gap-3">
+                      <div className="flex flex-wrap items-center gap-2 text-xs font-semibold">
+                        {selectedJob.location && (
+                          <span className="flex items-center gap-1.5 text-slate-600 bg-slate-50 border border-slate-200 px-2.5 py-1.5 rounded-lg">
+                            <MapPin className="w-3.5 h-3.5 text-slate-400" />
+                            {selectedJob.location}
                           </span>
-                        );
-                      })}
+                        )}
+                        {selectedJob.salaryRange && (
+                          <span className="flex items-center gap-1.5 text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-lg">
+                            <DollarSign className="w-3.5 h-3.5" />
+                            {selectedJob.salaryRange}
+                          </span>
+                        )}
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setError(null);
+                          setIsApplyModalOpen(true);
+                        }}
+                        className="px-5 py-2 bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white rounded-lg font-bold text-xs shadow-xs flex items-center gap-2 cursor-pointer transition-all shrink-0"
+                      >
+                        <Upload className="w-3.5 h-3.5" />
+                        <span>Apply Now</span>
+                      </button>
                     </div>
                   </div>
-                )}
 
-                {/* Core Responsibilities */}
-                <div className="space-y-2 pt-2 border-t border-slate-100">
-                  <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Core Responsibilities</h3>
-                  <ul className="space-y-1.5 text-xs text-slate-600">
-                    <li className="flex items-start gap-2">
-                      <span className="text-blue-600 font-bold">•</span>
-                      <span>Design, build, and maintain production-grade scalable systems adhering to Clean Architecture principles.</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <span className="text-blue-600 font-bold">•</span>
-                      <span>Collaborate across multidisciplinary engineering, UX, and AI agent automation pods.</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <span className="text-blue-600 font-bold">•</span>
-                      <span>Optimize query execution, conduct peer code reviews, and champion continuous automated testing.</span>
-                    </li>
-                  </ul>
-                </div>
+                  {/* Role Description / Overview */}
+                  <div>
+                    <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Role Overview</h3>
+                    <p className="text-xs text-slate-600 leading-relaxed">{selectedJob.description}</p>
+                  </div>
 
-                {/* Perks & Benefits Grid */}
-                <div className="space-y-2.5 pt-2 border-t border-slate-100">
-                  <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Why Join Nexus Enterprise</h3>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-                    <div className="bg-slate-50 border border-slate-200 p-3.5 rounded-xl">
-                      <div className="text-xs font-bold text-emerald-700 flex items-center gap-1.5 mb-1">
-                        💰 Top Compensation
+                  {/* Key Technical Requirements */}
+                  {selectedJob.requirements && (
+                    <div>
+                      <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2.5">Key Technical Requirements</h3>
+                      <div className="flex flex-wrap gap-1.5">
+                        {selectedJob.requirements.split(/[,;|]/).map((req, idx) => {
+                          const trimmed = req.trim();
+                          if (!trimmed) return null;
+                          return (
+                            <span 
+                              key={idx}
+                              className="text-xs bg-slate-100 text-slate-800 border border-slate-200 px-2.5 py-1 rounded font-medium"
+                            >
+                              {trimmed}
+                            </span>
+                          );
+                        })}
                       </div>
-                      <p className="text-[11px] text-slate-500">Competitive salary benchmarked against top tech tiers.</p>
                     </div>
+                  )}
 
-                    <div className="bg-slate-50 border border-slate-200 p-3.5 rounded-xl">
-                      <div className="text-xs font-bold text-blue-700 flex items-center gap-1.5 mb-1">
-                        🌐 Remote / Hybrid
-                      </div>
-                      <p className="text-[11px] text-slate-500">Up to 2 days/week remote + $500 home office stipend.</p>
-                    </div>
+                  {/* Core Responsibilities (Dynamic per Job Opening) */}
+                  <div className="space-y-2 pt-2 border-t border-slate-100">
+                    <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Core Responsibilities</h3>
+                    <ul className="space-y-1.5 text-xs text-slate-600">
+                      {displayResponsibilities.map((resp, idx) => (
+                        <li key={idx} className="flex items-start gap-2">
+                          <span className="text-blue-600 font-bold">•</span>
+                          <span>{resp}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
 
-                    <div className="bg-slate-50 border border-slate-200 p-3.5 rounded-xl">
-                      <div className="text-xs font-bold text-purple-700 flex items-center gap-1.5 mb-1">
-                        🩺 Health &amp; Wellness
+                  {/* Perks & Benefits Grid (Why Join Nexus Enterprise) */}
+                  <div className="space-y-2.5 pt-2 border-t border-slate-100">
+                    <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Why Join Nexus Enterprise</h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+                      <div className="bg-slate-50 border border-slate-200 p-3.5 rounded-xl">
+                        <div className="text-xs font-bold text-emerald-700 flex items-center gap-1.5 mb-1">
+                          💰 Top Compensation
+                        </div>
+                        <p className="text-[11px] text-slate-500">Competitive salary benchmarked against top tech tiers.</p>
                       </div>
-                      <p className="text-[11px] text-slate-500">Comprehensive health, vision, and mental wellness coverage.</p>
-                    </div>
 
-                    <div className="bg-slate-50 border border-slate-200 p-3.5 rounded-xl">
-                      <div className="text-xs font-bold text-amber-700 flex items-center gap-1.5 mb-1">
-                        🚀 Learning &amp; Growth
+                      <div className="bg-slate-50 border border-slate-200 p-3.5 rounded-xl">
+                        <div className="text-xs font-bold text-blue-700 flex items-center gap-1.5 mb-1">
+                          🌐 Remote / Hybrid
+                        </div>
+                        <p className="text-[11px] text-slate-500">Up to 2 days/week remote + $500 home office stipend.</p>
                       </div>
-                      <p className="text-[11px] text-slate-500">$2,500 annual budget for cloud certifications and conferences.</p>
+
+                      <div className="bg-slate-50 border border-slate-200 p-3.5 rounded-xl">
+                        <div className="text-xs font-bold text-purple-700 flex items-center gap-1.5 mb-1">
+                          🩺 Health &amp; Wellness
+                        </div>
+                        <p className="text-[11px] text-slate-500">Comprehensive health, vision, and mental wellness coverage.</p>
+                      </div>
+
+                      <div className="bg-slate-50 border border-slate-200 p-3.5 rounded-xl">
+                        <div className="text-xs font-bold text-amber-700 flex items-center gap-1.5 mb-1">
+                          🚀 Learning &amp; Growth
+                        </div>
+                        <p className="text-[11px] text-slate-500">$2,500 annual budget for cloud certifications and conferences.</p>
+                      </div>
                     </div>
                   </div>
+
+                  {/* Apply Callout Card at Bottom of Job Details */}
+                  <div className="pt-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4 bg-gradient-to-r from-blue-50/80 to-indigo-50/80 p-5 rounded-xl border border-blue-200/80">
+                    <div>
+                      <h4 className="text-sm font-bold text-slate-900">Ready to join Nexus Enterprise?</h4>
+                      <p className="text-xs text-slate-600 mt-0.5">Submit your resume for the {selectedJob.title} position. An official acknowledgment email will be dispatched upon receipt.</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setError(null);
+                        setIsApplyModalOpen(true);
+                      }}
+                      className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white rounded-xl font-bold text-xs shadow-md shadow-blue-500/20 flex items-center gap-2 cursor-pointer transition-all shrink-0"
+                    >
+                      <Upload className="w-4 h-4" />
+                      <span>Apply for this Position</span>
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ) : (
+              );
+            })() : (
               <div className="bg-white rounded-xl border border-slate-200 p-8 text-center text-slate-500">
                 No job selected. Please select a job opening from the list above.
               </div>
             )}
 
-            {/* SECTION 2 (STRICTLY BELOW): Candidate Profile & Resume Submission Form */}
-            {selectedJob && (
-              <div className="bg-white rounded-xl border border-slate-200 p-6 sm:p-8 shadow-2xs space-y-6">
-                <div className="border-b border-slate-100 pb-4">
-                  <h2 className="text-lg font-bold text-slate-900 tracking-tight">Candidate Profile &amp; Resume Submission</h2>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    Applying for: <strong className="text-slate-800">{selectedJob.title}</strong> ({selectedJob.department} Department)
-                  </p>
-                </div>
-
-                {error && (
-                  <div className="bg-rose-50 border border-rose-200 rounded-xl p-3.5 flex items-center gap-2.5 text-rose-700 text-xs">
-                    <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
-                    <span>{error}</span>
-                  </div>
-                )}
-
-                <form onSubmit={handleSubmit} className="space-y-5">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* APPLICATION MODAL POPUP */}
+            {isApplyModalOpen && selectedJob && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-in fade-in duration-150">
+                <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl border border-slate-200 overflow-hidden max-h-[92vh] flex flex-col animate-in zoom-in-95 duration-150">
+                  {/* Modal Header */}
+                  <div className="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
                     <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                        Full Legal Name <span className="text-rose-600">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        required
-                        placeholder="e.g. Ali Raza"
-                        value={candidateName}
-                        onChange={(e) => setCandidateName(e.target.value)}
-                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2.5 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-blue-500 transition-colors"
-                      />
+                      <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                        <span>Apply for</span>
+                        <span className="text-blue-600">{selectedJob.title}</span>
+                      </h3>
+                      <p className="text-[11px] text-slate-500">{selectedJob.department} Department • {selectedJob.location || 'Remote / Hybrid'}</p>
                     </div>
-
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                        Email Address <span className="text-rose-600">*</span>
-                      </label>
-                      <input
-                        type="email"
-                        required
-                        placeholder="e.g. ali.raza@example.com"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2.5 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-blue-500 transition-colors"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                        Phone Number
-                      </label>
-                      <input
-                        type="tel"
-                        placeholder="e.g. +92-300-1234567"
-                        value={phone}
-                        onChange={(e) => setPhone(e.target.value)}
-                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2.5 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-blue-500 transition-colors"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                        Relevant Experience (Years) <span className="text-rose-600">*</span>
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        max="40"
-                        placeholder="e.g. 4"
-                        value={experienceYears}
-                        onChange={(e) => setExperienceYears(e.target.value === '' ? '' : Number(e.target.value))}
-                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2.5 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-blue-500 transition-colors"
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                      Cover Note / Brief Statement
-                    </label>
-                    <textarea
-                      rows={2}
-                      placeholder="Briefly state your career accomplishments and why you are interested in this position..."
-                      value={coverNote}
-                      onChange={(e) => setCoverNote(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-blue-500 transition-colors resize-none"
-                    />
-                  </div>
-
-                  {/* PDF-ONLY ATTACHMENT (NO PASTE TEXT) */}
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                      Attach Curriculum Vitae / Resume (PDF Document Only) <span className="text-rose-600">*</span>
-                    </label>
-
-                    {cvPdfDataUrl ? (
-                      <div className="bg-emerald-50/70 border border-emerald-300 rounded-xl p-4 flex items-center justify-between gap-4">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold">
-                            PDF
-                          </div>
-                          <div>
-                            <div className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
-                              <span>{cvFileName}</span>
-                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                            </div>
-                            <p className="text-[11px] text-emerald-800">
-                              PDF document attached and ready for neural extraction ({cvPdfFile ? (cvPdfFile.size / 1024).toFixed(1) + ' KB' : 'Loaded'})
-                            </p>
-                          </div>
-                        </div>
-
-                        <button
-                          type="button"
-                          onClick={handleRemovePdf}
-                          className="text-xs text-rose-600 hover:text-rose-700 hover:bg-rose-100/60 px-3 py-1.5 rounded-lg font-semibold transition-colors cursor-pointer flex items-center gap-1"
-                        >
-                          <X className="w-3.5 h-3.5" />
-                          <span>Remove</span>
-                        </button>
-                      </div>
-                    ) : (
-                      <div 
-                        onDragOver={handleDragOver}
-                        onDrop={handleDrop}
-                        className="border-2 border-dashed border-slate-300 hover:border-blue-500 rounded-xl p-8 text-center bg-slate-50 hover:bg-white transition-all cursor-pointer"
-                      >
-                        <input
-                          type="file"
-                          id="portalPdfInput"
-                          onChange={handleFileChange}
-                          accept=".pdf,application/pdf"
-                          className="hidden"
-                        />
-                        <label htmlFor="portalPdfInput" className="cursor-pointer block space-y-2">
-                          <div className="w-12 h-12 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center mx-auto">
-                            <Upload className="w-6 h-6" />
-                          </div>
-                          <div className="text-xs font-bold text-slate-800">
-                            Click to attach or drag &amp; drop candidate PDF document
-                          </div>
-                          <p className="text-[11px] text-slate-500">
-                            Accepted format: <strong>.pdf only</strong> (Max 15MB). The AI agent will automatically extract all words.
-                          </p>
-                        </label>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="pt-2 flex justify-end">
                     <button
-                      type="submit"
-                      disabled={submitting || !cvPdfDataUrl}
-                      className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-8 py-3 rounded-lg shadow-xs transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                      onClick={() => setIsApplyModalOpen(false)}
+                      className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-200/60 transition-colors cursor-pointer"
                     >
-                      {submitting ? 'Submitting Application & Extracting Text...' : 'Submit Candidate Application'}
+                      <X className="w-4 h-4" />
                     </button>
                   </div>
-                </form>
+
+                  {/* Modal Body / Form */}
+                  <div className="p-6 overflow-y-auto space-y-5">
+                    {error && (
+                      <div className="bg-rose-50 border border-rose-200 rounded-xl p-3.5 flex items-center gap-2.5 text-rose-700 text-xs">
+                        <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+                        <span>{error}</span>
+                      </div>
+                    )}
+
+                    <form onSubmit={handleSubmit} className="space-y-5">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                            Full Legal Name <span className="text-rose-600">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            placeholder="e.g. Ali Raza"
+                            value={candidateName}
+                            onChange={(e) => setCandidateName(e.target.value)}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2.5 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-blue-500 transition-colors"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                            Email Address <span className="text-rose-600">*</span>
+                          </label>
+                          <input
+                            type="email"
+                            required
+                            placeholder="e.g. ali.raza@example.com"
+                            value={email}
+                            onChange={(e) => setEmail(e.target.value)}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2.5 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-blue-500 transition-colors"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                            Phone Number
+                          </label>
+                          <input
+                            type="tel"
+                            placeholder="e.g. +92-300-1234567"
+                            value={phone}
+                            onChange={(e) => setPhone(e.target.value)}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2.5 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-blue-500 transition-colors"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                            Relevant Experience (Years) <span className="text-rose-600">*</span>
+                          </label>
+                          <input
+                            type="number"
+                            min="0"
+                            max="40"
+                            placeholder="e.g. 4"
+                            value={experienceYears}
+                            onChange={(e) => setExperienceYears(e.target.value === '' ? '' : Number(e.target.value))}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2.5 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-blue-500 transition-colors"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                          Cover Note / Brief Statement
+                        </label>
+                        <textarea
+                          rows={2}
+                          placeholder="Briefly state your accomplishments and why you are interested in this position..."
+                          value={coverNote}
+                          onChange={(e) => setCoverNote(e.target.value)}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-blue-500 transition-colors resize-none"
+                        />
+                      </div>
+
+                      {/* PDF-ONLY ATTACHMENT (NO PASTE TEXT) */}
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                          Attach Curriculum Vitae / Resume (PDF Document Only) <span className="text-rose-600">*</span>
+                        </label>
+
+                        {cvPdfDataUrl ? (
+                          <div className="bg-emerald-50/70 border border-emerald-300 rounded-xl p-4 flex items-center justify-between gap-4">
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-xs">
+                                PDF
+                              </div>
+                              <div>
+                                <div className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                                  <span>{cvFileName}</span>
+                                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                                </div>
+                                <p className="text-[11px] text-emerald-800">
+                                  PDF attached and ready for neural extraction ({cvPdfFile ? (cvPdfFile.size / 1024).toFixed(1) + ' KB' : 'Loaded'})
+                                </p>
+                              </div>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={handleRemovePdf}
+                              className="text-xs text-rose-600 hover:text-rose-700 hover:bg-rose-100/60 px-3 py-1.5 rounded-lg font-semibold transition-colors cursor-pointer flex items-center gap-1"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                              <span>Remove</span>
+                            </button>
+                          </div>
+                        ) : (
+                          <div 
+                            onDragOver={handleDragOver}
+                            onDrop={handleDrop}
+                            className="border-2 border-dashed border-slate-300 hover:border-blue-500 rounded-xl p-8 text-center bg-slate-50 hover:bg-white transition-all cursor-pointer"
+                          >
+                            <input
+                              type="file"
+                              id="portalPdfInput"
+                              onChange={handleFileChange}
+                              accept=".pdf,application/pdf"
+                              className="hidden"
+                            />
+                            <label htmlFor="portalPdfInput" className="cursor-pointer block space-y-2">
+                              <div className="w-12 h-12 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center mx-auto">
+                                <Upload className="w-6 h-6" />
+                              </div>
+                              <div className="text-xs font-bold text-slate-800">
+                                Click to attach or drag &amp; drop candidate PDF document
+                              </div>
+                              <p className="text-[11px] text-slate-500">
+                                Accepted format: <strong>.pdf only</strong> (Max 15MB). The AI agent will automatically extract all words.
+                              </p>
+                            </label>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="pt-3 flex justify-end gap-3 border-t border-slate-100">
+                        <button
+                          type="button"
+                          onClick={() => setIsApplyModalOpen(false)}
+                          className="px-4 py-2.5 rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-100 text-xs font-semibold cursor-pointer"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="submit"
+                          disabled={submitting || !cvPdfDataUrl}
+                          className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-7 py-2.5 rounded-lg shadow-xs transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {submitting ? 'Submitting Application...' : 'Submit Application'}
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                </div>
               </div>
             )}
 

@@ -239,6 +239,7 @@ public class JobOpening
     public string Title { get; set; } = string.Empty;
     public string Department { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
+    public string? Responsibilities { get; set; }
     public string Requirements { get; set; } = string.Empty;
     public string Location { get; set; } = string.Empty;
     public string SalaryRange { get; set; } = string.Empty;
@@ -260,11 +261,10 @@ public class CandidateApplication
     public string CvText { get; set; } = string.Empty;
     public string CvFileName { get; set; } = string.Empty;
     public string? CvPdfData { get; set; } // Base64 Data URL of the uploaded PDF
-    public string Status { get; set; } = "Submitted"; // Submitted, Reviewed, Shortlisted, Best Fit, Rejected
+    public string Status { get; set; } = "In Progress"; // In Progress, Shortlisted, Screened, Rejected Fit, Rejected
     public int? FitScore { get; set; }
     public string? AiEvaluationJson { get; set; }
     public DateTime SubmittedAt { get; set; } = DateTime.UtcNow;
 
     public JobOpening? JobOpening { get; set; }
 }
-

@@ -353,6 +353,15 @@ using (var scope = app.Services.CreateScope())
                     END;
                 END;
 
+                IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('JobOpenings') AND name = 'Responsibilities')
+                BEGIN
+                    ALTER TABLE JobOpenings ADD Responsibilities NVARCHAR(MAX) NULL;
+                END;
+                IF EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('JobOpenings') AND name = 'Responsibilities')
+                BEGIN
+                    UPDATE JobOpenings SET Responsibilities = '' WHERE Responsibilities IS NULL;
+                END;
+
                 IF EXISTS (SELECT 1 FROM sys.tables WHERE name = 'Policies')
                 BEGIN
                     IF NOT EXISTS (SELECT 1 FROM Policies WHERE Code = 'POL-HR-003')

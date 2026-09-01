@@ -590,18 +590,31 @@ public class AgentOrchestrator : IAgentOrchestrator
             var dept = parsedIntent.Entities?.GetValueOrDefault("department") 
                     ?? parsedIntent.Parameters?.GetValueOrDefault("department")?.ToString() 
                     ?? "IT";
+            var salaryRange = parsedIntent.Entities?.GetValueOrDefault("salaryRange")
+                    ?? parsedIntent.Parameters?.GetValueOrDefault("salaryRange")?.ToString()
+                    ?? "$75,000 - $95,000";
             var reqs = parsedIntent.Entities?.GetValueOrDefault("requirements") 
                     ?? parsedIntent.Parameters?.GetValueOrDefault("requirements")?.ToString() 
                     ?? "React, C#, .NET Core, SQL Server, TypeScript";
+            var loc = parsedIntent.Entities?.GetValueOrDefault("location")
+                    ?? parsedIntent.Parameters?.GetValueOrDefault("location")?.ToString()
+                    ?? "Remote / Hybrid";
+            var desc = parsedIntent.Entities?.GetValueOrDefault("description")
+                    ?? parsedIntent.Parameters?.GetValueOrDefault("description")?.ToString()
+                    ?? $"Lead design, architecture, and production delivery for the {title} role in the {dept} department.";
+            var resp = parsedIntent.Entities?.GetValueOrDefault("responsibilities")
+                    ?? parsedIntent.Parameters?.GetValueOrDefault("responsibilities")?.ToString()
+                    ?? "Design, build, and maintain production-grade scalable systems adhering to Clean Architecture principles. • Collaborate across multidisciplinary engineering, UX, and AI agent automation pods. • Optimize query execution, conduct peer code reviews, and champion continuous automated testing.";
 
             var jobOpening = new JobOpening
             {
                 Title = title,
                 Department = dept,
-                Description = $"Role opening for {title} in {dept} department.",
+                Description = desc,
+                Responsibilities = resp,
                 Requirements = reqs,
-                Location = "Remote / Hybrid",
-                SalaryRange = "$75,000 - $95,000",
+                Location = loc,
+                SalaryRange = salaryRange,
                 Status = "Active",
                 CreatedAt = DateTime.UtcNow
             };
@@ -709,19 +722,45 @@ public class AgentOrchestrator : IAgentOrchestrator
         }
         else if (parsedIntent.ParsedIntentType == IntentType.CV_SCREEN)
         {
-            var jobTitle = "Senior Full Stack Developer";
-            var roleMatch = Regex.Match(userPrompt, @"(?:for|position)\s+([A-Za-z\s]+?)(?:\s+position|\s+role|$)", RegexOptions.IgnoreCase);
-            if (roleMatch.Success && !string.IsNullOrWhiteSpace(roleMatch.Groups[1].Value))
+            var jobTitle = parsedIntent?.Entities?.GetValueOrDefault("jobTitle")
+                ?? parsedIntent?.Parameters?.GetValueOrDefault("jobTitle")?.ToString();
+
+            if (string.IsNullOrWhiteSpace(jobTitle) || jobTitle.Equals("Senior Full Stack Developer", StringComparison.OrdinalIgnoreCase))
             {
-                jobTitle = roleMatch.Groups[1].Value.Trim();
+                var roleMatch = Regex.Match(userPrompt, @"(?:for|position)\s+([A-Za-z0-9\s\.\+#]+?)(?=(?:\s+position|\s+role|\s+and|\s+with|\s+requiring|\.|$))", RegexOptions.IgnoreCase);
+                if (roleMatch.Success && !string.IsNullOrWhiteSpace(roleMatch.Groups[1].Value))
+                {
+                    jobTitle = roleMatch.Groups[1].Value.Trim();
+                }
             }
 
-            var latestApp = await _db.CandidateApplications.OrderByDescending(a => a.SubmittedAt).FirstOrDefaultAsync(cancellationToken);
-            var cvText = latestApp?.CvText ?? @"CANDIDATE: Ali Khan
+            if (string.IsNullOrWhiteSpace(jobTitle))
+            {
+                jobTitle = "Senior Full Stack Developer";
+            }
+
+            // Look up matching JobOpening from database
+            var allJobs = await _db.JobOpenings.Include(j => j.Applications).ToListAsync(cancellationToken);
+            var matchingJob = allJobs.FirstOrDefault(j =>
+                j.Title.Equals(jobTitle, StringComparison.OrdinalIgnoreCase) ||
+                j.Title.IndexOf(jobTitle, StringComparison.OrdinalIgnoreCase) >= 0 ||
+                jobTitle.IndexOf(j.Title, StringComparison.OrdinalIgnoreCase) >= 0);
+
+            string requiredSkills = matchingJob != null && !string.IsNullOrWhiteSpace(matchingJob.Requirements)
+                ? matchingJob.Requirements
+                : "C#, .NET Core, React, SQL Server, Entity Framework, REST APIs, Microservices, Docker";
+
+            string finalJobTitle = matchingJob?.Title ?? jobTitle;
+
+            // Find application for this job opening (or latest application overall)
+            var targetApp = matchingJob?.Applications?.OrderByDescending(a => a.SubmittedAt).FirstOrDefault()
+                ?? await _db.CandidateApplications.OrderByDescending(a => a.SubmittedAt).FirstOrDefaultAsync(cancellationToken);
+
+            var cvText = targetApp?.CvText ?? @"CANDIDATE: Ali Khan
 4+ years experience in C#, .NET Core, ASP.NET Core, React, SQL Server, Entity Framework, REST APIs, Microservices, Docker.
 Built high-performance Web APIs, optimized SQL queries, implemented RBAC.";
 
-            var analysis = CvAnalysisTool.AnalyzeCvText(cvText, jobTitle, "C#, .NET Core, React, SQL Server, Entity Framework, REST APIs, Microservices, Docker");
+            var analysis = CvAnalysisTool.AnalyzeCvText(cvText, finalJobTitle, requiredSkills);
             lastResultData = analysis;
         }
         else if (parsedIntent.ParsedIntentType == IntentType.JOB_OPENING_READ)
@@ -1101,9 +1140,24 @@ Built high-performance Web APIs, optimized SQL queries, implemented RBAC.";
             var empName = parsedIntent?.Entities?.GetValueOrDefault("name") ?? parsedIntent?.Entities?.GetValueOrDefault("employee_name") ?? "Ali";
             var desig = parsedIntent?.Entities?.GetValueOrDefault("designation") ?? "Developer";
             var deptName = parsedIntent?.Entities?.GetValueOrDefault("department") ?? parsedIntent?.Entities?.GetValueOrDefault("targetDepartment") ?? "IT";
-            string empEmail = parsedIntent?.Entities?.GetValueOrDefault("email")
-                ?? parsedIntent?.Parameters?.GetValueOrDefault("email")?.ToString()
-                ?? $"{empName.ToLower().Replace(" ", ".")}@nexus.local";
+            string? empEmail = parsedIntent?.Entities?.GetValueOrDefault("email")
+                ?? parsedIntent?.Parameters?.GetValueOrDefault("email")?.ToString();
+
+            if (string.IsNullOrWhiteSpace(empEmail) || empEmail.EndsWith("@nexus.local"))
+            {
+                var candApp = await _db.CandidateApplications.OrderByDescending(a => a.SubmittedAt)
+                    .FirstOrDefaultAsync(a => a.CandidateName.ToLower() == empName.ToLower() ||
+                                              a.CandidateName.ToLower().Contains(empName.ToLower()) ||
+                                              empName.ToLower().Contains(a.CandidateName.ToLower()), cancellationToken);
+                if (candApp != null && !string.IsNullOrWhiteSpace(candApp.Email))
+                {
+                    empEmail = candApp.Email;
+                }
+                else
+                {
+                    empEmail = $"{empName.ToLower().Replace(" ", ".")}@gmail.com";
+                }
+            }
 
             decimal salary = 68000.00m;
             if (parsedIntent?.Entities?.TryGetValue("salary", out var sStr) == true && decimal.TryParse(sStr, out var sVal) && sVal > 0)
@@ -1538,7 +1592,10 @@ Built high-performance Web APIs, optimized SQL queries, implemented RBAC.";
                 ?? "Remote / Hybrid";
             var desc = parsedIntent?.Entities?.GetValueOrDefault("description")
                 ?? parsedIntent?.Parameters?.GetValueOrDefault("description")?.ToString()
-                ?? $"Lead enterprise architecture, container orchestration, and cloud infrastructure for {dept} department.";
+                ?? $"Lead design, architecture, and production delivery for the {jobTitle} role in the {dept} department.";
+            var resp = parsedIntent?.Entities?.GetValueOrDefault("responsibilities")
+                ?? parsedIntent?.Parameters?.GetValueOrDefault("responsibilities")?.ToString()
+                ?? "Design, build, and maintain production-grade scalable systems adhering to Clean Architecture principles. • Collaborate across multidisciplinary engineering, UX, and AI agent automation pods. • Optimize query execution, conduct peer code reviews, and champion continuous automated testing.";
 
             var newJob = new Nexus.Data.Entities.JobOpening
             {
@@ -1548,6 +1605,7 @@ Built high-performance Web APIs, optimized SQL queries, implemented RBAC.";
                 Location = loc,
                 Requirements = reqs,
                 Description = desc,
+                Responsibilities = resp,
                 Status = "Active",
                 CreatedAt = DateTime.UtcNow
             };
@@ -2607,6 +2665,8 @@ Built high-performance Web APIs, optimized SQL queries, implemented RBAC.";
                     new() { FieldName = "Department", OldValue = "(None)", NewValue = dept, Difference = "ASSIGNED" },
                     new() { FieldName = "Salary Range", OldValue = "(Unspecified)", NewValue = salaryRange, Difference = "BUDGETED" },
                     new() { FieldName = "Location", OldValue = "(Unspecified)", NewValue = loc, Difference = "SET" },
+                    new() { FieldName = "Role Overview", OldValue = "(Unspecified)", NewValue = intent.Entities.GetValueOrDefault("description") ?? intent.Parameters.GetValueOrDefault("description")?.ToString() ?? "Role overview set", Difference = "SET" },
+                    new() { FieldName = "Responsibilities", OldValue = "(Unspecified)", NewValue = intent.Entities.GetValueOrDefault("responsibilities") ?? intent.Parameters.GetValueOrDefault("responsibilities")?.ToString() ?? "Responsibilities defined", Difference = "SET" },
                     new() { FieldName = "Requirements", OldValue = "(None)", NewValue = reqs, Difference = "SET" }
                 }
             });

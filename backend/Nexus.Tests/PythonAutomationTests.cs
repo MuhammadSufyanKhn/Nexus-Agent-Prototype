@@ -50,12 +50,14 @@ public class PythonAutomationTests
 
 
     [Fact]
-    public async Task PythonAutomationService_Rejects_Unregistered_Operation()
+    public async Task ApplicationAcknowledgmentEmail_Executes_Python_Script_Successfully()
     {
         var pythonService = new PythonAutomationService(NullLogger<PythonAutomationService>.Instance);
-        var resultJson = await pythonService.ExecuteOperationAsync("arbitrary.exec", "{}");
+        var jsonArgs = "{\"name\":\"Muhammad Sufyan Khan\",\"position\":\"Lead Cloud Architect\",\"email\":\"sufyan.khan@devmail.com\",\"department\":\"IT\"}";
+        var resultJson = await pythonService.ExecuteOperationAsync("email.application_acknowledgment", jsonArgs);
 
         Assert.NotNull(resultJson);
-        Assert.Contains("Unrecognized or unregistered automation operation", resultJson);
+        Assert.Contains("email.application_acknowledgment", resultJson);
+        Assert.Contains("Lead Cloud Architect", resultJson);
     }
 }

@@ -1,5 +1,29 @@
 [
   {
+    "id": "job_requisition_template",
+    "intent": "JOB_OPENING_CREATE",
+    "category": "Talent Acquisition",
+    "label": "Job Requisition Template (Customizable Prompt)",
+    "keywords": [
+      "template",
+      "job template",
+      "job requisition template",
+      "create job template",
+      "post job template",
+      "job prompt template",
+      "requisition template"
+    ],
+    "aliases": [
+      "Create a new job opening for .NET Developer in IT department with location Remote / Hybrid",
+      "job opening template",
+      "hiring requisition template"
+    ],
+    "examples": [
+      "Create a new job opening for .NET Developer in IT department with location Remote / Hybrid, salary $50,000 - $60,000. Role Overview: Lead enterprise architecture, cloud modernization, and system scalability for IT department. Key Technical Requirements: ASP.NET, C#, Entity Framework, Web API development, Database Management, SQL, LINQ. Core Responsibilities: Design, build, and maintain production-grade scalable systems adhering to Clean Architecture principles. • Collaborate across multidisciplinary engineering, UX, and AI agent automation pods. • Optimize query execution, conduct peer code reviews, and champion continuous automated testing."
+    ],
+    "template": "Create a new job opening for {role} in {department} department with location {location}, salary {salaryRange}. Role Overview: {overview}. Key Technical Requirements: {skills}. Core Responsibilities: {responsibilities}"
+  },
+  {
     "id": "create_job_opening",
     "intent": "JOB_OPENING_CREATE",
     "category": "Talent Acquisition",
