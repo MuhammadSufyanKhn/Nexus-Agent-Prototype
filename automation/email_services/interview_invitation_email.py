@@ -240,7 +240,10 @@ def generate_interview_invitation_email(args: dict) -> dict:
     smtp_sent = False
     smtp_error = None
 
-    if recipient_email:
+    mock_domains = [".local", "devmail.com", "example.com", "test.com", "company.com", "nexus.local"]
+    is_mock_local = not recipient_email or "@" not in recipient_email or any(recipient_email.lower().endswith(d) or f"@{d}" in recipient_email.lower() for d in mock_domains)
+
+    if recipient_email and not is_mock_local:
         try:
             msg = MIMEMultipart("alternative")
             msg["Subject"] = subject

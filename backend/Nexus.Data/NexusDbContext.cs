@@ -320,12 +320,12 @@ public class NexusDbContext : DbContext
                 Id = 1,
                 JobOpeningId = 1,
                 CandidateName = "Ali Khan",
-                Email = "ali.khan@devmail.com",
+                Email = "ali.khan@nexus.local",
                 Phone = "+92-300-1234567",
                 ExperienceYears = 4,
                 CoverNote = "Passionate Full Stack engineer with 4+ years building high-throughput .NET Core APIs and responsive React applications.",
                 CvText = @"CANDIDATE RESUME: Ali Khan
-Email: ali.khan@devmail.com | Phone: +92-300-1234567 | Location: Lahore, PK
+Email: ali.khan@nexus.local | Phone: +92-300-1234567 | Location: Lahore, PK
 
 SUMMARY:
 Results-driven Software Engineer with 4+ years of hands-on experience building enterprise Web APIs, Microservices, and SQL Server databases using C#, .NET Core, ASP.NET, Entity Framework, and React.js.

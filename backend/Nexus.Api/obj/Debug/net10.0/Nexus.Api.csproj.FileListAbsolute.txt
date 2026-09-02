@@ -344,3 +344,7 @@ E:\nexus\Nexus-Agent-Prototype\backend\Nexus.Api\obj\Debug\net10.0\Nexus.Api.gen
 E:\nexus\Nexus-Agent-Prototype\backend\Nexus.Api\obj\Debug\net10.0\ref\Nexus.Api.dll
 E:\nexus\Nexus-Agent-Prototype\backend\Nexus.Api\bin\Debug\net10.0\Microsoft.EntityFrameworkCore.InMemory.dll
 D:\.NET PROJECTS\NEXUS AGENT LITE\backend\Nexus.Api\bin\Debug\net10.0\Microsoft.EntityFrameworkCore.InMemory.dll
+D:\.NET PROJECTS\NEXUS AGENT LITE\backend\Nexus.Api\obj\Debug\net10.0\compressed\vorcq0g1y4-{0}-iyh4ne55tv-iyh4ne55tv.gz
+D:\.NET PROJECTS\NEXUS AGENT LITE\backend\Nexus.Api\obj\Debug\net10.0\compressed\1kd4wledeq-{0}-ed0toot706-ed0toot706.gz
+D:\.NET PROJECTS\NEXUS AGENT LITE\backend\Nexus.Api\obj\Debug\net10.0\compressed\um12h0eks1-{0}-871qt3rl7q-871qt3rl7q.gz
+D:\.NET PROJECTS\NEXUS AGENT LITE\backend\Nexus.Api\obj\Debug\net10.0\compressed\ttd2xwrcp2-{0}-ed0toot706-ed0toot706.gz

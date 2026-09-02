@@ -12,9 +12,13 @@ export const ExpensesView: React.FC = () => {
   // AI Audit State
   const [auditing, setAuditing] = useState(false);
   const [auditResult, setAuditResult] = useState<{
-    totalAudited: number;
-    compliantCount: number;
-    violationCount: number;
+    totalAudited?: number;
+    claimsReviewed?: number;
+    compliantCount?: number;
+    compliantClaims?: number;
+    violationCount?: number;
+    flaggedClaimsCount?: number;
+    totalPolicyVariance?: number;
     flaggedClaims: any[];
     summary: string;
   } | null>(null);
@@ -46,6 +50,19 @@ export const ExpensesView: React.FC = () => {
 
   useEffect(() => {
     loadData();
+
+    const handleUpdate = (e: any) => {
+      loadData();
+      const detail = e?.detail;
+      if (detail?.filter) {
+        setSelectedFilter(detail.filter);
+      } else if (detail?.intent === 'EXPENSE_FILTER') {
+        setSelectedFilter('NonCompliant');
+      }
+    };
+
+    window.addEventListener('nexus-data-updated', handleUpdate);
+    return () => window.removeEventListener('nexus-data-updated', handleUpdate);
   }, []);
 
   const handleRunAiAudit = async () => {
@@ -61,12 +78,33 @@ export const ExpensesView: React.FC = () => {
     }
   };
 
+  // Action processing state
+  const [processingId, setProcessingId] = useState<number | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
   const handleStatusAction = async (id: number, status: string, reason?: string) => {
+    setProcessingId(id);
     try {
-      await updateExpenseStatus(id, status, reason);
+      const updated = await updateExpenseStatus(id, status, reason);
+      setExpenses(prev => prev.map(e => e.id === id ? { 
+        ...e, 
+        status: updated.status, 
+        statusName: updated.statusName, 
+        complianceStatus: updated.complianceStatus,
+        reviewedBy: updated.reviewedBy,
+        reviewedDate: updated.reviewedDate,
+        flagReason: updated.flagReason
+      } : e));
+      setToastMessage(`Claim ${updated.claimNumber || '#' + id} marked as ${status}.`);
+      setTimeout(() => setToastMessage(null), 4000);
       await loadData();
-    } catch (err) {
+      window.dispatchEvent(new CustomEvent('nexus-data-updated'));
+    } catch (err: any) {
       console.error("Failed to update expense status:", err);
+      setToastMessage(`Failed to update claim: ${err.message || 'Server error'}`);
+      setTimeout(() => setToastMessage(null), 4000);
+    } finally {
+      setProcessingId(null);
     }
   };
 
@@ -90,23 +128,68 @@ export const ExpensesView: React.FC = () => {
     }
   };
 
+  // Helper for POL-FIN-002 policy limits
+  const getPolicyLimit = (exp: Expense): number => {
+    if (exp.policyLimit && exp.policyLimit > 0) return exp.policyLimit;
+    const cat = (exp.category || '').toLowerCase();
+    if (cat.includes('travel') || cat.includes('flight')) return 250.00;
+    if (cat.includes('equip') || cat.includes('hardware')) return 500.00;
+    if (cat.includes('soft') || cat.includes('tool') || cat.includes('license')) return 500.00;
+    if (cat.includes('meal') || cat.includes('dinner') || cat.includes('lunch') || cat.includes('food')) return 50.00;
+    return 100.00;
+  };
+
+  const getVariance = (exp: Expense): number => {
+    if (typeof exp.variance === 'number') return exp.variance;
+    return exp.amount - getPolicyLimit(exp);
+  };
+
+  const isViolation = (exp: Expense): boolean => {
+    const statusStr = (exp.statusName || String(exp.status)).toLowerCase();
+    if (statusStr.includes('approved') || exp.status === 2) return false;
+    if (statusStr.includes('rejected') || exp.status === 3) return false;
+
+    const comp = (exp.complianceStatus || '').toLowerCase();
+    if (comp === 'flagged' || comp === 'noncompliant') return true;
+    if (exp.status === 5 || statusStr.includes('noncompliant')) return true;
+    return getVariance(exp) > 0;
+  };
+
   // Filtered Expense Claims
   const filteredExpenses = expenses.filter(exp => {
     if (selectedFilter === 'ALL') return true;
-    const statusStr = exp.statusName || String(exp.status);
-    if (selectedFilter === 'Pending') return statusStr.toLowerCase().includes('pending') || exp.status === 1;
-    if (selectedFilter === 'Approved') return statusStr.toLowerCase().includes('approved') || exp.status === 2;
-    if (selectedFilter === 'Compliant') return statusStr.toLowerCase().includes('compliant') || exp.status === 4;
-    if (selectedFilter === 'NonCompliant') return statusStr.toLowerCase().includes('noncompliant') || statusStr.toLowerCase().includes('flag') || exp.status === 5 || exp.amount > 50;
-    if (selectedFilter === 'Rejected') return statusStr.toLowerCase().includes('reject') || exp.status === 3;
+    const statusStr = (exp.statusName || String(exp.status)).toLowerCase();
+    const isApproved = statusStr.includes('approved') || exp.status === 2;
+    const isRejected = statusStr.includes('rejected') || exp.status === 3;
+    const isViol = !isApproved && !isRejected && isViolation(exp);
+
+    if (selectedFilter === 'Pending') return (statusStr.includes('pending') || exp.status === 1) && !isViol;
+    if (selectedFilter === 'Approved') return isApproved;
+    if (selectedFilter === 'Compliant') return !isViol;
+    if (selectedFilter === 'NonCompliant' || selectedFilter === 'Flagged') return isViol;
+    if (selectedFilter === 'Rejected') return isRejected;
     return true;
   });
 
   const totalAmount = expenses.reduce((sum, e) => sum + e.amount, 0);
-  const violationCount = expenses.filter(e => e.amount > 50 || e.status === 5 || (e.statusName && e.statusName.toLowerCase().includes('noncompliant'))).length;
+  const violationCount = expenses.filter(isViolation).length;
+  const compliantCount = expenses.filter(e => !isViolation(e)).length;
 
   return (
     <div className="max-w-7xl mx-auto px-6 py-6 space-y-6">
+      {/* Action Feedback Toast */}
+      {toastMessage && (
+        <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl text-xs font-bold text-emerald-800 flex items-center justify-between shadow-xs animate-in fade-in duration-200">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+            <span>{toastMessage}</span>
+          </div>
+          <button onClick={() => setToastMessage(null)} className="text-emerald-700 hover:text-emerald-900 cursor-pointer">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       {/* Top Banner */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gradient-to-r from-slate-900 via-slate-950 to-slate-900 p-6 rounded-2xl border border-slate-800 text-white shadow-xl">
         <div className="flex items-center gap-4">
@@ -121,7 +204,7 @@ export const ExpensesView: React.FC = () => {
               </span>
             </div>
             <p className="text-xs text-slate-300 mt-1">
-              Review employee expense claims against corporate policy limits, check meal/travel caps, and authorize approvals.
+              Review employee expense claims against corporate policy limits, check meal ($50) & travel ($250) caps, and authorize approvals.
             </p>
           </div>
         </div>
@@ -160,7 +243,7 @@ export const ExpensesView: React.FC = () => {
         <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center justify-between">
           <div>
             <p className="text-xs font-medium text-slate-500">Total Expenses Claimed</p>
-            <h3 className="text-2xl font-bold text-slate-900 mt-1">${totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}</h3>
+            <h3 className="text-2xl font-bold text-slate-900 mt-1">${totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</h3>
             <span className="text-[11px] text-slate-400 font-medium">{expenses.length} Total Claims</span>
           </div>
           <div className="p-3 bg-blue-50 text-blue-600 rounded-xl">
@@ -183,7 +266,7 @@ export const ExpensesView: React.FC = () => {
           <div>
             <p className="text-xs font-medium text-slate-500">Compliant Claims</p>
             <h3 className="text-2xl font-bold text-emerald-600 mt-1">
-              {expenses.filter(e => e.amount <= 50 || e.status === 4 || (e.statusName && e.statusName.toLowerCase().includes('compliant'))).length}
+              {compliantCount}
             </h3>
             <span className="text-[11px] text-emerald-600 font-medium">Within Category Caps</span>
           </div>
@@ -210,26 +293,26 @@ export const ExpensesView: React.FC = () => {
           <div className="flex items-center justify-between border-b border-slate-800 pb-3">
             <div className="flex items-center gap-2">
               <ShieldCheck className="w-5 h-5 text-cyan-400" />
-              <span className="font-bold text-sm text-cyan-400">Nexus Agent Expense Audit Execution Report</span>
+              <span className="font-bold text-sm text-cyan-400">Nexus Agent Expense Compliance Sweep Report</span>
             </div>
             <button onClick={() => setAuditResult(null)} className="text-slate-400 hover:text-white">
               <X className="w-4 h-4" />
             </button>
           </div>
 
-          <p className="text-xs text-slate-300 leading-relaxed font-medium">{auditResult.summary}</p>
+          <p className="text-xs text-slate-300 leading-relaxed font-medium whitespace-pre-line">{auditResult.summary}</p>
 
-          {auditResult.flaggedClaims.length > 0 && (
+          {auditResult.flaggedClaims && auditResult.flaggedClaims.length > 0 && (
             <div className="space-y-2">
               <span className="text-xs font-bold text-rose-400 uppercase tracking-wider">Flagged Non-Compliant Claims:</span>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
                 {auditResult.flaggedClaims.map((fl: any, idx: number) => (
                   <div key={idx} className="p-3 bg-slate-950 border border-rose-900/50 rounded-xl space-y-1">
                     <div className="flex items-center justify-between">
-                      <span className="font-bold text-white">{fl.employeeName}</span>
+                      <span className="font-bold text-white">{fl.claimNumber ? `${fl.claimNumber} • ` : ''}{fl.employeeName}</span>
                       <span className="text-rose-400 font-bold">${fl.amount.toFixed(2)}</span>
                     </div>
-                    <p className="text-[11px] text-slate-400 leading-tight">{fl.reason}</p>
+                    <p className="text-[11px] text-slate-400 leading-tight">{fl.flagReason || fl.reason}</p>
                   </div>
                 ))}
               </div>
@@ -249,13 +332,13 @@ export const ExpensesView: React.FC = () => {
                 <button
                   key={filter}
                   onClick={() => setSelectedFilter(filter)}
-                  className={`px-3 py-1 rounded-lg text-xs font-semibold transition ${
+                  className={`px-3 py-1 rounded-lg text-xs font-semibold transition cursor-pointer ${
                     selectedFilter === filter
                       ? 'bg-slate-900 text-white shadow-xs'
                       : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                   }`}
                 >
-                  {filter}
+                  {filter === 'NonCompliant' ? 'Flagged / Violations' : filter}
                 </button>
               ))}
             </div>
@@ -277,10 +360,11 @@ export const ExpensesView: React.FC = () => {
             <table className="w-full text-left text-xs">
               <thead className="bg-slate-50/80 border-b border-slate-100 text-slate-500 font-semibold uppercase tracking-wider text-[11px]">
                 <tr>
+                  <th className="py-3.5 px-4">Claim #</th>
                   <th className="py-3.5 px-4">Employee</th>
-                  <th className="py-3.5 px-4">Expense Category</th>
-                  <th className="py-3.5 px-4">Claimed Amount</th>
-                  <th className="py-3.5 px-4">Policy Limit</th>
+                  <th className="py-3.5 px-4">Category</th>
+                  <th className="py-3.5 px-4">Claimed</th>
+                  <th className="py-3.5 px-4">Policy Cap</th>
                   <th className="py-3.5 px-4">Variance</th>
                   <th className="py-3.5 px-4">Compliance Status</th>
                   <th className="py-3.5 px-4 text-right">Agent Action</th>
@@ -290,58 +374,87 @@ export const ExpensesView: React.FC = () => {
                 {filteredExpenses.map((exp) => {
                   const emp = employees.find(e => e.id === exp.employeeId);
                   const empName = exp.employeeName || emp?.name || `Employee #${exp.employeeId}`;
-                  const allowed = 50.00; // Meal default policy cap
-                  const overflow = exp.amount - allowed;
-                  const isViolation = overflow > 0 || exp.status === 5;
-                  const statusStr = exp.statusName || String(exp.status);
+                  const claimNo = exp.claimNumber || `EXP-${exp.id.toString().padStart(4, '0')}`;
+                  const allowed = getPolicyLimit(exp);
+                  const overflow = getVariance(exp);
+                  const statusStr = (exp.statusName || String(exp.status)).toLowerCase();
+                  const isApproved = statusStr.includes('approved') || exp.status === 2;
+                  const isRejected = statusStr.includes('rejected') || exp.status === 3;
+                  const isViol = !isApproved && !isRejected && isViolation(exp);
 
                   return (
                     <tr key={exp.id} className="hover:bg-slate-50/80 transition">
+                      <td className="py-3.5 px-4 font-mono font-bold text-blue-700">{claimNo}</td>
                       <td className="py-3.5 px-4 font-bold text-slate-900">{empName}</td>
                       <td className="py-3.5 px-4 text-slate-700 font-medium">
-                        {exp.category || exp.description || 'Client Meal / Expense'}
+                        {exp.category || exp.description || 'General Expense'}
                       </td>
                       <td className="py-3.5 px-4 font-bold text-slate-900">${exp.amount.toFixed(2)}</td>
                       <td className="py-3.5 px-4 text-slate-600">${allowed.toFixed(2)}</td>
-                      <td className={`py-3.5 px-4 font-bold ${isViolation ? 'text-rose-600' : 'text-emerald-600'}`}>
-                        {isViolation ? `+$${overflow.toFixed(2)}` : `-$${Math.abs(overflow).toFixed(2)}`}
+                      <td className={`py-3.5 px-4 font-bold ${isViol ? 'text-rose-600' : 'text-emerald-600'}`}>
+                        {overflow > 0 ? `+$${overflow.toFixed(2)}` : `-$${Math.abs(overflow).toFixed(2)}`}
                       </td>
                       <td className="py-3.5 px-4">
                         <span className={`text-[10px] px-2.5 py-1 rounded-full font-bold inline-flex items-center gap-1 ${
-                          isViolation
-                            ? 'bg-rose-50 text-rose-700 border border-rose-200'
-                            : statusStr.toLowerCase().includes('approved')
+                          isApproved
                             ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                            : isRejected
+                            ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                            : isViol
+                            ? 'bg-amber-50 text-amber-700 border border-amber-200'
                             : 'bg-blue-50 text-blue-700 border border-blue-200'
                         }`}>
-                          {isViolation ? 'NON_COMPLIANT' : statusStr.toUpperCase()}
+                          {isApproved ? 'APPROVED' : isRejected ? 'REJECTED' : isViol ? 'FLAGGED' : 'PENDING'}
                         </span>
                       </td>
                       <td className="py-3.5 px-4 text-right">
                         <div className="flex items-center justify-end gap-1.5">
-                          <button
-                            onClick={() => handleStatusAction(exp.id, 'Approved', 'Approved by Manager')}
-                            className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded text-[11px] font-bold transition"
-                            title="Approve claim"
-                          >
-                            Approve
-                          </button>
+                          {processingId === exp.id ? (
+                            <span className="text-[11px] text-slate-500 font-semibold flex items-center gap-1">
+                              <RefreshCw className="w-3 h-3 animate-spin text-blue-600" /> Saving...
+                            </span>
+                          ) : (
+                            <>
+                              <button
+                                onClick={() => handleStatusAction(exp.id, 'Approved', 'Approved by Manager')}
+                                disabled={isApproved}
+                                className={`px-2.5 py-1 rounded text-[11px] font-bold transition cursor-pointer ${
+                                  isApproved
+                                    ? 'bg-emerald-100/40 text-emerald-500 border border-emerald-200 opacity-60 cursor-not-allowed'
+                                    : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200'
+                                }`}
+                                title="Approve claim"
+                              >
+                                Approve
+                              </button>
 
-                          <button
-                            onClick={() => handleStatusAction(exp.id, 'NonCompliant', 'Exceeds POL-FIN-002 meal cap')}
-                            className="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 rounded text-[11px] font-bold transition"
-                            title="Flag for audit"
-                          >
-                            Flag
-                          </button>
+                              <button
+                                onClick={() => handleStatusAction(exp.id, 'NonCompliant', 'Flagged for manager policy review')}
+                                disabled={isViol}
+                                className={`px-2.5 py-1 rounded text-[11px] font-bold transition cursor-pointer ${
+                                  isViol
+                                    ? 'bg-amber-100/40 text-amber-500 border border-amber-200 opacity-60 cursor-not-allowed'
+                                    : 'bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200'
+                                }`}
+                                title="Flag for audit"
+                              >
+                                Flag
+                              </button>
 
-                          <button
-                            onClick={() => handleStatusAction(exp.id, 'Rejected', 'Policy violation')}
-                            className="px-2.5 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded text-[11px] font-bold transition"
-                            title="Reject claim"
-                          >
-                            Reject
-                          </button>
+                              <button
+                                onClick={() => handleStatusAction(exp.id, 'Rejected', 'Policy violation')}
+                                disabled={isRejected}
+                                className={`px-2.5 py-1 rounded text-[11px] font-bold transition cursor-pointer ${
+                                  isRejected
+                                    ? 'bg-rose-100/40 text-rose-500 border border-rose-200 opacity-60 cursor-not-allowed'
+                                    : 'bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200'
+                                }`}
+                                title="Reject claim"
+                              >
+                                Reject
+                              </button>
+                            </>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -353,92 +466,85 @@ export const ExpensesView: React.FC = () => {
         )}
       </div>
 
-      {/* Submit Claim Modal */}
+      {/* Submit Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-5">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-blue-50 text-blue-600 rounded-xl">
-                  <Receipt className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-slate-900 text-base">Submit Expense Claim</h3>
-                  <p className="text-xs text-slate-500">Record claim for automated policy verification.</p>
-                </div>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 border border-slate-200">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <Receipt className="w-5 h-5 text-blue-600" />
+                <h3 className="font-bold text-slate-900">Submit New Expense Claim</h3>
               </div>
-              <button onClick={() => setIsModalOpen(false)} className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg">
+              <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleSubmitClaim} className="space-y-4">
+            <form onSubmit={handleSubmitClaim} className="space-y-4 text-xs">
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Employee</label>
+                <label className="block text-slate-700 font-semibold mb-1">Employee</label>
                 <select
                   value={employeeId}
-                  onChange={e => setEmployeeId(Number(e.target.value))}
-                  className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                  onChange={(e) => setEmployeeId(Number(e.target.value))}
+                  className="w-full border border-slate-200 rounded-xl p-2.5 text-slate-800 bg-white"
                 >
-                  {employees.map(e => (
-                    <option key={e.id} value={e.id}>{e.name} ({e.designation})</option>
+                  {employees.map(emp => (
+                    <option key={emp.id} value={emp.id}>{emp.name} ({emp.designation || 'Staff'})</option>
                   ))}
                 </select>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Category</label>
-                  <select
-                    value={expenseType}
-                    onChange={e => setExpenseType(Number(e.target.value))}
-                    className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-                  >
-                    <option value={2}>Meal ($50 Cap)</option>
-                    <option value={1}>Travel ($250 Cap)</option>
-                    <option value={3}>Equipment ($500 Cap)</option>
-                    <option value={4}>Software ($500 Cap)</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Amount ($)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    required
-                    value={amount}
-                    onChange={e => setAmount(Number(e.target.value))}
-                    className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-bold"
-                  />
-                </div>
+              <div>
+                <label className="block text-slate-700 font-semibold mb-1">Expense Type</label>
+                <select
+                  value={expenseType}
+                  onChange={(e) => setExpenseType(Number(e.target.value))}
+                  className="w-full border border-slate-200 rounded-xl p-2.5 text-slate-800 bg-white"
+                >
+                  <option value={1}>Travel Reimbursement (Cap: $250.00)</option>
+                  <option value={2}>Business Meal / Dinner (Cap: $50.00)</option>
+                  <option value={3}>Equipment / Hardware (Cap: $500.00)</option>
+                  <option value={4}>Software / License (Cap: $500.00)</option>
+                </select>
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Description / Business Purpose</label>
-                <textarea
-                  rows={3}
-                  placeholder="Client dinner with prospective partner, travel lodging..."
-                  value={description}
-                  onChange={e => setDescription(e.target.value)}
-                  className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                <label className="block text-slate-700 font-semibold mb-1">Claim Amount ($)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  required
+                  value={amount}
+                  onChange={(e) => setAmount(Number(e.target.value))}
+                  className="w-full border border-slate-200 rounded-xl p-2.5 text-slate-800"
                 />
               </div>
 
-              <div className="flex items-center justify-end gap-3 pt-2">
+              <div>
+                <label className="block text-slate-700 font-semibold mb-1">Description</label>
+                <textarea
+                  rows={2}
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="e.g. Client Dinner with partners"
+                  className="w-full border border-slate-200 rounded-xl p-2.5 text-slate-800"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition"
+                  className="px-4 py-2 border border-slate-200 rounded-xl text-slate-600 font-semibold hover:bg-slate-50 cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold rounded-xl transition disabled:opacity-50 shadow-md shadow-blue-600/20"
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold shadow-md shadow-blue-600/20 disabled:opacity-50 cursor-pointer"
                 >
-                  {submitting ? 'Submitting...' : 'Submit Expense'}
+                  {submitting ? 'Submitting...' : 'Submit Claim'}
                 </button>
               </div>
             </form>
@@ -448,4 +554,3 @@ export const ExpensesView: React.FC = () => {
     </div>
   );
 };
-

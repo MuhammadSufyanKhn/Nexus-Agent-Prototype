@@ -79,11 +79,19 @@ public class MasterBudget
 public class Expense
 {
     public int Id { get; set; }
+    public string ClaimNumber { get; set; } = string.Empty;
     public int EmployeeId { get; set; }
     public ExpenseType ExpenseType { get; set; }
+    public string? Category { get; set; }
     public decimal Amount { get; set; }
     public DateTime ExpenseDate { get; set; } = DateTime.UtcNow;
     public ExpenseStatus Status { get; set; } = ExpenseStatus.Pending;
+    public string ComplianceStatus { get; set; } = "Pending";
+    public decimal? PolicyLimit { get; set; }
+    public decimal? Variance { get; set; }
+    public string? FlagReason { get; set; }
+    public string? ReviewedBy { get; set; }
+    public DateTime? ReviewedDate { get; set; }
     public string Description { get; set; } = string.Empty;
 
     public Employee? Employee { get; set; }

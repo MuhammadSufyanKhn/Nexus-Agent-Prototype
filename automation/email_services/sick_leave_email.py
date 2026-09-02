@@ -151,23 +151,27 @@ def generate_sick_leave_email(args: dict) -> dict:
     email_sent_successfully = False
     error_message = None
 
-    try:
-        msg = MIMEMultipart("alternative")
-        msg["Subject"] = subject
-        msg["From"] = sender_email
-        msg["To"] = to_header_str
+    mock_domains = [".local", "devmail.com", "example.com", "test.com", "company.com", "nexus.local"]
+    valid_recipients = [r for r in recipients if r and "@" in r and not any(r.lower().endswith(d) or f"@{d}" in r.lower() for d in mock_domains)]
 
-        msg.attach(MIMEText(plain_text_body, "plain", "utf-8"))
-        msg.attach(MIMEText(html_body, "html", "utf-8"))
+    if valid_recipients and smtp_password:
+        try:
+            msg = MIMEMultipart("alternative")
+            msg["Subject"] = subject
+            msg["From"] = sender_email
+            msg["To"] = to_header_str
 
-        server = smtplib.SMTP("smtp.gmail.com", 587)
-        server.starttls()
-        server.login(sender_email, smtp_password)
-        server.sendmail(sender_email, recipients, msg.as_string())
-        server.quit()
-        email_sent_successfully = True
-    except Exception as e:
-        error_message = str(e)
+            msg.attach(MIMEText(plain_text_body, "plain", "utf-8"))
+            msg.attach(MIMEText(html_body, "html", "utf-8"))
+
+            server = smtplib.SMTP("smtp.gmail.com", 587)
+            server.starttls()
+            server.login(sender_email, smtp_password)
+            server.sendmail(sender_email, valid_recipients, msg.as_string())
+            server.quit()
+            email_sent_successfully = True
+        except Exception as e:
+            error_message = str(e)
 
     return {
         "status": "success" if email_sent_successfully else "dispatched_mock",
