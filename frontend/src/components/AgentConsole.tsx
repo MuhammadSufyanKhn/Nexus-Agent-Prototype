@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import {
   executeAgentPrompt,
   decideApproval,
-  fetchDepartments
+  fetchDepartments,
+  updateExpenseStatus
 } from '../services/api';
 import { getCommandSuggestions } from '../utils/commandEngine';
 import type { CommandSuggestion } from '../utils/commandEngine';
@@ -37,8 +38,14 @@ import {
   ArrowUpRight,
   Briefcase,
   Ticket,
-  Star
+  Star,
+  Receipt,
+  ShieldCheck,
+  Check,
+  XCircle,
+  Eye
 } from 'lucide-react';
+import { DocumentPreviewModal } from './DocumentPreviewModal';
 
 interface AgentConsoleProps {
   userRole: string;
@@ -58,6 +65,18 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
   const [approvalProcessing, setApprovalProcessing] = useState(false);
   const [feedExpanded, setFeedExpanded] = useState(false);
   const [navigationPending, setNavigationPending] = useState<{ tab: string; label: string } | null>(null);
+  const [expenseActionId, setExpenseActionId] = useState<number | null>(null);
+  const [expenseFeedback, setExpenseFeedback] = useState<string | null>(null);
+  const [previewModalDoc, setPreviewModalDoc] = useState<{
+    isOpen: boolean;
+    documentId?: string | null;
+    contentHtml?: string | null;
+    documentTitle?: string | null;
+    documentType?: string | null;
+    employeeName?: string | null;
+    department?: string | null;
+    createdAt?: string | null;
+  }>({ isOpen: false });
 
   // Autocomplete & Command Engine state
   const [suggestions, setSuggestions] = useState<CommandSuggestion[]>([]);
@@ -211,6 +230,9 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
       BUDGET_FREEZE: 'departments', BUDGET_READ: 'departments', POLICY_READ: 'policies',
       POLICY_CREATE: 'policies', POLICY_UPDATE: 'policies', POLICY_DELETE: 'policies',
       EXPENSE_READ: 'expenses', EXPENSE_CREATE: 'expenses', EXPENSE_COMPLIANCE: 'expenses',
+      EXPENSE_FILTER: 'expenses', EXPENSE_COMPLIANCE_SWEEP: 'expenses', EXPENSE_APPROVE: 'expenses',
+      EXPENSE_REJECT: 'expenses', EXPENSE_FLAG: 'expenses', EXPENSE_ANALYTICS: 'expenses',
+      EXPENSE_CATEGORY_ANALYTICS: 'expenses', EXPENSE_POLICY_VARIANCE: 'expenses',
       APPROVAL_READ: 'approvals', AUDIT_READ: 'audit', DASHBOARD_ANALYTICS: 'dashboard',
       EXECUTE_AUTOMATION: 'audit', PAYROLL_HOLD: 'departments', PAYROLL_BONUS: 'departments',
       LEAVE_CREATE: 'employees', UPDATE_SALARY: 'employees',
@@ -246,7 +268,7 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
       const res = await executeAgentPrompt(targetPrompt, userRole);
       setResult(res);
       if (res.isSuccess) {
-        window.dispatchEvent(new CustomEvent('nexus-data-updated'));
+        window.dispatchEvent(new CustomEvent('nexus-data-updated', { detail: { intent: res.intent, data: res.resultData } }));
         window.dispatchEvent(new CustomEvent('budget-updated'));
         // Navigate for read-only successful results
         // Trigger 7-second choice card for navigation
@@ -340,6 +362,14 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
       EXPENSE_COMPLIANCE: 'Expense Compliance',
       EXPENSE_READ: 'Read Expenses',
       EXPENSE_CREATE: 'Submit Expense',
+      EXPENSE_FILTER: 'Filter Expenses',
+      EXPENSE_COMPLIANCE_SWEEP: 'Compliance Sweep',
+      EXPENSE_APPROVE: 'Approve Expense',
+      EXPENSE_REJECT: 'Reject Expense',
+      EXPENSE_FLAG: 'Flag Expense',
+      EXPENSE_ANALYTICS: 'Expense Analytics',
+      EXPENSE_CATEGORY_ANALYTICS: 'Category Analytics',
+      EXPENSE_POLICY_VARIANCE: 'Policy Variance',
       APPROVAL_READ: 'Read Approvals',
       ONBOARDING_READ: 'Read Onboarding',
       AUDIT_READ: 'Audit Logs',
@@ -671,10 +701,18 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
       ? data
       : (Array.isArray(data?.result) ? data.result : data?.policies ?? data?.employees ?? data?.departments ?? data?.budgets ?? null);
 
+    // Keys that should never be dumped as raw key-value strings
+    const excludedFieldKeys = [
+      'message', 'result', 'summary', 'policies', 'employees', 'departments', 'budgets', 'count',
+      'contentHtml', 'content_html', 'html', 'previewUrl', 'downloadUrl', 'documentId', 'documentTitle',
+      'fitSummary', 'matchedSkills', 'missingSkills', 'skillBreakdown', 'projectManagementEvidence',
+      'recommendedQuestions', 'milestones'
+    ];
+
     // Build primitive key-value fields for single record operations
     const fields = typeof data === 'object' && data !== null && !Array.isArray(data)
       ? Object.entries(data)
-        .filter(([k, v]) => !['message', 'result', 'summary', 'policies', 'employees', 'departments', 'budgets', 'count'].includes(k) && (typeof v !== 'object' || v === null))
+        .filter(([k, v]) => !excludedFieldKeys.includes(k) && (typeof v !== 'object' || v === null))
         .slice(0, 10)
       : [];
 
@@ -703,22 +741,40 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
                   {data?.documentTitle ?? 'Generated HR Document Packet'}
                 </span>
               </div>
-              <span className="text-[10px] bg-indigo-900 text-indigo-300 px-2 py-0.5 rounded font-mono border border-indigo-700">
-                PDF READY
-              </span>
+              <div className="flex items-center gap-2">
+                {intent === 'ONBOARDING_DOCUMENT_PREVIEW' && (
+                  <span className="text-[10px] bg-slate-800 text-slate-300 px-2 py-0.5 rounded font-medium border border-slate-700">
+                    Preview Only &bull; No Email Sent
+                  </span>
+                )}
+                <span className="text-[10px] bg-indigo-900 text-indigo-300 px-2 py-0.5 rounded font-mono border border-indigo-700">
+                  {data?.type ?? 'PDF READY'}
+                </span>
+              </div>
             </div>
             <p className="text-xs text-slate-300">
               Official HR document packet compiled and signed via Nexus Document Subsystem.
             </p>
             <div className="flex items-center gap-3 pt-1">
-              <a
-                href={data.previewUrl ?? `/api/documents/${data.documentId}/preview`}
-                target="_blank"
-                rel="noreferrer"
-                className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-xs"
+              <button
+                type="button"
+                onClick={() => {
+                  setPreviewModalDoc({
+                    isOpen: true,
+                    documentId: data?.documentId,
+                    contentHtml: data?.contentHtml,
+                    documentTitle: data?.documentTitle,
+                    documentType: data?.type || 'ONBOARDING_PACKAGE',
+                    employeeName: data?.employeeName,
+                    department: data?.department,
+                    createdAt: data?.createdAt
+                  });
+                }}
+                className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer"
               >
+                <Eye className="w-3.5 h-3.5" />
                 Preview Document
-              </a>
+              </button>
               <a
                 href={data.downloadUrl ?? `/api/documents/${data.documentId}/download`}
                 download
@@ -726,6 +782,221 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
               >
                 Download PDF
               </a>
+            </div>
+          </div>
+        )}
+
+        {/* Rich Candidate Screening Card */}
+        {(data?.fitScore !== undefined || data?.skillsFound !== undefined || data?.leadershipRating || data?.salaryBandLevel || data?.recommendedQuestions) && (
+          <div className="p-4 bg-slate-900 text-white rounded-xl border border-slate-800 space-y-4 shadow-md">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2.5">
+                <Briefcase className="w-5 h-5 text-indigo-400" />
+                <div>
+                  <h4 className="font-bold text-sm text-white flex items-center gap-2">
+                    {data?.candidateName || 'Candidate Profile Evaluation'}
+                    {data?.jobTitle && (
+                      <span className="text-xs font-normal text-slate-400">for {data.jobTitle}</span>
+                    )}
+                  </h4>
+                  <span className="text-[11px] text-slate-400">Workforce Intelligence &bull; Resume Fit Assessment</span>
+                </div>
+              </div>
+              {data?.fitScore !== undefined && (
+                <div className="flex items-center gap-2">
+                  <div className={`px-3 py-1 rounded-lg font-mono font-bold text-sm border ${
+                    data.fitScore >= 80
+                      ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                      : data.fitScore >= 50
+                      ? 'bg-amber-500/10 text-amber-400 border-amber-500/30'
+                      : 'bg-rose-500/10 text-rose-400 border-rose-500/30'
+                  }`}>
+                    {data.fitScore}% FIT
+                  </div>
+                  {data?.categoryFit && (
+                    <span className="text-xs px-2 py-0.5 rounded bg-slate-800 text-slate-300 font-semibold border border-slate-700">
+                      {data.categoryFit}
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Candidate Summary Box */}
+            {data?.fitSummary && (
+              <div className="p-3 bg-slate-800/60 rounded-lg border border-slate-700/60 text-xs text-slate-200 leading-relaxed">
+                {data.fitSummary}
+              </div>
+            )}
+
+            {/* Skill Breakdown */}
+            {data?.matchedSkills && data.matchedSkills.length > 0 && (
+              <div className="space-y-1.5">
+                <span className="text-[11px] uppercase font-bold text-slate-400 tracking-wider">Verified Competencies</span>
+                <div className="flex flex-wrap gap-1.5">
+                  {data.matchedSkills.map((s: string, idx: number) => (
+                    <span key={idx} className="px-2 py-0.5 bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 rounded text-xs font-medium">
+                      ✓ {s}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {data?.missingSkills && data.missingSkills.length > 0 && (
+              <div className="space-y-1.5">
+                <span className="text-[11px] uppercase font-bold text-slate-400 tracking-wider">Identified Qualification Gaps</span>
+                <div className="flex flex-wrap gap-1.5">
+                  {data.missingSkills.map((s: string, idx: number) => (
+                    <span key={idx} className="px-2 py-0.5 bg-rose-500/15 text-rose-300 border border-rose-500/30 rounded text-xs font-medium">
+                      ✕ {s}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Technical Skills Analysis Grid */}
+            {data?.skillBreakdown && Array.isArray(data.skillBreakdown) && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-xs text-slate-400">
+                  <span className="text-[11px] uppercase font-bold tracking-wider">Technical Competency Audit</span>
+                  <span>{data.skillsFound} / {data.totalSkills} skills verified</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {data.skillBreakdown.map((sb: any, idx: number) => (
+                    <div key={idx} className="p-2.5 bg-slate-800/70 rounded-lg border border-slate-700/80 text-xs space-y-1">
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold text-white">{sb.skill}</span>
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${
+                          sb.status === 'Verified' ? 'bg-emerald-500/20 text-emerald-300' : 'bg-rose-500/20 text-rose-300'
+                        }`}>
+                          {sb.status}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-400">{sb.evidence}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Leadership Analysis Details */}
+            {data?.leadershipRating && (
+              <div className="p-3 bg-slate-800/80 rounded-lg border border-slate-700 space-y-2">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-[11px] uppercase font-bold text-slate-400 tracking-wider">Leadership & Ownership Rating</span>
+                  <span className="font-semibold text-indigo-300 bg-indigo-500/20 px-2 py-0.5 rounded border border-indigo-500/30">
+                    {data.leadershipRating}
+                  </span>
+                </div>
+                {data.projectManagementEvidence && Array.isArray(data.projectManagementEvidence) && (
+                  <ul className="text-xs text-slate-300 space-y-1 list-disc list-inside">
+                    {data.projectManagementEvidence.map((p: string, idx: number) => (
+                      <li key={idx}>{p}</li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
+
+            {/* Salary Band Assessment */}
+            {data?.salaryBandLevel && (
+              <div className="p-3 bg-slate-800/80 rounded-lg border border-slate-700 flex items-center justify-between text-xs">
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">Policy Band ({data.policyCode || 'POL-HR-001'})</span>
+                  <span className="font-bold text-white text-sm">{data.salaryBandLevel}</span>
+                </div>
+                <div className="text-right">
+                  <span className="text-[10px] text-slate-400 block">Recommended Range</span>
+                  <span className="font-mono font-bold text-emerald-400 text-sm">
+                    ${Number(data.minSalary || 0).toLocaleString()} – ${Number(data.maxSalary || 0).toLocaleString()}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* Recommended Interview Questions */}
+            {data?.recommendedQuestions && Array.isArray(data.recommendedQuestions) && (
+              <div className="space-y-2 pt-1 border-t border-slate-800">
+                <span className="text-[11px] uppercase font-bold text-slate-400 tracking-wider block">Suggested Interview Inquiries</span>
+                <ol className="space-y-1.5 text-xs text-slate-300 list-decimal list-inside bg-slate-950/40 p-3 rounded-lg border border-slate-800/60">
+                  {data.recommendedQuestions.map((q: string, idx: number) => (
+                    <li key={idx} className="leading-relaxed pl-1">{q}</li>
+                  ))}
+                </ol>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Onboarding Email Resend Confirmation */}
+        {data?.dispatchedAt && data?.email && (
+          <div className="p-4 bg-slate-900 text-white rounded-xl border border-slate-800 space-y-3 shadow-md">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+              <div className="flex items-center gap-2">
+                <Send className="w-4 h-4 text-emerald-400" />
+                <span className="font-bold text-xs tracking-wide text-emerald-200">
+                  Onboarding Welcome Email Resent
+                </span>
+              </div>
+              <span className="text-[10px] bg-emerald-900/60 text-emerald-300 px-2 py-0.5 rounded font-mono border border-emerald-700">
+                DELIVERED
+              </span>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs bg-slate-950/50 p-3 rounded-lg border border-slate-800">
+              <div>
+                <span className="text-slate-400 block text-[10px]">Employee</span>
+                <span className="font-semibold text-slate-200">{data.employeeName}</span>
+              </div>
+              <div>
+                <span className="text-slate-400 block text-[10px]">Recipient Email</span>
+                <span className="font-semibold text-indigo-300">{data.email}</span>
+              </div>
+              <div>
+                <span className="text-slate-400 block text-[10px]">Department</span>
+                <span className="font-semibold text-slate-200">{data.department || 'General'}</span>
+              </div>
+              <div>
+                <span className="text-slate-400 block text-[10px]">Designation</span>
+                <span className="font-semibold text-slate-200">{data.designation || 'Specialist'}</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Onboarding Milestone Timeline */}
+        {data?.milestones && Array.isArray(data.milestones) && (
+          <div className="p-4 bg-slate-900 text-white rounded-xl border border-slate-800 space-y-3 shadow-md">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+              <span className="font-bold text-xs tracking-wide text-indigo-200">
+                Active Onboarding Milestones ({data.milestones.length})
+              </span>
+              <span className="text-[10px] bg-indigo-900 text-indigo-300 px-2 py-0.5 rounded font-mono border border-indigo-700">
+                TIMELINE
+              </span>
+            </div>
+            <div className="space-y-2">
+              {data.milestones.map((m: any, idx: number) => (
+                <div key={idx} className="flex items-center justify-between p-2.5 bg-slate-800/70 rounded-lg border border-slate-700/60 text-xs">
+                  <div className="flex items-center gap-2">
+                    <span className="w-5 h-5 rounded-full bg-slate-700 text-slate-300 flex items-center justify-center font-bold text-[10px]">
+                      {idx + 1}
+                    </span>
+                    <div>
+                      <span className="font-semibold text-white block">{m.taskName || m.TaskName}</span>
+                      <span className="text-[10px] text-slate-400">{m.employeeName || 'New Hire'}</span>
+                    </div>
+                  </div>
+                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                    (m.status || '').toLowerCase() === 'completed'
+                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                      : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                  }`}>
+                    {m.status || 'Pending'}
+                  </span>
+                </div>
+              ))}
             </div>
           </div>
         )}
@@ -869,7 +1140,7 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
         )}
 
         {/* Key-value fields for single record operations */}
-        {fields.length > 0 && (!rawList || rawList.length === 0) && intent !== 'LEAVE_CREATE' && intent !== 'DEPARTMENT_CREATE' && data?.averageSalary === undefined && (
+        {fields.length > 0 && (!rawList || rawList.length === 0) && !data?.documentId && !data?.downloadUrl && data?.fitScore === undefined && intent !== 'LEAVE_CREATE' && intent !== 'DEPARTMENT_CREATE' && data?.averageSalary === undefined && (
           <div className="grid grid-cols-2 gap-2">
             {fields.map(([key, val]) => (
               <div key={key} className="bg-slate-50 rounded-lg p-2.5 border border-slate-100">
@@ -1199,6 +1470,964 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
     );
   };
 
+  const renderExpenseResult = (data: any, intent: string, _res: AgentResult) => {
+    if (!data) return null;
+
+    const handleQuickAction = async (expenseId: number, status: string, reason?: string) => {
+      setExpenseActionId(expenseId);
+      try {
+        const updated = await updateExpenseStatus(expenseId, status, reason);
+        setExpenseFeedback(`Claim ${updated.claimNumber || '#' + expenseId} marked as ${status} successfully.`);
+        setTimeout(() => setExpenseFeedback(null), 4000);
+        window.dispatchEvent(new CustomEvent('nexus-data-updated'));
+
+        // Update local result state directly WITHOUT re-executing prompt!
+        setResult(prev => {
+          if (!prev || !prev.resultData) return prev;
+          const currentData = { ...(prev.resultData as any) };
+
+          // If single claim result (e.g. EXPENSE_CREATE, EXPENSE_APPROVE, EXPENSE_REJECT)
+          if (currentData.claim) {
+            currentData.claim = {
+              ...currentData.claim,
+              status: updated.status,
+              statusName: updated.statusName,
+              complianceStatus: updated.complianceStatus
+            };
+          }
+
+          // If claims array (e.g. EXPENSE_READ, EXPENSE_FILTER, EXPENSE_POLICY_VARIANCE)
+          if (Array.isArray(currentData.claims)) {
+            currentData.claims = currentData.claims.map((c: any) => {
+              const cId = c.id || (c.claimNumber ? parseInt(c.claimNumber.replace(/\D/g, '')) : 0);
+              if (cId === expenseId || c.claimNumber === updated.claimNumber) {
+                return {
+                  ...c,
+                  status: updated.status,
+                  statusName: updated.statusName,
+                  complianceStatus: updated.complianceStatus
+                };
+              }
+              return c;
+            });
+          }
+
+          // If flaggedClaims array (e.g. EXPENSE_COMPLIANCE_SWEEP)
+          if (Array.isArray(currentData.flaggedClaims)) {
+            currentData.flaggedClaims = currentData.flaggedClaims.map((c: any) => {
+              const cId = c.id || (c.claimNumber ? parseInt(c.claimNumber.replace(/\D/g, '')) : 0);
+              if (cId === expenseId || c.claimNumber === updated.claimNumber) {
+                return {
+                  ...c,
+                  status: updated.status,
+                  statusName: updated.statusName,
+                  complianceStatus: updated.complianceStatus
+                };
+              }
+              return c;
+            });
+          }
+
+          return { ...prev, resultData: currentData };
+        });
+      } catch (err: any) {
+        setExpenseFeedback(`Action failed: ${err.message || 'Server error'}`);
+        setTimeout(() => setExpenseFeedback(null), 4000);
+      } finally {
+        setExpenseActionId(null);
+      }
+    };
+
+    // 1. EXPENSE_COMPLIANCE_SWEEP
+    if (intent === 'EXPENSE_COMPLIANCE_SWEEP') {
+      const reviewed = data.claimsReviewed ?? 0;
+      const compliant = data.compliantClaims ?? 0;
+      const flagged = data.flaggedClaimsCount ?? data.flaggedClaims?.length ?? 0;
+      const totalVar = Number(data.totalPolicyVariance ?? 0);
+      const flaggedList: any[] = data.flaggedClaims ?? [];
+
+      return (
+        <div className="bg-white rounded-2xl border border-blue-200 p-6 shadow-xs space-y-5">
+          {expenseFeedback && (
+            <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs font-bold text-emerald-800 flex items-center justify-between animate-in fade-in">
+              <span className="flex items-center gap-1.5">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                {expenseFeedback}
+              </span>
+              <button onClick={() => setExpenseFeedback(null)} className="text-emerald-700 hover:text-emerald-900 cursor-pointer">
+                &times;
+              </button>
+            </div>
+          )}
+
+          <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+            <div className="flex items-center gap-3">
+              <div className="p-3 bg-blue-50 text-blue-600 rounded-xl border border-blue-100">
+                <ShieldCheck className="w-6 h-6 text-blue-600" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-base font-bold text-slate-900">AI Policy Compliance Sweep</h3>
+                  <span className="text-[10px] bg-blue-50 text-blue-700 border border-blue-200 font-mono font-bold px-2 py-0.5 rounded">
+                    POL-FIN-002 ENFORCED
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Automated audit sweep executed across all submitted employee expense claims.
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => onNavigate?.('expenses')}
+              className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 transition shadow-xs cursor-pointer"
+            >
+              <span>Open in Expenses</span>
+              <ArrowUpRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5">
+              <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">Claims Reviewed</span>
+              <span className="text-xl font-bold text-slate-900 mt-0.5 block">{reviewed}</span>
+              <span className="text-[10px] text-slate-500 font-medium">100% evaluated</span>
+            </div>
+
+            <div className="bg-emerald-50/60 border border-emerald-200 rounded-xl p-3.5">
+              <span className="text-[10px] uppercase font-bold text-emerald-600 tracking-wider block">Compliant Claims</span>
+              <span className="text-xl font-bold text-emerald-700 mt-0.5 block">{compliant}</span>
+              <span className="text-[10px] text-emerald-600 font-medium">Within category caps</span>
+            </div>
+
+            <div className="bg-rose-50/60 border border-rose-200 rounded-xl p-3.5">
+              <span className="text-[10px] uppercase font-bold text-rose-600 tracking-wider block">Policy Violations</span>
+              <span className="text-xl font-bold text-rose-700 mt-0.5 block">{flagged}</span>
+              <span className="text-[10px] text-rose-600 font-medium">Flagged for review</span>
+            </div>
+
+            <div className="bg-amber-50/60 border border-amber-200 rounded-xl p-3.5">
+              <span className="text-[10px] uppercase font-bold text-amber-600 tracking-wider block">Total Policy Variance</span>
+              <span className="text-xl font-bold text-amber-700 mt-0.5 block">+${totalVar.toFixed(2)}</span>
+              <span className="text-[10px] text-amber-600 font-medium">Excess over policy cap</span>
+            </div>
+          </div>
+
+          {flaggedList.length > 0 && (
+            <div className="space-y-2.5">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold uppercase tracking-wider text-rose-800 flex items-center gap-1.5">
+                  <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
+                  Flagged Non-Compliant Claims ({flaggedList.length}):
+                </span>
+                <span className="text-[10px] text-slate-400 font-medium">
+                  POL-FIN-002 thresholds: Meal $50 • Travel $250 • Equipment $500
+                </span>
+              </div>
+
+              <div className="border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold uppercase tracking-wider text-[10px]">
+                    <tr>
+                      <th className="py-2.5 px-3">Claim #</th>
+                      <th className="py-2.5 px-3">Employee</th>
+                      <th className="py-2.5 px-3">Category</th>
+                      <th className="py-2.5 px-3">Claimed</th>
+                      <th className="py-2.5 px-3">Policy Cap</th>
+                      <th className="py-2.5 px-3">Variance</th>
+                      <th className="py-2.5 px-3">Flag Reason</th>
+                      <th className="py-2.5 px-3 text-right">Quick Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {flaggedList.map((f: any, idx: number) => {
+                      const cNo = f.claimNumber || `EXP-${idx + 1}`;
+                      const emp = f.employeeName || f.employee || 'Employee';
+                      const cat = f.category || 'General';
+                      const amt = Number(f.amount || 0);
+                      const cap = Number(f.policyLimit || 0);
+                      const v = Number(f.variance || (amt - cap));
+                      const reason = f.flagReason || f.reason || 'Exceeds policy limit';
+                      const claimId = f.id || (f.claimNumber ? parseInt(f.claimNumber.replace(/\D/g, '')) : idx);
+
+                      return (
+                        <tr key={idx} className="hover:bg-slate-50/70 transition">
+                          <td className="py-2.5 px-3 font-mono font-bold text-blue-700">{cNo}</td>
+                          <td className="py-2.5 px-3 font-bold text-slate-900">{emp}</td>
+                          <td className="py-2.5 px-3 text-slate-600">{cat}</td>
+                          <td className="py-2.5 px-3 font-bold text-slate-900">${amt.toFixed(2)}</td>
+                          <td className="py-2.5 px-3 text-slate-500">${cap.toFixed(2)}</td>
+                          <td className="py-2.5 px-3 font-bold text-rose-600">
+                            +{v.toFixed(2)}
+                          </td>
+                          <td className="py-2.5 px-3 text-slate-500 text-[11px] max-w-xs truncate" title={reason}>
+                            {reason}
+                          </td>
+                          <td className="py-2.5 px-3 text-right">
+                            <div className="flex items-center justify-end gap-1">
+                              {expenseActionId === claimId ? (
+                                <span className="text-[10px] text-slate-400 font-bold">Saving...</span>
+                              ) : (
+                                <>
+                                  <button
+                                    onClick={() => handleQuickAction(claimId, 'Approved', 'Approved by Manager')}
+                                    className="px-2 py-0.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded text-[10px] font-bold transition cursor-pointer"
+                                    title="Approve Claim"
+                                  >
+                                    Approve
+                                  </button>
+                                  <button
+                                    onClick={() => handleQuickAction(claimId, 'Rejected', 'Policy violation')}
+                                    className="px-2 py-0.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded text-[10px] font-bold transition cursor-pointer"
+                                    title="Reject Claim"
+                                  >
+                                    Reject
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // 2. EXPENSE_FILTER
+    if (intent === 'EXPENSE_FILTER') {
+      const claims: any[] = data.claims ?? (Array.isArray(data) ? data : []);
+      const count = data.count ?? claims.length;
+
+      return (
+        <div className="bg-white rounded-2xl border border-rose-200 p-6 shadow-xs space-y-4">
+          {expenseFeedback && (
+            <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs font-bold text-emerald-800 flex items-center justify-between animate-in fade-in">
+              <span className="flex items-center gap-1.5">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                {expenseFeedback}
+              </span>
+              <button onClick={() => setExpenseFeedback(null)} className="text-emerald-700 hover:text-emerald-900 cursor-pointer">
+                &times;
+              </button>
+            </div>
+          )}
+
+          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 bg-rose-50 text-rose-600 rounded-xl border border-rose-100">
+                <AlertTriangle className="w-5 h-5 text-rose-600" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm font-bold text-slate-900">Filtered Policy Violations (Flagged)</h3>
+                  <span className="text-[10px] bg-rose-50 text-rose-700 border border-rose-200 font-bold px-2 py-0.5 rounded-full">
+                    {count} Violations
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Filtered by non-compliant status under Corporate Expense Policy POL-FIN-002.
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => onNavigate?.('expenses')}
+              className="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer shadow-xs"
+            >
+              <span>Open in Expenses</span>
+              <ArrowUpRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          <div className="border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold uppercase tracking-wider text-[10px]">
+                <tr>
+                  <th className="py-2.5 px-3">Claim #</th>
+                  <th className="py-2.5 px-3">Employee</th>
+                  <th className="py-2.5 px-3">Category</th>
+                  <th className="py-2.5 px-3">Claimed</th>
+                  <th className="py-2.5 px-3">Policy Cap</th>
+                  <th className="py-2.5 px-3">Variance</th>
+                  <th className="py-2.5 px-3">Status</th>
+                  <th className="py-2.5 px-3 text-right">Quick Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {claims.map((c: any, idx: number) => {
+                  const amt = Number(c.amount || 0);
+                  const cap = Number(c.policyLimit || 50);
+                  const v = Number(c.variance ?? (amt - cap));
+                  const claimId = c.id || (c.claimNumber ? parseInt(c.claimNumber.replace(/\D/g, '')) : idx);
+
+                  return (
+                    <tr key={idx} className="hover:bg-slate-50/70 transition">
+                      <td className="py-2.5 px-3 font-mono font-bold text-blue-700">{c.claimNumber}</td>
+                      <td className="py-2.5 px-3 font-bold text-slate-900">{c.employeeName}</td>
+                      <td className="py-2.5 px-3 text-slate-600">{c.category}</td>
+                      <td className="py-2.5 px-3 font-bold text-slate-900">${amt.toFixed(2)}</td>
+                      <td className="py-2.5 px-3 text-slate-500">${cap.toFixed(2)}</td>
+                      <td className="py-2.5 px-3 font-bold text-rose-600">+${v.toFixed(2)}</td>
+                      <td className="py-2.5 px-3">
+                        <span className="text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200 px-2 py-0.5 rounded-full">
+                          FLAGGED
+                        </span>
+                      </td>
+                      <td className="py-2.5 px-3 text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          {expenseActionId === claimId ? (
+                            <span className="text-[10px] text-slate-400 font-bold">Saving...</span>
+                          ) : (
+                            <>
+                              <button
+                                onClick={() => handleQuickAction(claimId, 'Approved', 'Approved by Manager')}
+                                className="px-2 py-0.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded text-[10px] font-bold transition cursor-pointer"
+                                title="Approve Claim"
+                              >
+                                Approve
+                              </button>
+                              <button
+                                onClick={() => handleQuickAction(claimId, 'Rejected', 'Policy violation')}
+                                className="px-2 py-0.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded text-[10px] font-bold transition cursor-pointer"
+                                title="Reject Claim"
+                              >
+                                Reject
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      );
+    }
+
+    // 3. EXPENSE_CREATE
+    if (intent === 'EXPENSE_CREATE') {
+      const claim = data.claim;
+      if (!claim) {
+        return (
+          <div className="bg-white rounded-2xl border border-amber-200 p-5 text-xs text-amber-800 font-medium">
+            {data.summary || data.error || 'Expense claim creation encountered an issue.'}
+          </div>
+        );
+      }
+
+      const amt = Number(claim.amount || 0);
+      const cap = Number(claim.policyLimit || 50);
+      const v = Number(claim.variance ?? (amt - cap));
+      const statusText = (claim.statusName || (claim.status === 2 ? 'Approved' : (claim.status === 3 ? 'Rejected' : claim.complianceStatus || 'Pending'))).toString();
+      const isApproved = statusText.toLowerCase().includes('approved') || claim.status === 2;
+      const isRejected = statusText.toLowerCase().includes('rejected') || claim.status === 3;
+      const isViol = !isApproved && !isRejected && (v > 0 || statusText.toLowerCase().includes('flag') || statusText.toLowerCase().includes('noncompliant'));
+      const claimId = claim.id || (claim.claimNumber ? parseInt(claim.claimNumber.replace(/\D/g, '')) : 0);
+
+      return (
+        <div className="bg-white rounded-2xl border border-emerald-200 p-6 shadow-xs space-y-5">
+          {expenseFeedback && (
+            <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs font-bold text-emerald-800 flex items-center justify-between animate-in fade-in">
+              <span className="flex items-center gap-1.5">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                {expenseFeedback}
+              </span>
+              <button onClick={() => setExpenseFeedback(null)} className="text-emerald-700 hover:text-emerald-900 cursor-pointer">
+                &times;
+              </button>
+            </div>
+          )}
+
+          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl border border-emerald-100">
+                <CheckCircle2 className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm font-bold text-slate-900">Expense Claim Created Successfully</h3>
+                  <span className="text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold px-2 py-0.5 rounded-full">
+                    SAVED TO DATABASE
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Record stored in database with automatic POL-FIN-002 limit assessment.
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => onNavigate?.('expenses')}
+              className="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer shadow-xs"
+            >
+              <span>View in Expenses</span>
+              <ArrowUpRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50 border border-slate-200 rounded-xl p-4 text-xs">
+            <div>
+              <span className="text-[10px] uppercase font-bold text-slate-400 block">Claim Number</span>
+              <span className="font-mono font-bold text-blue-700 text-sm">{claim.claimNumber}</span>
+            </div>
+            <div>
+              <span className="text-[10px] uppercase font-bold text-slate-400 block">Employee</span>
+              <span className="font-bold text-slate-900 text-sm">{claim.employeeName}</span>
+            </div>
+            <div>
+              <span className="text-[10px] uppercase font-bold text-slate-400 block">Category</span>
+              <span className="font-semibold text-slate-700 text-xs">{claim.category} ({claim.description})</span>
+            </div>
+            <div>
+              <span className="text-[10px] uppercase font-bold text-slate-400 block">Claimed Amount</span>
+              <span className="font-bold text-slate-900 text-sm">${amt.toFixed(2)}</span>
+            </div>
+            <div>
+              <span className="text-[10px] uppercase font-bold text-slate-400 block">Policy Cap</span>
+              <span className="font-semibold text-slate-600 text-xs">${cap.toFixed(2)} (POL-FIN-002)</span>
+            </div>
+            <div>
+              <span className="text-[10px] uppercase font-bold text-slate-400 block">Policy Variance</span>
+              <span className={`font-bold text-xs ${isViol ? 'text-rose-600' : 'text-emerald-600'}`}>
+                {isViol ? `+$${v.toFixed(2)} (Exceeds Cap)` : `-$${Math.abs(v).toFixed(2)} (Within Cap)`}
+              </span>
+            </div>
+            <div>
+              <span className="text-[10px] uppercase font-bold text-slate-400 block">Compliance Status</span>
+              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full inline-block mt-0.5 ${
+                isApproved ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
+                isRejected ? 'bg-rose-50 text-rose-700 border border-rose-200' :
+                isViol ? 'bg-amber-50 text-amber-700 border border-amber-200' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+              }`}>
+                {isApproved ? 'APPROVED' : isRejected ? 'REJECTED' : isViol ? 'FLAGGED FOR REVIEW' : 'COMPLIANT'}
+              </span>
+            </div>
+            <div>
+              <span className="text-[10px] uppercase font-bold text-slate-400 block">Workflow Status</span>
+              <span className="font-bold text-slate-700 text-xs">
+                {isApproved ? 'Approved by Manager' : isRejected ? 'Rejected' : 'Pending Review'}
+              </span>
+            </div>
+          </div>
+
+          <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-100">
+            {expenseActionId === claimId ? (
+              <span className="text-xs text-slate-500 font-semibold">Updating database...</span>
+            ) : isApproved ? (
+              <span className="text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-lg flex items-center gap-1.5">
+                <Check className="w-3.5 h-3.5" /> Approved by Manager
+              </span>
+            ) : isRejected ? (
+              <span className="text-xs font-bold text-rose-700 bg-rose-50 border border-rose-200 px-3 py-1.5 rounded-lg flex items-center gap-1.5">
+                <XCircle className="w-3.5 h-3.5" /> Rejected by Manager
+              </span>
+            ) : (
+              <>
+                <button
+                  onClick={() => handleQuickAction(claimId, 'Approved', 'Approved by Manager')}
+                  className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer"
+                >
+                  <Check className="w-3.5 h-3.5" />
+                  <span>Approve Claim</span>
+                </button>
+                <button
+                  onClick={() => handleQuickAction(claimId, 'Rejected', 'Exceeds meal policy cap')}
+                  className="px-3 py-1.5 bg-white hover:bg-rose-50 text-rose-600 border border-rose-200 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer"
+                >
+                  <XCircle className="w-3.5 h-3.5" />
+                  <span>Reject Claim</span>
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    // 4. EXPENSE_READ (Over limit query)
+    if (intent === 'EXPENSE_READ') {
+      const claims: any[] = data.claims ?? [];
+      return (
+        <div className="bg-white rounded-2xl border border-amber-200 p-6 shadow-xs space-y-4">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 bg-amber-50 text-amber-600 rounded-xl border border-amber-100">
+                <Receipt className="w-5 h-5 text-amber-600" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm font-bold text-slate-900">Expense Claims Exceeding Policy Threshold</h3>
+                  <span className="text-[10px] bg-amber-50 text-amber-700 border border-amber-200 font-bold px-2 py-0.5 rounded-full">
+                    {claims.length} Claims Found
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Filtered against daily meal limit cap ($50.00) under POL-FIN-002.
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => onNavigate?.('expenses')}
+              className="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer shadow-xs"
+            >
+              <span>Open in Expenses</span>
+              <ArrowUpRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          <div className="border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold uppercase tracking-wider text-[10px]">
+                <tr>
+                  <th className="py-2.5 px-3">Claim #</th>
+                  <th className="py-2.5 px-3">Employee</th>
+                  <th className="py-2.5 px-3">Claimed</th>
+                  <th className="py-2.5 px-3">Policy Cap</th>
+                  <th className="py-2.5 px-3">Variance</th>
+                  <th className="py-2.5 px-3">Status</th>
+                  <th className="py-2.5 px-3 text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {claims.map((c: any, idx: number) => {
+                  const amt = Number(c.amount || 0);
+                  const cap = Number(data.policyLimit || 50);
+                  const v = Number(c.variance ?? (amt - cap));
+                  const statusText = (c.statusName || (c.status === 2 ? 'Approved' : (c.status === 3 ? 'Rejected' : c.complianceStatus || c.status || 'Pending'))).toString();
+                  const isApproved = statusText.toLowerCase().includes('approved') || c.status === 2;
+                  const isRejected = statusText.toLowerCase().includes('rejected') || c.status === 3;
+                  const isFlagged = !isApproved && !isRejected && (statusText.toLowerCase().includes('flag') || statusText.toLowerCase().includes('noncompliant'));
+                  const claimId = c.id || (c.claimNumber ? parseInt(c.claimNumber.replace(/\D/g, '')) : idx);
+
+                  return (
+                    <tr key={idx} className="hover:bg-slate-50/70 transition">
+                      <td className="py-2.5 px-3 font-mono font-bold text-blue-700">{c.claimNumber}</td>
+                      <td className="py-2.5 px-3 font-bold text-slate-900">{c.employee || c.employeeName}</td>
+                      <td className="py-2.5 px-3 font-bold text-slate-900">${amt.toFixed(2)}</td>
+                      <td className="py-2.5 px-3 text-slate-500">${cap.toFixed(2)}</td>
+                      <td className="py-2.5 px-3 font-bold text-rose-600">+{v.toFixed(2)}</td>
+                      <td className="py-2.5 px-3">
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                          isApproved
+                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                            : isRejected
+                            ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                            : isFlagged
+                            ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                            : 'bg-blue-50 text-blue-700 border border-blue-200'
+                        }`}>
+                          {isApproved ? 'APPROVED' : isRejected ? 'REJECTED' : isFlagged ? 'FLAGGED' : 'PENDING'}
+                        </span>
+                      </td>
+                      <td className="py-2.5 px-3 text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          {expenseActionId === claimId ? (
+                            <span className="text-[10px] text-slate-400 font-bold">Saving...</span>
+                          ) : isApproved ? (
+                            <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                              Approved
+                            </span>
+                          ) : isRejected ? (
+                            <span className="text-[10px] font-bold text-rose-600 bg-rose-50 px-2 py-0.5 rounded border border-rose-200">
+                              Rejected
+                            </span>
+                          ) : (
+                            <>
+                              <button
+                                onClick={() => handleQuickAction(claimId, 'Approved', 'Approved by Manager')}
+                                className="px-2 py-0.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded text-[10px] font-bold transition cursor-pointer"
+                                title="Approve Claim"
+                              >
+                                Approve
+                              </button>
+                              <button
+                                onClick={() => handleQuickAction(claimId, 'Rejected', 'Exceeds meal policy limit')}
+                                className="px-2 py-0.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded text-[10px] font-bold transition cursor-pointer"
+                                title="Reject Claim"
+                              >
+                                Reject
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      );
+    }
+
+    // 5. EXPENSE_APPROVE
+    if (intent === 'EXPENSE_APPROVE') {
+      const claim = data.claim;
+      return (
+        <div className="bg-white rounded-2xl border border-emerald-200 p-6 shadow-xs space-y-4">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl border border-emerald-100">
+                <CheckCircle2 className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-slate-900">Expense Claim Approved</h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Reimbursement authorized and state committed to SQL database.
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => onNavigate?.('expenses')}
+              className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer shadow-xs"
+            >
+              <span>View in Expenses</span>
+              <ArrowUpRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          {claim && (
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50 border border-slate-200 rounded-xl p-4 text-xs">
+              <div>
+                <span className="text-[10px] uppercase font-bold text-slate-400 block">Claim #</span>
+                <span className="font-mono font-bold text-blue-700 text-sm">{claim.claimNumber}</span>
+              </div>
+              <div>
+                <span className="text-[10px] uppercase font-bold text-slate-400 block">Employee</span>
+                <span className="font-bold text-slate-900 text-sm">{claim.employeeName}</span>
+              </div>
+              <div>
+                <span className="text-[10px] uppercase font-bold text-slate-400 block">Amount Approved</span>
+                <span className="font-bold text-emerald-700 text-sm">${Number(claim.amount || 0).toFixed(2)}</span>
+              </div>
+              <div>
+                <span className="text-[10px] uppercase font-bold text-slate-400 block">Reviewed By</span>
+                <span className="font-bold text-slate-800 text-xs">{claim.reviewedBy || 'Admin'}</span>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // 6. EXPENSE_REJECT
+    if (intent === 'EXPENSE_REJECT') {
+      const claim = data.claim;
+      return (
+        <div className="bg-white rounded-2xl border border-rose-200 p-6 shadow-xs space-y-4">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 bg-rose-50 text-rose-600 rounded-xl border border-rose-100">
+                <AlertTriangle className="w-5 h-5 text-rose-600" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-slate-900">Expense Claim Rejected</h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Claim declined due to corporate policy non-compliance.
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => onNavigate?.('expenses')}
+              className="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer shadow-xs"
+            >
+              <span>View in Expenses</span>
+              <ArrowUpRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          {claim && (
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50 border border-slate-200 rounded-xl p-4 text-xs">
+              <div>
+                <span className="text-[10px] uppercase font-bold text-slate-400 block">Claim #</span>
+                <span className="font-mono font-bold text-blue-700 text-sm">{claim.claimNumber}</span>
+              </div>
+              <div>
+                <span className="text-[10px] uppercase font-bold text-slate-400 block">Category</span>
+                <span className="font-bold text-slate-900 text-sm">{claim.category}</span>
+              </div>
+              <div>
+                <span className="text-[10px] uppercase font-bold text-slate-400 block">Amount</span>
+                <span className="font-bold text-rose-700 text-sm">${Number(claim.amount || 0).toFixed(2)}</span>
+              </div>
+              <div>
+                <span className="text-[10px] uppercase font-bold text-slate-400 block">Rejection Reason</span>
+                <span className="font-semibold text-rose-600 text-xs">{claim.flagReason || 'Policy violation'}</span>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // 7. EXPENSE_FLAG
+    if (intent === 'EXPENSE_FLAG') {
+      const claim = data.claim;
+      return (
+        <div className="bg-white rounded-2xl border border-amber-200 p-6 shadow-xs space-y-4">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 bg-amber-50 text-amber-600 rounded-xl border border-amber-100">
+                <AlertTriangle className="w-5 h-5 text-amber-600" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-slate-900">Expense Claim Flagged for Review</h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Escalated to management for corporate policy compliance assessment.
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => onNavigate?.('expenses')}
+              className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer shadow-xs"
+            >
+              <span>Review in Expenses</span>
+              <ArrowUpRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          {claim && (
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50 border border-slate-200 rounded-xl p-4 text-xs">
+              <div>
+                <span className="text-[10px] uppercase font-bold text-slate-400 block">Claim #</span>
+                <span className="font-mono font-bold text-blue-700 text-sm">{claim.claimNumber}</span>
+              </div>
+              <div>
+                <span className="text-[10px] uppercase font-bold text-slate-400 block">Employee</span>
+                <span className="font-bold text-slate-900 text-sm">{claim.employeeName}</span>
+              </div>
+              <div>
+                <span className="text-[10px] uppercase font-bold text-slate-400 block">Amount</span>
+                <span className="font-bold text-slate-900 text-sm">${Number(claim.amount || 0).toFixed(2)}</span>
+              </div>
+              <div>
+                <span className="text-[10px] uppercase font-bold text-slate-400 block">Flag Reason</span>
+                <span className="font-semibold text-amber-700 text-xs">{claim.flagReason || 'Manager Policy Review Required'}</span>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // 8. EXPENSE_ANALYTICS (Monthly Summary)
+    if (intent === 'EXPENSE_ANALYTICS') {
+      const month = data.month || 'Current Month';
+      const submitted = Number(data.totalSubmitted || 0);
+      const count = Number(data.totalCount || 0);
+      const pending = Number(data.pendingAmount || 0);
+      const approved = Number(data.approvedAmount || 0);
+      const flagged = Number(data.flaggedAmount || 0);
+
+      return (
+        <div className="bg-white rounded-2xl border border-indigo-200 p-6 shadow-xs space-y-5">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 bg-indigo-50 text-indigo-600 rounded-xl border border-indigo-100">
+                <BarChart3 className="w-5 h-5 text-indigo-600" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-slate-900">Expense Reimbursement Summary — {month}</h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Monthly financial totals aggregated from SQL Server database.
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => onNavigate?.('expenses')}
+              className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer shadow-xs"
+            >
+              <span>View All Claims</span>
+              <ArrowUpRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
+              <span className="text-[10px] uppercase font-bold text-slate-400 block">Total Submitted</span>
+              <span className="text-lg font-bold text-slate-900 mt-0.5 block">${submitted.toFixed(2)}</span>
+              <span className="text-[10px] text-slate-500">{count} Total Claims</span>
+            </div>
+            <div className="bg-blue-50/60 border border-blue-200 rounded-xl p-3">
+              <span className="text-[10px] uppercase font-bold text-blue-600 block">Pending</span>
+              <span className="text-lg font-bold text-blue-700 mt-0.5 block">${pending.toFixed(2)}</span>
+              <span className="text-[10px] text-blue-600">Awaiting review</span>
+            </div>
+            <div className="bg-emerald-50/60 border border-emerald-200 rounded-xl p-3">
+              <span className="text-[10px] uppercase font-bold text-emerald-600 block">Approved</span>
+              <span className="text-lg font-bold text-emerald-700 mt-0.5 block">${approved.toFixed(2)}</span>
+              <span className="text-[10px] text-emerald-600">Authorized</span>
+            </div>
+            <div className="bg-rose-50/60 border border-rose-200 rounded-xl p-3">
+              <span className="text-[10px] uppercase font-bold text-rose-600 block">Flagged Violations</span>
+              <span className="text-lg font-bold text-rose-700 mt-0.5 block">${flagged.toFixed(2)}</span>
+              <span className="text-[10px] text-rose-600">Over policy caps</span>
+            </div>
+            <div className="bg-purple-50/60 border border-purple-200 rounded-xl p-3">
+              <span className="text-[10px] uppercase font-bold text-purple-600 block">Policy Rules</span>
+              <span className="text-xs font-bold text-purple-900 mt-1 block">POL-FIN-002</span>
+              <span className="text-[10px] text-purple-600">Meal $50 • Travel $250</span>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // 9. EXPENSE_CATEGORY_ANALYTICS
+    if (intent === 'EXPENSE_CATEGORY_ANALYTICS') {
+      const categories: any[] = data.categories ?? [];
+      const totalClaims = data.totalClaims ?? categories.reduce((sum, c) => sum + (c.claims || 0), 0);
+      const totalAmt = Number(data.totalAmount || categories.reduce((sum, c) => sum + (c.totalAmount || 0), 0));
+
+      return (
+        <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-4">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 bg-blue-50 text-blue-600 rounded-xl border border-blue-100">
+                <BarChart3 className="w-5 h-5 text-blue-600" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-slate-900">Expense Claims Breakdown by Category</h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Total Claims: {totalClaims} • Total Amount: ${totalAmt.toFixed(2)}
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => onNavigate?.('expenses')}
+              className="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer shadow-xs"
+            >
+              <span>Open in Expenses</span>
+              <ArrowUpRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          <div className="border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold uppercase tracking-wider text-[10px]">
+                <tr>
+                  <th className="py-2.5 px-3">Category</th>
+                  <th className="py-2.5 px-3">Policy Cap</th>
+                  <th className="py-2.5 px-3">Claims Count</th>
+                  <th className="py-2.5 px-3">Total Claimed</th>
+                  <th className="py-2.5 px-3">Compliant</th>
+                  <th className="py-2.5 px-3">Flagged Violations</th>
+                  <th className="py-2.5 px-3 text-right">Approved</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {categories.map((c: any, idx: number) => {
+                  const cap = c.category === 'Meal' ? '$50.00' : (c.category === 'Travel' ? '$250.00' : '$500.00');
+                  return (
+                    <tr key={idx} className="hover:bg-slate-50/70 transition">
+                      <td className="py-2.5 px-3 font-bold text-slate-900 flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-blue-600" />
+                        {c.category}
+                      </td>
+                      <td className="py-2.5 px-3 font-mono text-slate-600">{cap}</td>
+                      <td className="py-2.5 px-3 font-semibold text-slate-800">{c.claims}</td>
+                      <td className="py-2.5 px-3 font-bold text-slate-900">${Number(c.totalAmount || 0).toFixed(2)}</td>
+                      <td className="py-2.5 px-3 font-semibold text-emerald-700">{c.compliant}</td>
+                      <td className="py-2.5 px-3 font-bold text-rose-600">{c.flagged}</td>
+                      <td className="py-2.5 px-3 text-right font-semibold text-blue-700">{c.approved}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      );
+    }
+
+    // 10. EXPENSE_POLICY_VARIANCE
+    if (intent === 'EXPENSE_POLICY_VARIANCE') {
+      const claims: any[] = data.claims ?? [];
+      const totalVar = Number(data.totalVariance || 0);
+      const cap = Number(data.policyLimit || 250);
+
+      return (
+        <div className="bg-white rounded-2xl border border-amber-200 p-6 shadow-xs space-y-4">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 bg-amber-50 text-amber-600 rounded-xl border border-amber-100">
+                <AlertTriangle className="w-5 h-5 text-amber-600" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-slate-900">Flagged Travel Policy Variance Analysis</h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Calculated against POL-FIN-002 Travel Cap of ${cap.toFixed(2)}. Total Excess: +${totalVar.toFixed(2)}
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => onNavigate?.('expenses')}
+              className="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer shadow-xs"
+            >
+              <span>Open in Expenses</span>
+              <ArrowUpRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
+              <span className="text-[10px] uppercase font-bold text-slate-400 block">Flagged Travel Claims</span>
+              <span className="text-xl font-bold text-slate-900 mt-0.5 block">{data.flaggedCount ?? claims.length}</span>
+            </div>
+            <div className="bg-blue-50/60 border border-blue-200 rounded-xl p-3">
+              <span className="text-[10px] uppercase font-bold text-blue-600 block">Policy Travel Cap</span>
+              <span className="text-xl font-bold text-blue-700 mt-0.5 block">${cap.toFixed(2)}</span>
+            </div>
+            <div className="bg-rose-50/60 border border-rose-200 rounded-xl p-3">
+              <span className="text-[10px] uppercase font-bold text-rose-600 block">Total Travel Excess Variance</span>
+              <span className="text-xl font-bold text-rose-700 mt-0.5 block">+${totalVar.toFixed(2)}</span>
+            </div>
+          </div>
+
+          {claims.length > 0 && (
+            <div className="border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold uppercase tracking-wider text-[10px]">
+                  <tr>
+                    <th className="py-2.5 px-3">Claim #</th>
+                    <th className="py-2.5 px-3">Employee</th>
+                    <th className="py-2.5 px-3">Claimed</th>
+                    <th className="py-2.5 px-3">Travel Cap</th>
+                    <th className="py-2.5 px-3 font-bold text-rose-700">Variance (+Excess)</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {claims.map((c: any, idx: number) => {
+                    const amt = Number(c.claimedAmount || c.amount || 0);
+                    const v = Number(c.variance || (amt - cap));
+                    return (
+                      <tr key={idx} className="hover:bg-slate-50/70 transition">
+                        <td className="py-2.5 px-3 font-mono font-bold text-blue-700">{c.claimNumber}</td>
+                        <td className="py-2.5 px-3 font-bold text-slate-900">{c.employee || c.employeeName}</td>
+                        <td className="py-2.5 px-3 font-bold text-slate-900">${amt.toFixed(2)}</td>
+                        <td className="py-2.5 px-3 text-slate-500">${cap.toFixed(2)}</td>
+                        <td className="py-2.5 px-3 font-bold text-rose-600">+${v.toFixed(2)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    return null;
+  };
+
   // Choose which result renderer to use based on intent
   const renderResultData = (res: AgentResult) => {
     if (!res.resultData) return null;
@@ -1207,6 +2436,12 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
 
     if (intent === 'GENERAL_CONVERSATION' || data?.isConversational) {
       return renderConversationalResult(data?.message ?? 'Hello! How can I assist you today?');
+    }
+
+    // Expense operations
+    if (intent.startsWith('EXPENSE_') || intent === 'EXPENSE_COMPLIANCE') {
+      const expNode = renderExpenseResult(data, intent, res);
+      if (expNode) return expNode;
     }
 
     // Job Opening Creation
@@ -1445,8 +2680,8 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
             </div>
 
             {/* User Message */}
-            {result.userMessage && result.state !== 'ANSWER_DIRECT' && (
-              <div className="mt-3 pt-3 border-t border-slate-100 text-xs text-slate-700 font-medium leading-relaxed">
+            {result.userMessage && result.state !== 'ANSWER_DIRECT' && !result.intent?.startsWith('EXPENSE_') && (
+              <div className="mt-3 pt-3 border-t border-slate-100 text-xs text-slate-700 font-medium leading-relaxed whitespace-pre-line">
                 {result.userMessage}
               </div>
             )}
@@ -1926,6 +3161,11 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
         </div>
       )}
 
+      {/* In-App Document Preview Modal */}
+      <DocumentPreviewModal
+        {...previewModalDoc}
+        onClose={() => setPreviewModalDoc(prev => ({ ...prev, isOpen: false }))}
+      />
     </div>
   );
 };

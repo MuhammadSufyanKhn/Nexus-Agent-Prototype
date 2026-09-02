@@ -52,6 +52,7 @@ public class SqlValidator : ISqlValidator
         "Departments",
         "Employees",
         "Budgets",
+        "MasterBudgets",
         "Expenses",
         "Policies",
         "Users",
@@ -60,6 +61,11 @@ public class SqlValidator : ISqlValidator
         "Approvals",
         "AuditLogs",
         "OnboardingTasks",
+        "Tickets",
+        "JobOpenings",
+        "CandidateApplications",
+        "Leaves",
+        "Documents",
         // Production SQL Agent table
         "DepartmentBudgets"
     };

@@ -4,6 +4,7 @@ using System.Data;
 using System.Diagnostics;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -46,7 +47,7 @@ Columns: DepartmentName VARCHAR, Year INT, Quarter VARCHAR, AllocatedAmount DECI
 
 Additional tables:
 Table: Departments — Columns: Id, Name, Description
-Table: Employees — Columns: Id, Name, Email, DepartmentId, Designation, Salary, ExperienceYears, Status
+Table: Employees — Columns: Id, Name, Email, DepartmentId, Designation, Salary, ExperienceYears, Status (INT: 1 = Active, 2 = Inactive, 3 = OnLeave, 4 = Terminated. When querying for active employees, always use Status = 1)
 Table: Budgets — Columns: Id, DepartmentId, Year, Quarter, AllocatedAmount, SpentAmount
 Table: MasterBudgets — Columns: Id, Year, TotalBudgetPool, AllocatedTotal, RemainingBalance, Description
 Table: Expenses — Columns: Id, EmployeeId, ExpenseType, Amount, ExpenseDate, Status, Description
@@ -244,6 +245,12 @@ Output: FALLBACK_TRIGGERED
         else if (t.StartsWith("```")) t = t[3..];
 
         if (t.EndsWith("```")) t = t[..^3];
+
+        // Sanitize varchar status values on Employees table to prevent varchar-to-int conversion errors
+        t = Regex.Replace(t, @"\b(?:e\.)?Status\s*=\s*['""]Active['""]", "Status = 1", RegexOptions.IgnoreCase);
+        t = Regex.Replace(t, @"\b(?:e\.)?Status\s*=\s*['""]Inactive['""]", "Status = 2", RegexOptions.IgnoreCase);
+        t = Regex.Replace(t, @"\b(?:e\.)?Status\s*=\s*['""]OnLeave['""]", "Status = 3", RegexOptions.IgnoreCase);
+        t = Regex.Replace(t, @"\b(?:e\.)?Status\s*=\s*['""]Terminated['""]", "Status = 4", RegexOptions.IgnoreCase);
 
         // Remove trailing semicolon — the validator will decide
         return t.Trim().TrimEnd(';').Trim();

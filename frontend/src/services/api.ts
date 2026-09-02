@@ -145,14 +145,24 @@ export interface Budget {
 
 export interface Expense {
   id: number;
+  claimNumber?: string;
   employeeId: number;
   employeeName?: string;
+  departmentName?: string;
   category: string;
   amount: number;
   description?: string;
-  status: number;
+  status: number | string;
   statusName?: string;
-  submittedAt: string;
+  complianceStatus?: string;
+  policyLimit?: number;
+  variance?: number;
+  flagReason?: string;
+  reviewedBy?: string;
+  reviewedDate?: string;
+  expenseDate?: string;
+  submittedDate?: string;
+  submittedAt?: string;
 }
 
 export interface AuditLogRecord {

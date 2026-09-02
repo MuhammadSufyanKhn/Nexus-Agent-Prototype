@@ -1817,5 +1817,125 @@
       "Verify integrity of executive approval audit log chain"
     ],
     "template": "Inspect cryptographic audit ledger for recent administrative actions"
+  },
+  {
+    "id": "expense_compliance_sweep",
+    "intent": "EXPENSE_COMPLIANCE_SWEEP",
+    "category": "Expense Review",
+    "label": "Run AI Policy Compliance Sweep",
+    "keywords": ["sweep", "compliance sweep", "audit claims", "policy compliance sweep"],
+    "aliases": ["audit all expense claims", "run policy compliance sweep"],
+    "examples": [
+      "Run AI Policy Compliance Sweep on all submitted employee expense claims."
+    ],
+    "template": "Run AI Policy Compliance Sweep on all submitted employee expense claims."
+  },
+  {
+    "id": "expense_filter_violations",
+    "intent": "EXPENSE_FILTER",
+    "category": "Expense Review",
+    "label": "Filter Policy Violations",
+    "keywords": ["filter expenses", "policy violation", "flagged expenses", "non compliant claims"],
+    "aliases": ["filter flagged claims", "show expense policy violations"],
+    "examples": [
+      "Filter expense claims by Policy Violation (Flagged) status."
+    ],
+    "template": "Filter expense claims by Policy Violation (Flagged) status."
+  },
+  {
+    "id": "expense_create_claim",
+    "intent": "EXPENSE_CREATE",
+    "category": "Expense Review",
+    "label": "Submit Expense Claim",
+    "keywords": ["submit expense", "create expense", "client dinner", "meal claim"],
+    "aliases": ["record meal expense", "submit client dinner claim"],
+    "examples": [
+      "Submit meal expense claim of $65.00 for Client Dinner under Sarah Ahmed."
+    ],
+    "template": "Submit meal expense claim of $65.00 for Client Dinner under Sarah Ahmed."
+  },
+  {
+    "id": "expense_read_exceeding_limit",
+    "intent": "EXPENSE_READ",
+    "category": "Expense Review",
+    "label": "Show Claims Exceeding Meal Limit",
+    "keywords": ["exceeding meal limit", "over limit", "meal policy limit", "show exceeding expenses"],
+    "aliases": ["list claims over $50 meal cap", "show meal policy violations"],
+    "examples": [
+      "Show expense claims exceeding the $50 daily meal limit policy."
+    ],
+    "template": "Show expense claims exceeding the $50 daily meal limit policy."
+  },
+  {
+    "id": "expense_approve_claim",
+    "intent": "EXPENSE_APPROVE",
+    "category": "Expense Review",
+    "label": "Approve Expense Claim",
+    "keywords": ["approve expense", "authorize reimbursement", "approve claim", "exp-4012"],
+    "aliases": ["approve travel reimbursement", "authorize expense claim"],
+    "examples": [
+      "Approve expense claim #EXP-4012 for $220.00 travel reimbursement."
+    ],
+    "template": "Approve expense claim #EXP-4012 for $220.00 travel reimbursement."
+  },
+  {
+    "id": "expense_reject_claim",
+    "intent": "EXPENSE_REJECT",
+    "category": "Expense Review",
+    "label": "Reject Non-Compliant Expense",
+    "keywords": ["reject expense", "decline claim", "non compliant equipment", "reject 850"],
+    "aliases": ["decline equipment claim", "reject policy violation claim"],
+    "examples": [
+      "Reject non-compliant equipment expense claim for $850.00."
+    ],
+    "template": "Reject non-compliant equipment expense claim for $850.00."
+  },
+  {
+    "id": "expense_monthly_analytics",
+    "intent": "EXPENSE_ANALYTICS",
+    "category": "Expense Review",
+    "label": "Monthly Expense Reimbursement Summary",
+    "keywords": ["reimbursement amount", "submitted this month", "monthly expenses", "total reimbursement"],
+    "aliases": ["show monthly expense totals", "calculate reimbursements this month"],
+    "examples": [
+      "Show total employee expense reimbursement amount submitted this month."
+    ],
+    "template": "Show total employee expense reimbursement amount submitted this month."
+  },
+  {
+    "id": "expense_flag_claim",
+    "intent": "EXPENSE_FLAG",
+    "category": "Expense Review",
+    "label": "Flag Claim for Policy Review",
+    "keywords": ["flag expense", "flag claim", "manager policy review", "exp-3089"],
+    "aliases": ["mark claim for review", "flag travel claim"],
+    "examples": [
+      "Flag expense claim #EXP-3089 for manager policy review."
+    ],
+    "template": "Flag expense claim #EXP-3089 for manager policy review."
+  },
+  {
+    "id": "expense_category_analytics",
+    "intent": "EXPENSE_CATEGORY_ANALYTICS",
+    "category": "Expense Review",
+    "label": "Expense Claims Breakdown by Category",
+    "keywords": ["breakdown by category", "category breakdown", "meal travel equipment software", "expense categories"],
+    "aliases": ["display expenses by category", "show category totals"],
+    "examples": [
+      "Display expense claims breakdown by category: Meal, Travel, Equipment, Software."
+    ],
+    "template": "Display expense claims breakdown by category: Meal, Travel, Equipment, Software."
+  },
+  {
+    "id": "expense_travel_variance",
+    "intent": "EXPENSE_POLICY_VARIANCE",
+    "category": "Expense Review",
+    "label": "Calculate Policy Limit Variance",
+    "keywords": ["policy limit variance", "flagged travel claims", "travel variance", "calculate variance"],
+    "aliases": ["calculate travel limit variance", "show variance on flagged claims"],
+    "examples": [
+      "Calculate policy limit variance for all flagged travel claims."
+    ],
+    "template": "Calculate policy limit variance for all flagged travel claims."
   }
 ]

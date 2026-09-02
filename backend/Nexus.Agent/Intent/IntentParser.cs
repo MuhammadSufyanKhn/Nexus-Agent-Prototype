@@ -167,6 +167,15 @@ CRITICAL DISAMBIGUATION RULES:
    JOB_OPENING_READ   → ""JOB_OPENING_READ""
    APPROVAL_ACTION    → ""APPROVAL_ACTION""
    APPROVAL_READ      → ""APPROVAL_READ""
+   EXPENSE_CREATE     → ""EXPENSE_CREATE""
+   EXPENSE_READ       → ""EXPENSE_READ""
+   EXPENSE_FILTER     → ""EXPENSE_FILTER""
+   EXPENSE_SWEEP      → ""EXPENSE_COMPLIANCE_SWEEP""
+   EXPENSE_APPROVE    → ""EXPENSE_APPROVE""
+   EXPENSE_REJECT     → ""EXPENSE_REJECT""
+   EXPENSE_FLAG       → ""EXPENSE_FLAG""
+   EXPENSE_ANALYTICS  → ""EXPENSE_ANALYTICS""
+   EXPENSE_VARIANCE   → ""EXPENSE_POLICY_VARIANCE""
    GENERAL_QUERY      → ""GENERAL_CONVERSATION""
 
 5. STRICT ANALYTICAL GUARD:
@@ -661,6 +670,163 @@ User: ""Screen submitted candidate CVs for Senior Full Stack Developer and score
     {
         var p = prompt.ToLowerInvariant();
 
+        // ── GUARD -1: EXPENSE REVIEW & POLICY COMPLIANCE GUARD ──
+        // (Highest priority: ensures expense commands never get misrouted to POLICY_READ or BUDGET_ANALYSIS)
+        bool isExpensePrompt = p.Contains("expense") || p.Contains("claim") || p.Contains("reimbursement") ||
+                               p.Contains("reimburse") || p.Contains("meal limit") || p.Contains("travel claim") ||
+                               p.Contains("flagged travel") || Regex.IsMatch(p, @"\bexp-\d{3,5}\b", RegexOptions.IgnoreCase);
+
+        if (isExpensePrompt)
+        {
+            result.TargetEntity = "EXPENSE";
+            result.RequiresApproval = false;
+            result.Confidence = 0.99;
+
+            // Extract Claim Number e.g. EXP-4012, #EXP-4012, EXP-3089
+            var claimMatch = Regex.Match(prompt, @"(?:#)?(EXP-\d{3,5})\b", RegexOptions.IgnoreCase);
+            if (claimMatch.Success)
+            {
+                result.Parameters["claimNumber"] = claimMatch.Groups[1].Value.ToUpperInvariant();
+                result.Entities["claimNumber"] = result.Parameters["claimNumber"].ToString()!;
+            }
+
+            // Extract Amount e.g. $65.00, $220.00, $850.00, 65, 220, 850
+            var amtMatch = Regex.Match(prompt, @"\$(\d+(?:\.\d{1,2})?)|(?:for|of)\s+\$?(\d+(?:\.\d{1,2})?)", RegexOptions.IgnoreCase);
+            if (amtMatch.Success)
+            {
+                var valStr = !string.IsNullOrWhiteSpace(amtMatch.Groups[1].Value) ? amtMatch.Groups[1].Value : amtMatch.Groups[2].Value;
+                if (decimal.TryParse(valStr, NumberStyles.Any, CultureInfo.InvariantCulture, out var amt))
+                {
+                    result.Parameters["amount"] = amt;
+                    result.Entities["amount"] = amt.ToString(CultureInfo.InvariantCulture);
+                }
+            }
+
+            // Extract Employee Name (check "under <Name>" first, then "for <Name>")
+            var empMatch = Regex.Match(prompt, @"under\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)", RegexOptions.IgnoreCase);
+            if (!empMatch.Success)
+            {
+                empMatch = Regex.Match(prompt, @"for\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)", RegexOptions.IgnoreCase);
+            }
+            if (empMatch.Success)
+            {
+                var name = empMatch.Groups[1].Value.Trim();
+                if (!name.Equals("client dinner", StringComparison.OrdinalIgnoreCase) && !name.Equals("manager policy", StringComparison.OrdinalIgnoreCase) && !name.Contains("dinner", StringComparison.OrdinalIgnoreCase))
+                {
+                    result.Parameters["employeeName"] = name;
+                    result.Entities["employeeName"] = name;
+                    result.Entities["name"] = name;
+                }
+            }
+
+            // Extract Category
+            if (p.Contains("meal") || p.Contains("dinner") || p.Contains("lunch"))
+            {
+                result.Parameters["category"] = "Meal";
+                result.Entities["category"] = "Meal";
+            }
+            else if (p.Contains("travel") || p.Contains("flight"))
+            {
+                result.Parameters["category"] = "Travel";
+                result.Entities["category"] = "Travel";
+            }
+            else if (p.Contains("equipment") || p.Contains("hardware"))
+            {
+                result.Parameters["category"] = "Equipment";
+                result.Entities["category"] = "Equipment";
+            }
+            else if (p.Contains("software") || p.Contains("license"))
+            {
+                result.Parameters["category"] = "Software";
+                result.Entities["category"] = "Software";
+            }
+
+            // Extract Description (e.g. "Client Dinner")
+            if (p.Contains("client dinner"))
+            {
+                result.Parameters["description"] = "Client Dinner";
+                result.Entities["description"] = "Client Dinner";
+            }
+
+            // 1. Compliance Sweep
+            if (p.Contains("sweep") || p.Contains("compliance sweep") || (p.Contains("compliance") && p.Contains("all submitted")))
+            {
+                result.Intent = IntentType.EXPENSE_COMPLIANCE_SWEEP.ToString();
+                result.Operation = "ANALYZE";
+            }
+            // 2. Policy Variance
+            else if (p.Contains("variance"))
+            {
+                result.Intent = IntentType.EXPENSE_POLICY_VARIANCE.ToString();
+                result.Operation = "ANALYZE";
+                if (!result.Parameters.ContainsKey("category"))
+                {
+                    result.Parameters["category"] = "Travel";
+                    result.Entities["category"] = "Travel";
+                }
+            }
+            // 3. Category Analytics
+            else if (p.Contains("breakdown") || p.Contains("by category") || p.Contains("category:") || p.Contains("meal, travel"))
+            {
+                result.Intent = IntentType.EXPENSE_CATEGORY_ANALYTICS.ToString();
+                result.Operation = "ANALYZE";
+            }
+            // 4. Monthly Analytics
+            else if ((p.Contains("total") || p.Contains("amount") || p.Contains("summary") || p.Contains("how much")) && (p.Contains("month") || p.Contains("this month")))
+            {
+                result.Intent = IntentType.EXPENSE_ANALYTICS.ToString();
+                result.Operation = "ANALYZE";
+            }
+            // 5. Filter Claims
+            else if (p.Contains("filter") || (p.Contains("violation") && !p.Contains("reject") && !p.Contains("decline")))
+            {
+                result.Intent = IntentType.EXPENSE_FILTER.ToString();
+                result.Operation = "READ";
+                result.Parameters["filterType"] = (p.Contains("violation") || p.Contains("flagged")) ? "FLAGGED" : "ALL";
+                result.Entities["filterType"] = result.Parameters["filterType"].ToString()!;
+            }
+            // 6. Approve Claim
+            else if (p.Contains("approve") || p.Contains("authorize"))
+            {
+                result.Intent = IntentType.EXPENSE_APPROVE.ToString();
+                result.Operation = "APPROVE";
+            }
+            // 7. Reject Claim
+            else if (p.Contains("reject") || p.Contains("decline"))
+            {
+                result.Intent = IntentType.EXPENSE_REJECT.ToString();
+                result.Operation = "REJECT";
+                result.Parameters["complianceStatus"] = "NonCompliant";
+            }
+            // 8. Flag Claim
+            else if (p.Contains("flag") && !p.Contains("flagged travel"))
+            {
+                result.Intent = IntentType.EXPENSE_FLAG.ToString();
+                result.Operation = "UPDATE";
+                result.Parameters["flagReason"] = "Manager Policy Review Required";
+            }
+            // 9. Submit / Create Claim
+            else if (p.Contains("submit") || p.Contains("create") || (p.Contains("claim") && p.Contains("under")))
+            {
+                result.Intent = IntentType.EXPENSE_CREATE.ToString();
+                result.Operation = "CREATE";
+            }
+            // 10. Read / Exceeding Limit Query
+            else
+            {
+                result.Intent = IntentType.EXPENSE_READ.ToString();
+                result.Operation = "READ";
+                if (p.Contains("exceed") || p.Contains("limit") || p.Contains("over"))
+                {
+                    result.Parameters["threshold"] = 50.00m;
+                    result.Parameters["category"] = "Meal";
+                    result.Entities["category"] = "Meal";
+                }
+            }
+
+            return;
+        }
+
         // GUARD 0: Job Opening Requisitions & Candidate Screening (high priority to prevent misclassification as TICKET_CREATE)
         bool isJobPrompt = p.Contains("job opening") || p.Contains("job posting") || p.Contains("new opening") ||
                            p.Contains("create opening") || p.Contains("open requisition") || p.Contains("create a job") ||
@@ -787,25 +953,365 @@ User: ""Screen submitted candidate CVs for Senior Full Stack Developer and score
             return;
         }
 
-        // GUARD 0.5: Candidate CV Screening Queries
-        bool isCvPrompt = p.Contains("screen cv") || p.Contains("screen candidate") || p.Contains("score match fit") ||
-                          p.Contains("cv screening") || (p.Contains("screen") && (p.Contains("candidate") || p.Contains("cv") || p.Contains("resume")));
-        if (isCvPrompt)
+        // ── DEDICATED ONBOARDING COMMANDS (Evaluated before generic employee creation) ──
+        if (p.Contains("resend") && (p.Contains("welcome email") || p.Contains("onboarding") || p.Contains("email")))
         {
-            result.Intent = IntentType.CV_SCREEN.ToString();
-            result.TargetEntity = "CV_CANDIDATE";
-            result.Operation = "ANALYZE";
+            result.Intent = IntentType.ONBOARDING_EMAIL_RESEND.ToString();
+            result.TargetEntity = "EMPLOYEE_ONBOARDING";
+            result.Operation = "NOTIFY";
             result.RequiresApproval = false;
             result.Confidence = 0.99;
 
-            var roleMatch = Regex.Match(prompt, @"(?:for|position)\s+([A-Za-z0-9\s\.\+#]+?)(?=(?:\s+position|\s+role|\s+and|\s+with|\s+requiring|\.|$))", RegexOptions.IgnoreCase);
-            string targetRole = roleMatch.Success && !string.IsNullOrWhiteSpace(roleMatch.Groups[1].Value)
-                ? roleMatch.Groups[1].Value.Trim()
-                : "Senior Full Stack Developer";
+            var emailMatch = Regex.Match(prompt, @"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b");
+            if (emailMatch.Success)
+            {
+                result.Parameters["email"] = emailMatch.Value;
+                result.Entities["email"] = emailMatch.Value;
+            }
 
-            result.Parameters["jobTitle"] = targetRole;
-            result.Entities["jobTitle"] = targetRole;
+            var nameMatch = Regex.Match(prompt, @"(?:to\s+|for\s+)([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\b(?:\s+at|\s+with|\s+in|\.|$)", RegexOptions.IgnoreCase);
+            if (nameMatch.Success)
+            {
+                result.Parameters["employeeName"] = nameMatch.Groups[1].Value.Trim();
+                result.Entities["employeeName"] = nameMatch.Groups[1].Value.Trim();
+            }
             return;
+        }
+
+        if (p.Contains("preview") && (p.Contains("document") || p.Contains("packet") || p.Contains("package") || p.Contains("welcome document")))
+        {
+            result.Intent = IntentType.ONBOARDING_DOCUMENT_PREVIEW.ToString();
+            result.TargetEntity = "DOCUMENT";
+            result.Operation = "READ";
+            result.RequiresApproval = false;
+            result.Confidence = 0.99;
+
+            var nameMatch = Regex.Match(prompt, @"(?:for\s+|of\s+)([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\b", RegexOptions.IgnoreCase);
+            if (nameMatch.Success)
+            {
+                result.Parameters["employeeName"] = nameMatch.Groups[1].Value.Trim();
+                result.Entities["employeeName"] = nameMatch.Groups[1].Value.Trim();
+            }
+            return;
+        }
+
+        if ((p.Contains("generate") || p.Contains("create") || p.Contains("prepare")) && (p.Contains("onboarding package") || p.Contains("onboarding document") || p.Contains("document package") || p.Contains("welcome document packet")))
+        {
+            result.Intent = IntentType.ONBOARDING_DOCUMENT_GENERATE.ToString();
+            result.TargetEntity = "DOCUMENT";
+            result.Operation = "CREATE";
+            result.RequiresApproval = false;
+            result.Confidence = 0.99;
+
+            var nameMatch = Regex.Match(prompt, @"(?:for\s+new\s+hire\s+|for\s+hire\s+|for\s+|hire\s+)(?!package|document)([\p{L}]+(?:\s+[\p{L}]+)?)\b", RegexOptions.IgnoreCase);
+            if (nameMatch.Success)
+            {
+                var val = nameMatch.Groups[1].Value.Trim();
+                if (!val.Equals("new hire", StringComparison.OrdinalIgnoreCase) &&
+                    !val.Equals("onboarding", StringComparison.OrdinalIgnoreCase) &&
+                    !val.Equals("document", StringComparison.OrdinalIgnoreCase) &&
+                    !val.Equals("package", StringComparison.OrdinalIgnoreCase))
+                {
+                    result.Parameters["employeeName"] = val;
+                    result.Entities["employeeName"] = val;
+                }
+            }
+            return;
+        }
+
+        if ((p.Contains("timeline") || p.Contains("milestone")) && (p.Contains("onboarding") || p.Contains("new hire") || p.Contains("newly hired")))
+        {
+            result.Intent = IntentType.ONBOARDING_PROGRESS_TIMELINE.ToString();
+            result.TargetEntity = "EMPLOYEE_ONBOARDING";
+            result.Operation = "READ";
+            result.RequiresApproval = false;
+            result.Confidence = 0.99;
+            return;
+        }
+
+        if ((p.Contains("trigger") || p.Contains("start") || p.Contains("launch")) && (p.Contains("multi-system") || p.Contains("onboarding workflow")))
+        {
+            result.Intent = IntentType.ONBOARDING_WORKFLOW_TRIGGER.ToString();
+            result.TargetEntity = "EMPLOYEE_ONBOARDING";
+            result.Operation = "EXECUTE";
+            result.RequiresApproval = true;
+            result.Confidence = 0.99;
+
+            var nameMatch = Regex.Match(prompt, @"(?:for\s+)([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\b", RegexOptions.IgnoreCase);
+            if (nameMatch.Success)
+            {
+                result.Parameters["employeeName"] = nameMatch.Groups[1].Value.Trim();
+                result.Entities["employeeName"] = nameMatch.Groups[1].Value.Trim();
+            }
+            var deptMatch = Regex.Match(prompt, @"(?:in\s+)([A-Za-z]+)\b", RegexOptions.IgnoreCase);
+            if (deptMatch.Success)
+            {
+                result.Parameters["department"] = deptMatch.Groups[1].Value.Trim();
+                result.Entities["department"] = deptMatch.Groups[1].Value.Trim();
+            }
+            return;
+        }
+
+        if (p.Contains("pol-hr-001") || (p.Contains("salary band") && p.Contains("onboarding")))
+        {
+            result.Intent = IntentType.ONBOARDING_SALARY_COMPLIANCE.ToString();
+            result.TargetEntity = "POLICY";
+            result.Operation = "ANALYZE";
+            result.RequiresApproval = false;
+            result.Confidence = 0.99;
+            return;
+        }
+
+        if ((p.Contains("task status") || p.Contains("task completion") || p.Contains("active onboarding task")) && p.Contains("department"))
+        {
+            result.Intent = IntentType.ONBOARDING_TASK_STATUS.ToString();
+            result.TargetEntity = "EMPLOYEE_ONBOARDING";
+            result.Operation = "READ";
+            result.RequiresApproval = false;
+            result.Confidence = 0.99;
+            return;
+        }
+
+        if (p.Contains("provision") && (p.Contains("credential") || p.Contains("hardware") || p.Contains("access")) && (p.Contains("new hire") || p.Contains("onboard")))
+        {
+            result.Intent = IntentType.ONBOARDING_PROVISION_ACCESS.ToString();
+            result.TargetEntity = "EMPLOYEE_ONBOARDING";
+            result.Operation = "CREATE";
+            result.RequiresApproval = true;
+            result.Confidence = 0.99;
+
+            var nameMatch = Regex.Match(prompt, @"(?:for\s+|hire\s+)([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\b", RegexOptions.IgnoreCase);
+            if (nameMatch.Success)
+            {
+                result.Parameters["employeeName"] = nameMatch.Groups[1].Value.Trim();
+                result.Entities["employeeName"] = nameMatch.Groups[1].Value.Trim();
+            }
+            return;
+        }
+
+        if (p.Contains("completed onboarding") || (p.Contains("onboarding") && (p.Contains("30 days") || p.Contains("past month"))))
+        {
+            result.Intent = IntentType.ONBOARDING_COMPLETED_LIST.ToString();
+            result.TargetEntity = "EMPLOYEE_ONBOARDING";
+            result.Operation = "READ";
+            result.RequiresApproval = false;
+            result.Confidence = 0.99;
+            return;
+        }
+
+        // ── DEDICATED CANDIDATE CV SCREENING COMMANDS ──
+        bool isCandidateCvQuery = p.Contains("candidate") || p.Contains("resume") || p.Contains("cv") || p.Contains("applicant");
+
+        if (isCandidateCvQuery)
+        {
+            // Helper to extract candidate name
+            var excluded = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            {
+                "technical", "skills", "skill", "resume", "cv", "position", "role",
+                "requirements", "applicant", "candidate", "engineer", "developer",
+                "manager", "product", "devops", "operations", "specialist", "leadership",
+                "experience", "project", "management", "new", "hire", "complete", "onboarding"
+            };
+
+            string? extractedCandidate = null;
+            var mExplicit = Regex.Matches(prompt, @"(?:candidate|applicant)\s+([\p{L}]+(?:\s+[\p{L}]+)?)\b", RegexOptions.IgnoreCase);
+            for (int i = mExplicit.Count - 1; i >= 0; i--)
+            {
+                var val = mExplicit[i].Groups[1].Value.Trim();
+                var first = val.Split(' ')[0];
+                if (!excluded.Contains(first) && !excluded.Contains(val))
+                {
+                    extractedCandidate = val;
+                    break;
+                }
+            }
+
+            if (extractedCandidate == null)
+            {
+                var matches = Regex.Matches(prompt, @"(?:for|of)\s+([\p{L}]+(?:\s+[\p{L}]+)?)\b", RegexOptions.IgnoreCase);
+                for (int i = matches.Count - 1; i >= 0; i--)
+                {
+                    var val = matches[i].Groups[1].Value.Trim();
+                    int idx = prompt.IndexOf(val, StringComparison.OrdinalIgnoreCase);
+                    string after = idx >= 0 && idx + val.Length < prompt.Length ? prompt.Substring(idx + val.Length) : "";
+                    if (after.TrimStart().StartsWith("position", StringComparison.OrdinalIgnoreCase) ||
+                        after.TrimStart().StartsWith("role", StringComparison.OrdinalIgnoreCase) ||
+                        after.TrimStart().StartsWith("requirements", StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+                    var first = val.Split(' ')[0];
+                    if (!excluded.Contains(first) && !excluded.Contains(val))
+                    {
+                        extractedCandidate = val;
+                        break;
+                    }
+                }
+            }
+
+            // Helper to extract job title/role
+            var roleMatch = Regex.Match(prompt, @"(?:for|against|as)\s+([A-Za-z0-9\s\.\+#\-/]+?)(?=(?:\s+position|\s+role|\s+requirements|\s+and|\s+with|\s+requiring|\.|$))", RegexOptions.IgnoreCase);
+            string? extractedRole = roleMatch.Success && !string.IsNullOrWhiteSpace(roleMatch.Groups[1].Value)
+                ? roleMatch.Groups[1].Value.Trim() : null;
+
+            if (extractedRole != null && (extractedRole.Equals("candidate", StringComparison.OrdinalIgnoreCase) || extractedRole.Equals("applicant", StringComparison.OrdinalIgnoreCase)))
+            {
+                extractedRole = null;
+            }
+
+            // 1. CANDIDATE_SKILL_ANALYSIS
+            if (p.Contains("technical skills") || (p.Contains("skills in") && (p.Contains("analyze") || p.Contains("check"))))
+            {
+                result.Intent = IntentType.CANDIDATE_SKILL_ANALYSIS.ToString();
+                result.TargetEntity = "CV_CANDIDATE";
+                result.Operation = "ANALYZE";
+                result.RequiresApproval = false;
+                result.Confidence = 0.99;
+
+                var skillsMatch = Regex.Match(prompt, @"(?:technical skills in|skills in|in)\s+([A-Za-z0-9\s,\.+#\-]+?)(?=(?:\s+for\s+|\s+against\s+|\.|$))", RegexOptions.IgnoreCase);
+                if (skillsMatch.Success)
+                {
+                    result.Parameters["skills"] = skillsMatch.Groups[1].Value.Trim();
+                    result.Entities["skills"] = skillsMatch.Groups[1].Value.Trim();
+                }
+                if (extractedCandidate != null)
+                {
+                    result.Parameters["candidateName"] = extractedCandidate;
+                    result.Entities["candidateName"] = extractedCandidate;
+                }
+                return;
+            }
+
+            // 2. CANDIDATE_EXPERIENCE_COMPARISON
+            if (p.Contains("compare") && (p.Contains("experience") || p.Contains("background")))
+            {
+                result.Intent = IntentType.CANDIDATE_EXPERIENCE_COMPARISON.ToString();
+                result.TargetEntity = "CV_CANDIDATE";
+                result.Operation = "ANALYZE";
+                result.RequiresApproval = false;
+                result.Confidence = 0.99;
+                if (!string.IsNullOrWhiteSpace(extractedRole)) result.Parameters["jobTitle"] = extractedRole;
+                if (extractedCandidate != null) result.Parameters["candidateName"] = extractedCandidate;
+                return;
+            }
+
+            // 3. CANDIDATE_QUALIFICATION_SUMMARY
+            if (p.Contains("qualification summary") || (p.Contains("key strengths") && (p.Contains("applicant") || p.Contains("candidate"))))
+            {
+                result.Intent = IntentType.CANDIDATE_QUALIFICATION_SUMMARY.ToString();
+                result.TargetEntity = "CV_CANDIDATE";
+                result.Operation = "ANALYZE";
+                result.RequiresApproval = false;
+                result.Confidence = 0.99;
+                if (extractedCandidate != null) result.Parameters["candidateName"] = extractedCandidate;
+                return;
+            }
+
+            // 4. CANDIDATE_SKILL_GAP_ANALYSIS
+            if (p.Contains("missing qualification") || p.Contains("skill gap") || p.Contains("skill gaps") || p.Contains("missing skill"))
+            {
+                result.Intent = IntentType.CANDIDATE_SKILL_GAP_ANALYSIS.ToString();
+                result.TargetEntity = "CV_CANDIDATE";
+                result.Operation = "ANALYZE";
+                result.RequiresApproval = false;
+                result.Confidence = 0.99;
+                if (!string.IsNullOrWhiteSpace(extractedRole)) result.Parameters["jobTitle"] = extractedRole;
+                if (extractedCandidate != null) result.Parameters["candidateName"] = extractedCandidate;
+                return;
+            }
+
+            // 5. CANDIDATE_SALARY_BAND_ANALYSIS
+            if ((p.Contains("salary band") || p.Contains("salary")) && (p.Contains("experience") || p.Contains("years")))
+            {
+                result.Intent = IntentType.CANDIDATE_SALARY_BAND_ANALYSIS.ToString();
+                result.TargetEntity = "CV_CANDIDATE";
+                result.Operation = "ANALYZE";
+                result.RequiresApproval = false;
+                result.Confidence = 0.99;
+                if (extractedCandidate != null) result.Parameters["candidateName"] = extractedCandidate;
+                return;
+            }
+
+            // 6. CANDIDATE_BACKGROUND_EVALUATION
+            if (p.Contains("background") && (p.Contains("evaluate") || p.Contains("check") || p.Contains("screen")))
+            {
+                result.Intent = IntentType.CANDIDATE_BACKGROUND_EVALUATION.ToString();
+                result.TargetEntity = "CV_CANDIDATE";
+                result.Operation = "ANALYZE";
+                result.RequiresApproval = false;
+                result.Confidence = 0.99;
+                if (!string.IsNullOrWhiteSpace(extractedRole)) result.Parameters["jobTitle"] = extractedRole;
+                if (extractedCandidate != null) result.Parameters["candidateName"] = extractedCandidate;
+                return;
+            }
+
+            // 7. CANDIDATE_LEADERSHIP_ANALYSIS
+            if (p.Contains("leadership") || p.Contains("project management"))
+            {
+                result.Intent = IntentType.CANDIDATE_LEADERSHIP_ANALYSIS.ToString();
+                result.TargetEntity = "CV_CANDIDATE";
+                result.Operation = "ANALYZE";
+                result.RequiresApproval = false;
+                result.Confidence = 0.99;
+                if (extractedCandidate != null)
+                {
+                    result.Parameters["candidateName"] = extractedCandidate;
+                    result.Entities["candidateName"] = extractedCandidate;
+                }
+                return;
+            }
+
+            // 8. CANDIDATE_INTERVIEW_QUESTIONS
+            if (p.Contains("interview question") || p.Contains("interview questions"))
+            {
+                result.Intent = IntentType.CANDIDATE_INTERVIEW_QUESTIONS.ToString();
+                result.TargetEntity = "CV_CANDIDATE";
+                result.Operation = "ANALYZE";
+                result.RequiresApproval = false;
+                result.Confidence = 0.99;
+                if (!string.IsNullOrWhiteSpace(extractedRole)) result.Parameters["jobTitle"] = extractedRole;
+                if (extractedCandidate != null) result.Parameters["candidateName"] = extractedCandidate;
+                return;
+            }
+
+            // 9. CANDIDATE_FIT_SCORE & CV_SCREEN
+            if (p.Contains("fit score") || p.Contains("fit-score") || (p.Contains("fit") && p.Contains("score")) || p.Contains("score match fit"))
+            {
+                bool isLegacyCvScreen = p.Contains("score match fit") || (p.Contains("screen") && p.Contains("position") && !p.Contains("evaluate"));
+                result.Intent = isLegacyCvScreen ? IntentType.CV_SCREEN.ToString() : IntentType.CANDIDATE_FIT_SCORE.ToString();
+                result.TargetEntity = "CV_CANDIDATE";
+                result.Operation = "ANALYZE";
+                result.RequiresApproval = false;
+                result.Confidence = 0.99;
+                if (!string.IsNullOrWhiteSpace(extractedRole))
+                {
+                    result.Parameters["jobTitle"] = extractedRole;
+                    result.Entities["jobTitle"] = extractedRole;
+                }
+                if (extractedCandidate != null)
+                {
+                    result.Parameters["candidateName"] = extractedCandidate;
+                    result.Entities["candidateName"] = extractedCandidate;
+                }
+                return;
+            }
+
+            // 10. CANDIDATE_SCREEN_ROLE
+            if (p.Contains("screen") && (p.Contains("against") || p.Contains("requirements") || p.Contains("role") || p.Contains("engineer") || p.Contains("developer")))
+            {
+                result.Intent = IntentType.CANDIDATE_SCREEN_ROLE.ToString();
+                result.TargetEntity = "CV_CANDIDATE";
+                result.Operation = "ANALYZE";
+                result.RequiresApproval = false;
+                result.Confidence = 0.99;
+                if (!string.IsNullOrWhiteSpace(extractedRole))
+                {
+                    result.Parameters["jobTitle"] = extractedRole;
+                    result.Entities["jobTitle"] = extractedRole;
+                }
+                if (extractedCandidate != null) result.Parameters["candidateName"] = extractedCandidate;
+                return;
+            }
         }
 
         // Check if prompt clearly indicates an employee action
@@ -1266,10 +1772,9 @@ User: ""Screen submitted candidate CVs for Senior Full Stack Developer and score
 
         // Employee creation — only when explicit creation verbs present AND NOT a read query
         bool isEmployeeCreation = !isReadQuery && !isDesignationUpdate && (
-                                   p.Contains("add employee") || p.Contains("create employee") || p.Contains("register employee") ||
-                                   p.Contains("new employee") ||
-                                   (p.Contains("onboard") && !p.Contains("onboarding status") && !p.Contains("recent") && !p.Contains("completion") && !p.Contains("this week")) ||
-                                   p.Contains("hire ") || p.Contains("new hire") ||
+                                   p.Contains("add employee") || p.Contains("create employee") || p.Contains("register employee") || p.Contains("new employee") ||
+                                   (p.Contains("onboard") && !p.Contains("email") && !p.Contains("resend") && !p.Contains("document") && !p.Contains("packet") && !p.Contains("package") && !p.Contains("preview") && !p.Contains("task") && !p.Contains("timeline") && !p.Contains("progress") && !p.Contains("provision") && !p.Contains("compliance") && !p.Contains("completed") && !p.Contains("onboarding status") && !p.Contains("recent") && !p.Contains("completion") && !p.Contains("this week")) ||
+                                   (p.Contains("hire ") && !p.Contains("new hire") && !p.Contains("new hire.")) || (p.Contains("new hire") && (p.Contains("add") || p.Contains("create") || p.Contains("register"))) ||
                                    p.Contains("paperwork") || p.Contains("orientation schedule") ||
                                    p.Contains("staff mein daal") || p.Contains("employee bana do") ||
                                    p.Contains("employee add karo") || p.Contains("ko employee") ||
@@ -1525,6 +2030,77 @@ User: ""Screen submitted candidate CVs for Senior Full Stack Developer and score
             result.TargetEntity = "EMPLOYEE";
             result.Operation = "UPDATE";
         }
+        // ── 2.5 Expense Review & Policy Compliance (Evaluated BEFORE generic Policy & Budget!) ──
+        else if (p.Contains("expense") || p.Contains("claim") || p.Contains("reimburse") || p.Contains("meal limit") || p.Contains("travel claim") || p.Contains("flagged travel") || Regex.IsMatch(p, @"\bexp-\d{3,5}\b", RegexOptions.IgnoreCase))
+        {
+            result.TargetEntity = "EXPENSE";
+
+            if (p.Contains("sweep") || p.Contains("compliance sweep"))
+            {
+                result.Intent = IntentType.EXPENSE_COMPLIANCE_SWEEP.ToString();
+                result.Operation = "ANALYZE";
+            }
+            else if (p.Contains("variance"))
+            {
+                result.Intent = IntentType.EXPENSE_POLICY_VARIANCE.ToString();
+                result.Operation = "ANALYZE";
+                result.Parameters["category"] = p.Contains("travel") ? "Travel" : "Meal";
+                result.Entities["category"] = result.Parameters["category"].ToString()!;
+            }
+            else if (p.Contains("breakdown") || p.Contains("by category") || p.Contains("category:"))
+            {
+                result.Intent = IntentType.EXPENSE_CATEGORY_ANALYTICS.ToString();
+                result.Operation = "ANALYZE";
+            }
+            else if ((p.Contains("total") || p.Contains("amount") || p.Contains("summary") || p.Contains("how much")) && (p.Contains("month") || p.Contains("this month")))
+            {
+                result.Intent = IntentType.EXPENSE_ANALYTICS.ToString();
+                result.Operation = "ANALYZE";
+            }
+            else if (p.Contains("filter") || (p.Contains("violation") && !p.Contains("reject") && !p.Contains("decline")))
+            {
+                result.Intent = IntentType.EXPENSE_FILTER.ToString();
+                result.Operation = "READ";
+                result.Parameters["filterType"] = (p.Contains("violation") || p.Contains("flagged")) ? "FLAGGED" : "ALL";
+                result.Entities["filterType"] = result.Parameters["filterType"].ToString()!;
+            }
+            else if (p.Contains("approve") || p.Contains("authorize"))
+            {
+                result.Intent = IntentType.EXPENSE_APPROVE.ToString();
+                result.Operation = "APPROVE";
+            }
+            else if (p.Contains("reject") || p.Contains("decline"))
+            {
+                result.Intent = IntentType.EXPENSE_REJECT.ToString();
+                result.Operation = "REJECT";
+            }
+            else if (p.Contains("flag") && !p.Contains("flagged travel"))
+            {
+                result.Intent = IntentType.EXPENSE_FLAG.ToString();
+                result.Operation = "UPDATE";
+            }
+            else if (!isReadQuery && (p.Contains("submit") || p.Contains("create") || p.Contains("add") || p.Contains("record") || p.Contains("dinner") || p.Contains("lunch")))
+            {
+                result.Intent = IntentType.EXPENSE_CREATE.ToString();
+                result.Operation = "CREATE";
+            }
+            else if (p.Contains("exceed") || p.Contains("limit") || p.Contains("over") || isReadQuery)
+            {
+                result.Intent = IntentType.EXPENSE_READ.ToString();
+                result.Operation = "READ";
+                if (p.Contains("meal"))
+                {
+                    result.Parameters["category"] = "Meal";
+                    result.Entities["category"] = "Meal";
+                    result.Parameters["threshold"] = 50.00m;
+                }
+            }
+            else
+            {
+                result.Intent = IntentType.EXPENSE_READ.ToString();
+                result.Operation = "READ";
+            }
+        }
         // ── 3. Policy CRUD ──
         else if (p.Contains("policy") || p.Contains("policies") || p.Contains("pol-"))
         {
@@ -1597,26 +2173,6 @@ User: ""Screen submitted candidate CVs for Senior Full Stack Developer and score
             else
             {
                 result.Intent = IntentType.BUDGET_READ.ToString();
-                result.Operation = "READ";
-            }
-        }
-        // Expense
-        else if (p.Contains("expense") || p.Contains("claim") || p.Contains("reimburse"))
-        {
-            result.TargetEntity = "EXPENSE";
-            if (p.Contains("comply") || p.Contains("complies") || p.Contains("policy") || p.Contains("allowed") || p.Contains("valid"))
-            {
-                result.Intent = IntentType.EXPENSE_COMPLIANCE.ToString();
-                result.Operation = "READ";
-            }
-            else if (!isReadQuery && (p.Contains("submit") || p.Contains("create") || p.Contains("add") || p.Contains("record")))
-            {
-                result.Intent = IntentType.EXPENSE_CREATE.ToString();
-                result.Operation = "CREATE";
-            }
-            else
-            {
-                result.Intent = IntentType.EXPENSE_READ.ToString();
                 result.Operation = "READ";
             }
         }

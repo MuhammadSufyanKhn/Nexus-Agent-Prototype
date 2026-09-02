@@ -152,8 +152,14 @@ public class CvAnalysisTool : IAgentTool
             experienceYears = 2;
         }
 
-        // 4. Technical Skill Matching
-        var knownTech = new[] { "C#", ".NET", ".NET Core", "ASP.NET", "SQL Server", "Entity Framework", "React", "TypeScript", "JavaScript", "Azure", "Docker", "REST API", "Git", "HTML5", "CSS3", "Redux", "Microservices", "T-SQL", "Tailwind", "AWS", "Kubernetes", "Terraform", "CI/CD" };
+        // 4. Competency & Skill Matching
+        var knownTech = new[] {
+            "C#", ".NET", ".NET Core", "ASP.NET", "SQL Server", "Entity Framework", "React", "TypeScript",
+            "JavaScript", "Azure", "Docker", "REST API", "Git", "HTML5", "CSS3", "Redux", "Microservices",
+            "T-SQL", "Tailwind", "AWS", "Kubernetes", "Terraform", "CI/CD",
+            "Product Strategy", "Roadmapping", "Agile", "Scrum", "User Research", "Stakeholder Management",
+            "Leadership", "HRIS", "Onboarding", "Compliance", "Benefits", "Payroll", "Talent Acquisition"
+        };
         var foundSkills = new List<string>();
 
         foreach (var tech in knownTech)
@@ -170,9 +176,19 @@ public class CvAnalysisTool : IAgentTool
         foreach (var req in requiredSkills)
         {
             var reqNorm = req.ToLowerInvariant().Replace(".js", "").Replace("core", "").Trim();
-            if (text.Contains(req.ToLowerInvariant()) || (!string.IsNullOrWhiteSpace(reqNorm) && text.Contains(reqNorm)))
+            var significantWords = req.ToLowerInvariant()
+                .Split(new[] { ' ', '/', '-', '&' }, StringSplitOptions.RemoveEmptyEntries)
+                .Where(w => w.Length > 3 && w != "with" && w != "from" && w != "management" && w != "support")
+                .ToList();
+
+            bool isMatched = text.Contains(req.ToLowerInvariant()) ||
+                             (!string.IsNullOrWhiteSpace(reqNorm) && text.Contains(reqNorm)) ||
+                             (significantWords.Count > 0 && significantWords.Any(w => text.Contains(w)));
+
+            if (isMatched)
             {
                 matchedCount++;
+                if (!foundSkills.Contains(req)) foundSkills.Add(req);
             }
             else
             {
