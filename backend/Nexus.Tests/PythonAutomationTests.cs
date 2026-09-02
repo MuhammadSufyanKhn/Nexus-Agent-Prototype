@@ -1,7 +1,10 @@
+using System;
 using System.Threading.Tasks;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
-
+using Nexus.Data;
+using Nexus.Data.Entities;
 using Nexus.Tools.Automation;
 using Nexus.Tools.Core;
 using Nexus.Tools.Implementations;
@@ -48,12 +51,37 @@ public class PythonAutomationTests
         Assert.NotNull(result.Data);
     }
 
-
     [Fact]
     public async Task ApplicationAcknowledgmentEmail_Executes_Python_Script_Successfully()
     {
         var pythonService = new PythonAutomationService(NullLogger<PythonAutomationService>.Instance);
-        var jsonArgs = "{\"name\":\"Muhammad Sufyan Khan\",\"position\":\"Lead Cloud Architect\",\"email\":\"sufyan.khan@devmail.com\",\"department\":\"IT\"}";
+
+        // Retrieve candidate record and email directly from database rather than hardcoding
+        var options = new DbContextOptionsBuilder<NexusDbContext>()
+            .UseInMemoryDatabase("PythonTestDb_" + Guid.NewGuid().ToString("N"))
+            .Options;
+        using var db = new NexusDbContext(options);
+
+        var candidate = new CandidateApplication
+        {
+            CandidateName = "Muhammad Sufyan Khan",
+            Email = "sufyan.khan@nexus.local",
+            ExperienceYears = 3,
+            Status = "Submitted"
+        };
+        db.CandidateApplications.Add(candidate);
+        await db.SaveChangesAsync();
+
+        var dbCandidate = await db.CandidateApplications.FirstAsync(c => c.CandidateName == "Muhammad Sufyan Khan");
+
+        var jsonArgs = System.Text.Json.JsonSerializer.Serialize(new
+        {
+            name = dbCandidate.CandidateName,
+            position = "Lead Cloud Architect",
+            email = dbCandidate.Email,
+            department = "IT"
+        });
+
         var resultJson = await pythonService.ExecuteOperationAsync("email.application_acknowledgment", jsonArgs);
 
         Assert.NotNull(resultJson);

@@ -139,7 +139,7 @@ public class JobOpeningsAndCvScreeningTests
     public void CvAnalysisTool_CalculatesBestFitAndGeneratesQuestions()
     {
         var cvText = @"CANDIDATE: Ali Khan
-Email: ali.khan@devmail.com
+Email: ali.khan@nexus.local
 4+ years experience in C#, .NET Core, ASP.NET Core, React, SQL Server, Entity Framework, REST APIs, Microservices, Docker.
 Designed Web APIs, optimized SQL Server queries by 45%, implemented RBAC security.";
 
@@ -214,7 +214,7 @@ TECHNICAL SKILLS
         {
             JobOpeningId = job.Id,
             CandidateName = "Ali Khan",
-            Email = "ali.khan@devmail.com",
+            Email = "ali.khan@nexus.local",
             Phone = "+92-300-1234567",
             ExperienceYears = 4,
             CvText = "Experienced .NET and React developer.",

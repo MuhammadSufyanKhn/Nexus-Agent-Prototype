@@ -180,7 +180,7 @@ export const CvCheckerView: React.FC<CvCheckerViewProps> = ({
 
   const loadSamplePdf = () => {
     const sampleText = `CANDIDATE: Ali Khan
-Email: ali.khan@devmail.com | Phone: +92-300-1234567 | Location: Lahore, PK
+Email: ali.khan@nexus.local | Phone: +92-300-1234567 | Location: Lahore, PK
 
 PROFESSIONAL SUMMARY:
 Results-driven Software Engineer with 4+ years of hands-on experience building enterprise Web APIs, Microservices, and SQL Server databases using C#, .NET Core 8.0, ASP.NET, Entity Framework, and React.js.

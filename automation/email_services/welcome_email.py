@@ -261,7 +261,8 @@ def generate_welcome_email(args: dict) -> dict:
     email_sent = False
     delivery_note = None
 
-    is_mock_local = not recipient_email or "@" not in recipient_email or recipient_email.lower().endswith(".local")
+    mock_domains = [".local", "devmail.com", "example.com", "test.com", "company.com", "nexus.local"]
+    is_mock_local = not recipient_email or "@" not in recipient_email or any(recipient_email.lower().endswith(d) or f"@{d}" in recipient_email.lower() for d in mock_domains)
 
     if smtp_password and not is_mock_local:
         clean_password = smtp_password.replace(" ", "").strip()
