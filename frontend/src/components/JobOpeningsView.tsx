@@ -167,7 +167,25 @@ export const JobOpeningsView: React.FC<JobOpeningsViewProps> = ({
       });
 
       setInvitationSuccessMsg(res.message);
+
+      // Optimistically update candidate status in local state so Onboard & Reject buttons show instantly
+      const candId = selectedInterviewCandidate.id;
+      const jobId = selectedInterviewJob?.id;
+      if (jobId) {
+        setJobApplications(prev => ({
+          ...prev,
+          [jobId]: (prev[jobId] || []).map(a => a.id === candId ? { ...a, status: 'Interview Scheduled' } : a)
+        }));
+      }
+
       await loadOpenings();
+      if (jobId) {
+        try {
+          const freshApps = await fetchCandidateApplications(jobId);
+          setJobApplications(prev => ({ ...prev, [jobId]: freshApps }));
+        } catch {}
+      }
+
       setTimeout(() => {
         setInterviewModalOpen(false);
         setInvitationSuccessMsg(null);
@@ -504,36 +522,36 @@ export const JobOpeningsView: React.FC<JobOpeningsViewProps> = ({
             return (
               <div 
                 key={job.id}
-                className="bg-white rounded-xl border border-slate-200 p-5 shadow-2xs space-y-4"
+                className="bg-white rounded-2xl border border-slate-200/90 p-6 shadow-sm space-y-5 hover:shadow-md transition-all"
               >
                 {/* Header Row */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-[11px] font-bold text-blue-700 bg-blue-50 border border-blue-200/80 px-2.5 py-0.5 rounded-lg shadow-2xs">
                         {job.department || 'General'}
                       </span>
-                      <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded flex items-center gap-1">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                      <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200/80 px-2.5 py-0.5 rounded-lg flex items-center gap-1.5 shadow-2xs">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shadow-emerald-500/50" />
                         {job.status || 'Active'}
                       </span>
-                      <span className="text-[11px] text-slate-400">
-                        {new Date(job.createdAt).toLocaleDateString()}
+                      <span className="text-xs text-slate-400 font-medium ml-1">
+                        Posted {new Date(job.createdAt).toLocaleDateString()}
                       </span>
                     </div>
 
-                    <h4 className="font-bold text-slate-900 text-base">{job.title}</h4>
+                    <h3 className="font-extrabold text-slate-900 text-lg tracking-tight">{job.title}</h3>
 
-                    <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
+                    <div className="flex flex-wrap items-center gap-3 text-xs text-slate-600 font-semibold pt-0.5">
                       {job.location && (
-                        <span className="flex items-center gap-1">
+                        <span className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 px-2.5 py-1 rounded-lg">
                           <MapPin className="w-3.5 h-3.5 text-slate-400" />
                           {job.location}
                         </span>
                       )}
                       {job.salaryRange && (
-                        <span className="flex items-center gap-1 text-emerald-700 font-semibold">
-                          <DollarSign className="w-3.5 h-3.5" />
+                        <span className="flex items-center gap-1.5 text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-lg font-bold">
+                          <DollarSign className="w-3.5 h-3.5 text-emerald-600" />
                           {job.salaryRange}
                         </span>
                       )}
@@ -541,8 +559,8 @@ export const JobOpeningsView: React.FC<JobOpeningsViewProps> = ({
                   </div>
 
                   {/* Actions & CV Counter Badge */}
-                  <div className="flex items-center gap-3 shrink-0">
-                    <div className="bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-lg flex items-center gap-2">
+                  <div className="flex items-center gap-3 shrink-0 self-start sm:self-auto">
+                    <div className="bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl flex items-center gap-2 shadow-2xs">
                       <FileText className="w-4 h-4 text-blue-600" />
                       <span className="text-xs font-bold text-slate-800">
                         {appCount} {appCount === 1 ? 'Resume' : 'Resumes'}
@@ -551,15 +569,15 @@ export const JobOpeningsView: React.FC<JobOpeningsViewProps> = ({
 
                     <button
                       onClick={() => onScreenCandidate ? onScreenCandidate(job.id) : null}
-                      className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-3.5 py-1.5 rounded-lg flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer"
+                      className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-bold px-4 py-2 rounded-xl flex items-center gap-1.5 shadow-md shadow-blue-500/20 transition-all cursor-pointer"
                     >
-                      <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                      <Sparkles className="w-3.5 h-3.5 text-cyan-300" />
                       <span>Screen in CV Tab</span>
                     </button>
 
                     <button
                       onClick={() => handleDelete(job.id, job.title)}
-                      className="p-1.5 text-slate-400 hover:text-rose-600 bg-slate-50 hover:bg-rose-50 border border-slate-200 rounded-lg transition-colors cursor-pointer"
+                      className="p-2 text-slate-400 hover:text-rose-600 bg-slate-50 hover:bg-rose-50 border border-slate-200 rounded-xl transition-all cursor-pointer"
                       title="Delete Requisition"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -569,19 +587,19 @@ export const JobOpeningsView: React.FC<JobOpeningsViewProps> = ({
 
                 {/* Description */}
                 {job.description && (
-                  <p className="text-xs text-slate-600 leading-relaxed">
+                  <p className="text-xs text-slate-600 leading-relaxed font-medium">
                     {job.description}
                   </p>
                 )}
 
                 {/* Core Responsibilities */}
                 {job.responsibilities && (
-                  <div className="bg-slate-50/80 border border-slate-200/80 rounded-lg p-2.5 space-y-1">
+                  <div className="bg-slate-50/90 border border-slate-200/80 rounded-xl p-3.5 space-y-1.5">
                     <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Core Responsibilities</span>
-                    <ul className="text-xs text-slate-600 space-y-0.5 pl-1">
+                    <ul className="text-xs text-slate-600 space-y-1 pl-1">
                       {job.responsibilities.split(/[\n•;]+/).map(r => r.trim()).filter(Boolean).map((resp, idx) => (
-                        <li key={idx} className="flex items-start gap-1.5">
-                          <span className="text-blue-600 font-bold">•</span>
+                        <li key={idx} className="flex items-start gap-2">
+                          <span className="text-blue-600 font-bold text-sm leading-none">•</span>
                           <span>{resp}</span>
                         </li>
                       ))}
@@ -589,29 +607,32 @@ export const JobOpeningsView: React.FC<JobOpeningsViewProps> = ({
                   </div>
                 )}
 
-                {/* Requirements Pills */}
+                {/* Technical Requirements Pills */}
                 {job.requirements && (
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    {job.requirements.split(/[,;|]/).map((req, idx) => {
-                      const trimmed = req.trim();
-                      if (!trimmed) return null;
-                      return (
-                        <span 
-                          key={idx}
-                          className="text-[11px] bg-slate-100 text-slate-700 border border-slate-200 px-2 py-0.5 rounded font-medium"
-                        >
-                          {trimmed}
-                        </span>
-                      );
-                    })}
+                  <div className="space-y-1.5">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Required Technical Skills</span>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {job.requirements.split(/[,;|]/).map((req, idx) => {
+                        const trimmed = req.trim();
+                        if (!trimmed) return null;
+                        return (
+                          <span 
+                            key={idx}
+                            className="text-xs bg-slate-100 text-slate-800 border border-slate-200/80 px-2.5 py-1 rounded-lg font-medium shadow-2xs"
+                          >
+                            {trimmed}
+                          </span>
+                        );
+                      })}
+                    </div>
                   </div>
                 )}
 
-                {/* Public Candidate Portal Link Bar */}
-                <div className="bg-slate-50 border border-slate-200 rounded-lg p-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-                  <div className="flex items-center gap-2 overflow-hidden text-xs text-slate-600">
-                    <span className="font-semibold text-slate-800 shrink-0">Candidate Link:</span>
-                    <span className="font-mono text-blue-700 text-[11px] truncate select-all bg-white px-2 py-0.5 rounded border border-slate-200">
+                {/* Shareable Candidate Portal Link Bar */}
+                <div className="bg-gradient-to-r from-slate-50 via-blue-50/30 to-slate-50 border border-slate-200 rounded-xl p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-2.5 overflow-hidden text-xs text-slate-600">
+                    <span className="font-bold text-slate-800 shrink-0">Candidate Link:</span>
+                    <span className="font-mono text-blue-700 text-xs truncate select-all bg-white px-2.5 py-1 rounded-lg border border-slate-200 shadow-2xs">
                       {link}
                     </span>
                   </div>
@@ -619,7 +640,7 @@ export const JobOpeningsView: React.FC<JobOpeningsViewProps> = ({
                   <div className="flex items-center gap-2 shrink-0">
                     <button
                       onClick={() => handleCopyLink(job.id)}
-                      className="flex items-center gap-1 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-100 px-2.5 py-1 rounded border border-slate-200 transition-colors cursor-pointer"
+                      className="flex items-center gap-1.5 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200 transition-all cursor-pointer shadow-2xs"
                     >
                       {copiedJobId === job.id ? (
                         <>
@@ -628,7 +649,7 @@ export const JobOpeningsView: React.FC<JobOpeningsViewProps> = ({
                         </>
                       ) : (
                         <>
-                          <Copy className="w-3.5 h-3.5" />
+                          <Copy className="w-3.5 h-3.5 text-slate-500" />
                           <span>Copy Link</span>
                         </>
                       )}
@@ -636,7 +657,7 @@ export const JobOpeningsView: React.FC<JobOpeningsViewProps> = ({
 
                     <button
                       onClick={() => handleOpenCandidatePortal(job.id)}
-                      className="flex items-center gap-1 text-xs font-bold text-white bg-slate-800 hover:bg-slate-900 px-3 py-1 rounded transition-colors cursor-pointer"
+                      className="flex items-center gap-1.5 text-xs font-bold text-white bg-slate-900 hover:bg-slate-800 px-3.5 py-1.5 rounded-lg transition-all cursor-pointer shadow-sm"
                     >
                       <ExternalLink className="w-3.5 h-3.5" />
                       <span>Open Candidate Portal</span>
@@ -646,10 +667,10 @@ export const JobOpeningsView: React.FC<JobOpeningsViewProps> = ({
 
                 {/* Shortlisted Candidates for Interview */}
                 {shortlistedApplicants.length > 0 && (
-                  <div className="bg-emerald-50/70 border border-emerald-200/90 rounded-xl p-4 space-y-3">
+                  <div className="bg-emerald-50/80 border border-emerald-200 rounded-2xl p-4 space-y-3.5 shadow-2xs">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <BookmarkCheck className="w-4 h-4 text-emerald-700" />
+                        <BookmarkCheck className="w-4.5 h-4.5 text-emerald-700" />
                         <span className="text-xs font-bold text-emerald-950">
                           Shortlisted Candidates for Interview ({shortlistedApplicants.length})
                         </span>
@@ -659,29 +680,29 @@ export const JobOpeningsView: React.FC<JobOpeningsViewProps> = ({
                       </span>
                     </div>
 
-                    <div className="space-y-2">
+                    <div className="space-y-2.5">
                       {shortlistedApplicants.map((cand) => (
                         <div 
                           key={cand.id} 
-                          className="bg-white border border-emerald-200 rounded-lg p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs"
+                          className="bg-white border border-emerald-200/90 rounded-xl p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs hover:shadow-xs transition-all"
                         >
-                          <div className="flex items-center gap-2.5">
-                            <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold text-xs">
+                          <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-emerald-600 to-teal-500 text-white font-black text-xs flex items-center justify-center shadow-xs">
                               {cand.candidateName ? cand.candidateName.charAt(0).toUpperCase() : 'C'}
                             </div>
                             <div>
                               <div className="flex items-center gap-2 flex-wrap">
-                                <span className="text-xs font-bold text-slate-900">{cand.candidateName}</span>
-                                <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold border ${cand.status === 'Interview Scheduled' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-emerald-50 text-emerald-800 border-emerald-200'}`}>
+                                <span className="text-xs font-extrabold text-slate-900 uppercase tracking-tight">{cand.candidateName}</span>
+                                <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-bold border ${cand.status === 'Interview Scheduled' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-emerald-50 text-emerald-800 border-emerald-200'}`}>
                                   {cand.status === 'Interview Scheduled' ? '🗓️ Interview Scheduled' : '⭐ Shortlisted'}
                                 </span>
                                 {cand.fitScore && (
-                                  <span className="text-[10px] bg-amber-50 text-amber-800 border border-amber-200 px-1.5 py-0.5 rounded font-bold">
+                                  <span className="text-[10px] bg-amber-50 text-amber-800 border border-amber-200 px-2 py-0.5 rounded-full font-bold">
                                     {cand.fitScore}% Fit
                                   </span>
                                 )}
                               </div>
-                              <div className="text-[11px] text-slate-500">
+                              <div className="text-[11px] text-slate-500 font-medium mt-0.5">
                                 {cand.email} • {cand.experienceYears} Years Exp • Submitted {new Date(cand.submittedAt).toLocaleDateString()}
                               </div>
                             </div>
@@ -690,7 +711,7 @@ export const JobOpeningsView: React.FC<JobOpeningsViewProps> = ({
                           {cand.status === 'Shortlisted' ? (
                             <button
                               onClick={() => handleOpenInterviewModal(job, cand)}
-                              className="text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] px-3.5 py-1.5 rounded-lg flex items-center gap-1.5 shadow-2xs transition-all cursor-pointer self-end sm:self-auto"
+                              className="text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] px-4 py-2 rounded-xl flex items-center gap-1.5 shadow-sm transition-all cursor-pointer self-end sm:self-auto"
                             >
                               <Calendar className="w-3.5 h-3.5" />
                               <span>Send Interview Invitation</span>
@@ -699,7 +720,7 @@ export const JobOpeningsView: React.FC<JobOpeningsViewProps> = ({
                             <div className="flex items-center gap-2 self-end sm:self-auto flex-wrap">
                               <button
                                 onClick={() => handlePostInterviewReject(job, cand)}
-                                className="text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 active:scale-[0.98] px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all cursor-pointer"
+                                className="text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 active:scale-[0.98] px-3.5 py-2 rounded-xl flex items-center gap-1.5 transition-all cursor-pointer"
                                 title="Reject candidate and dispatch post-interview rejection email"
                               >
                                 <XCircle className="w-3.5 h-3.5 text-rose-600" />
@@ -707,8 +728,8 @@ export const JobOpeningsView: React.FC<JobOpeningsViewProps> = ({
                               </button>
                               <button
                                 onClick={() => handleOpenOnboardModal(job, cand)}
-                                className="text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] px-3.5 py-1.5 rounded-lg flex items-center gap-1.5 shadow-xs transition-all cursor-pointer"
-                                title="Onboard this candidate (editable salary sent to Approvals)"
+                                className="text-xs font-bold text-white bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 active:scale-[0.98] px-4 py-2 rounded-xl flex items-center gap-1.5 shadow-md shadow-emerald-500/20 transition-all cursor-pointer"
+                                title="Onboard this candidate"
                               >
                                 <UserPlus className="w-3.5 h-3.5" />
                                 <span>Onboard This Employee</span>

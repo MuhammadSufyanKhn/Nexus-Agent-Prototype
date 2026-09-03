@@ -52,6 +52,38 @@ public class LlmController : ControllerBase
 
         return Ok(response);
     }
+
+    /// <summary>
+    /// POST /api/llm/suggestions - Generates Gemini AI-powered prompt completions
+    /// </summary>
+    [HttpPost("suggestions")]
+    public async Task<IActionResult> GetGeminiSuggestions([FromBody] SuggestionRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.Input))
+            return Ok(Array.Empty<object>());
+
+        var systemPrompt = @"You are Gemini AI Copilot for Nexus HR Enterprise. 
+Given a user's partial prompt input, generate 3 high-quality, professional, policy-compliant HR/Finance command completions.
+Return ONLY a JSON array of objects with keys: ""label"", ""completedText"", ""category"".
+Categories must be one of: ""Talent Acquisition"", ""Budget Management"", ""Employee Management"", ""Expense Review"", ""HR Governance"".
+Example format:
+[
+  { ""label"": ""Onboard New Employee"", ""completedText"": ""Onboard Sarah Jenkins as Senior Developer in IT at $120,000"", ""category"": ""Talent Acquisition"" }
+]";
+
+        var response = await _llmService.GenerateCompletionAsync(
+            prompt: $"Generate 3 Copilot completions for input: '{request.Input}'",
+            systemPrompt: systemPrompt,
+            requestJson: true
+        );
+
+        if (response.IsSuccess && !string.IsNullOrWhiteSpace(response.Content))
+        {
+            return Content(response.Content, "application/json");
+        }
+
+        return Ok(Array.Empty<object>());
+    }
 }
 
 public class TestPromptRequest
@@ -62,4 +94,9 @@ public class TestPromptRequest
     public string? SystemPrompt { get; set; }
 
     public bool RequestJson { get; set; } = false;
+}
+
+public class SuggestionRequest
+{
+    public string Input { get; set; } = string.Empty;
 }

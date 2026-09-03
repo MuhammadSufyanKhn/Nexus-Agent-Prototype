@@ -11,9 +11,9 @@ import {
   ShieldCheck,
   Activity,
   Shield,
-  Ticket,
   Sparkles,
-  Briefcase
+  Briefcase,
+  BookOpen
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -33,17 +33,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
 
   const coreNav = [
-    { id: 'dashboard',   label: 'Dashboard',          icon: LayoutDashboard },
-    { id: 'console',     label: 'AI Assistant',        icon: Bot, highlight: true },
-    { id: 'employees',   label: 'Employee Directory',  icon: Users },
-    { id: 'departments', label: 'Departments',         icon: Building2 },
+    { id: 'dashboard',   label: 'Dashboard',            icon: LayoutDashboard },
+    { id: 'console',     label: 'AI Assistant',          icon: Bot, highlight: true },
+    { id: 'instructions', label: 'Instructions & Guide', icon: BookOpen },
+    { id: 'employees',   label: 'Employee Directory',    icon: Users },
+    { id: 'departments', label: 'Departments',           icon: Building2 },
   ];
 
   const opsNav = [
     { id: 'jobs',        label: 'Job Openings',        icon: Briefcase },
     { id: 'cv',          label: 'CV Screening',        icon: Sparkles },
     { id: 'policies',    label: 'Policy Center',       icon: FileText },
-    { id: 'tickets',     label: 'Service Desk',        icon: Ticket },
     { id: 'approvals',   label: 'HR Approvals',        icon: CheckSquare, badge: pendingCount },
     { id: 'expenses',    label: 'Expense Review',      icon: Receipt },
     { id: 'onboarding',  label: 'Onboarding Hub',      icon: UserPlus },
@@ -85,7 +85,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <button
                 key={item.id}
                 onClick={() => setActiveTab(item.id)}
-                className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold transition-all ${
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                   isActive
                     ? 'bg-blue-600 text-white shadow-sm font-bold'
                     : 'text-slate-400 hover:bg-slate-800/80 hover:text-slate-200'
@@ -112,7 +112,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <button
                 key={item.id}
                 onClick={() => setActiveTab(item.id)}
-                className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold transition-all ${
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                   isActive
                     ? 'bg-blue-600 text-white shadow-sm font-bold'
                     : 'text-slate-400 hover:bg-slate-800/80 hover:text-slate-200'
@@ -147,7 +147,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <button
                 key={item.id}
                 onClick={() => setActiveTab(item.id)}
-                className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold transition-all ${
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                   isActive
                     ? 'bg-blue-600 text-white shadow-sm font-bold'
                     : 'text-slate-400 hover:bg-slate-800/80 hover:text-slate-200'
@@ -169,7 +169,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-slate-800/50 border border-slate-800/80 text-xs">
           <div className="flex items-center gap-2">
             <Activity className="w-3.5 h-3.5 text-slate-400" />
-            <span className="text-slate-300 font-medium">AI Copilot</span>
+            <span className="text-slate-300 font-medium">AI Assistant</span>
           </div>
           <div className="flex items-center gap-1.5">
             <span className={`w-2 h-2 rounded-full ${

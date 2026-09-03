@@ -72,7 +72,13 @@ export const CandidateApplicationPortal: React.FC<CandidateApplicationPortalProp
         if (found) {
           setSelectedJob(found);
           setSelectedJobId(found.id);
+        } else if (data.length > 0) {
+          setSelectedJob(data[0]);
+          setSelectedJobId(data[0].id);
         }
+      } else if (data.length > 0) {
+        setSelectedJob(data[0]);
+        setSelectedJobId(data[0].id);
       }
     } catch (err: any) {
       setError(err.message || 'Failed to load available career openings.');
@@ -346,13 +352,13 @@ export const CandidateApplicationPortal: React.FC<CandidateApplicationPortalProp
                 })}
               </div>
 
-              {/* Job Selector Cards / List if multiple openings in filtered department */}
-              {filteredJobs.length > 1 && (
-                <div className="pt-3 border-t border-slate-100">
-                  <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">
-                    Available Roles in {selectedDeptFilter === 'ALL' ? 'Company' : selectedDeptFilter}:
+              {/* Job Selector Cards / List - Always show available roles in filtered department */}
+              {filteredJobs.length > 0 && (
+                <div className="pt-3.5 border-t border-slate-100 space-y-2">
+                  <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                    Available Roles in {selectedDeptFilter === 'ALL' ? 'All Departments' : selectedDeptFilter}:
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                     {filteredJobs.map((job) => {
                       const isCurrent = selectedJob?.id === job.id;
                       return (
@@ -362,22 +368,27 @@ export const CandidateApplicationPortal: React.FC<CandidateApplicationPortalProp
                             setSelectedJob(job);
                             setSelectedJobId(job.id);
                           }}
-                          className={`p-3 rounded-lg border text-left cursor-pointer transition-all ${
+                          className={`p-3.5 rounded-xl border text-left cursor-pointer transition-all ${
                             isCurrent
-                              ? 'bg-blue-50/70 border-blue-500 ring-1 ring-blue-500 shadow-2xs'
-                              : 'bg-slate-50 hover:bg-slate-100 border-slate-200'
+                              ? 'bg-gradient-to-r from-blue-50 to-indigo-50/70 border-blue-500 ring-2 ring-blue-500/20 shadow-xs'
+                              : 'bg-white hover:bg-slate-50 border-slate-200 shadow-2xs hover:border-slate-300'
                           }`}
                         >
                           <div className="flex items-center justify-between mb-1">
-                            <span className="text-[10px] font-bold text-blue-700 bg-white px-1.5 py-0.5 rounded border border-blue-200">
+                            <span className="text-[10px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
                               {job.department}
                             </span>
-                            {isCurrent && <Check className="w-3.5 h-3.5 text-blue-600" />}
+                            {isCurrent && <Check className="w-4 h-4 text-blue-600 font-bold" />}
                           </div>
-                          <h4 className="text-xs font-bold text-slate-900 truncate">{job.title}</h4>
-                          <div className="text-[11px] text-slate-500 mt-1 flex items-center gap-1">
-                            <MapPin className="w-3 h-3 text-slate-400" />
-                            <span className="truncate">{job.location || 'Remote'}</span>
+                          <h4 className="text-xs font-extrabold text-slate-900 truncate">{job.title}</h4>
+                          <div className="text-[11px] text-slate-500 mt-1 flex items-center justify-between">
+                            <span className="flex items-center gap-1 truncate">
+                              <MapPin className="w-3 h-3 text-slate-400" />
+                              <span className="truncate">{job.location || 'Remote'}</span>
+                            </span>
+                            {job.salaryRange && (
+                              <span className="text-[10px] font-bold text-emerald-700">{job.salaryRange}</span>
+                            )}
                           </div>
                         </div>
                       );
@@ -403,32 +414,32 @@ export const CandidateApplicationPortal: React.FC<CandidateApplicationPortalProp
                   ];
 
               return (
-                <div className="bg-white rounded-xl border border-slate-200 p-6 sm:p-8 shadow-2xs space-y-6">
+                <div className="bg-white rounded-2xl border border-slate-200/90 p-6 sm:p-8 shadow-sm space-y-6">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-5">
-                    <div className="space-y-1.5">
-                      <div className="flex items-center gap-2">
-                        <span className="text-[11px] font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2.5 py-0.5 rounded">
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-[11px] font-bold text-blue-700 bg-blue-50 border border-blue-200 px-3 py-1 rounded-lg shadow-2xs">
                           {selectedJob.department} Department
                         </span>
-                        <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded flex items-center gap-1.5">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                        <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-lg flex items-center gap-1.5 shadow-2xs">
+                          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shadow-emerald-500/50" />
                           Active Opening
                         </span>
                       </div>
-                      <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">{selectedJob.title}</h1>
+                      <h1 className="text-2xl font-black text-slate-900 tracking-tight">{selectedJob.title}</h1>
                     </div>
 
                     <div className="flex flex-wrap items-center gap-3">
                       <div className="flex flex-wrap items-center gap-2 text-xs font-semibold">
                         {selectedJob.location && (
-                          <span className="flex items-center gap-1.5 text-slate-600 bg-slate-50 border border-slate-200 px-2.5 py-1.5 rounded-lg">
+                          <span className="flex items-center gap-1.5 text-slate-700 bg-slate-100/80 border border-slate-200 px-3 py-2 rounded-xl">
                             <MapPin className="w-3.5 h-3.5 text-slate-400" />
                             {selectedJob.location}
                           </span>
                         )}
                         {selectedJob.salaryRange && (
-                          <span className="flex items-center gap-1.5 text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-lg">
-                            <DollarSign className="w-3.5 h-3.5" />
+                          <span className="flex items-center gap-1.5 text-emerald-700 bg-emerald-50 border border-emerald-200 px-3.5 py-2 rounded-xl font-bold">
+                            <DollarSign className="w-3.5 h-3.5 text-emerald-600" />
                             {selectedJob.salaryRange}
                           </span>
                         )}
@@ -440,32 +451,32 @@ export const CandidateApplicationPortal: React.FC<CandidateApplicationPortalProp
                           setError(null);
                           setIsApplyModalOpen(true);
                         }}
-                        className="px-5 py-2 bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white rounded-lg font-bold text-xs shadow-xs flex items-center gap-2 cursor-pointer transition-all shrink-0"
+                        className="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 active:scale-[0.98] text-white rounded-xl font-bold text-xs shadow-md shadow-blue-500/20 flex items-center gap-2 cursor-pointer transition-all shrink-0"
                       >
-                        <Upload className="w-3.5 h-3.5" />
+                        <Upload className="w-4 h-4" />
                         <span>Apply Now</span>
                       </button>
                     </div>
                   </div>
 
                   {/* Role Description / Overview */}
-                  <div>
-                    <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Role Overview</h3>
-                    <p className="text-xs text-slate-600 leading-relaxed">{selectedJob.description}</p>
+                  <div className="space-y-1.5">
+                    <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Role Overview</h3>
+                    <p className="text-xs text-slate-600 leading-relaxed font-medium">{selectedJob.description}</p>
                   </div>
 
                   {/* Key Technical Requirements */}
                   {selectedJob.requirements && (
-                    <div>
-                      <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2.5">Key Technical Requirements</h3>
-                      <div className="flex flex-wrap gap-1.5">
+                    <div className="space-y-2">
+                      <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Key Technical Requirements</h3>
+                      <div className="flex flex-wrap gap-2">
                         {selectedJob.requirements.split(/[,;|]/).map((req, idx) => {
                           const trimmed = req.trim();
                           if (!trimmed) return null;
                           return (
                             <span 
                               key={idx}
-                              className="text-xs bg-slate-100 text-slate-800 border border-slate-200 px-2.5 py-1 rounded font-medium"
+                              className="text-xs bg-slate-100 text-slate-800 border border-slate-200/80 px-3 py-1 rounded-lg font-semibold shadow-2xs"
                             >
                               {trimmed}
                             </span>
@@ -475,58 +486,60 @@ export const CandidateApplicationPortal: React.FC<CandidateApplicationPortalProp
                     </div>
                   )}
 
-                  {/* Core Responsibilities (Dynamic per Job Opening) */}
-                  <div className="space-y-2 pt-2 border-t border-slate-100">
-                    <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Core Responsibilities</h3>
-                    <ul className="space-y-1.5 text-xs text-slate-600">
+                  {/* Core Responsibilities */}
+                  <div className="space-y-2.5 pt-2 border-t border-slate-100">
+                    <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Core Responsibilities</h3>
+                    <ul className="space-y-2 text-xs text-slate-600 font-medium">
                       {displayResponsibilities.map((resp, idx) => (
-                        <li key={idx} className="flex items-start gap-2">
-                          <span className="text-blue-600 font-bold">•</span>
-                          <span>{resp}</span>
+                        <li key={idx} className="flex items-start gap-2.5">
+                          <span className="w-4 h-4 rounded-full bg-blue-50 text-blue-600 font-bold text-[10px] flex items-center justify-center shrink-0 mt-0.5 border border-blue-200">
+                            ✓
+                          </span>
+                          <span className="leading-relaxed">{resp}</span>
                         </li>
                       ))}
                     </ul>
                   </div>
 
-                  {/* Perks & Benefits Grid (Why Join Nexus Enterprise) */}
-                  <div className="space-y-2.5 pt-2 border-t border-slate-100">
-                    <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Why Join Nexus Enterprise</h3>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-                      <div className="bg-slate-50 border border-slate-200 p-3.5 rounded-xl">
-                        <div className="text-xs font-bold text-emerald-700 flex items-center gap-1.5 mb-1">
+                  {/* Perks & Benefits Grid */}
+                  <div className="space-y-3 pt-2 border-t border-slate-100">
+                    <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Why Join Nexus Enterprise</h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3.5">
+                      <div className="bg-gradient-to-b from-slate-50 to-white border border-slate-200/90 p-4 rounded-xl shadow-2xs hover:shadow-xs transition-all">
+                        <div className="text-xs font-extrabold text-emerald-700 flex items-center gap-1.5 mb-1">
                           💰 Top Compensation
                         </div>
-                        <p className="text-[11px] text-slate-500">Competitive salary benchmarked against top tech tiers.</p>
+                        <p className="text-[11px] text-slate-500 leading-relaxed font-medium">Competitive salary benchmarked against top tech tiers.</p>
                       </div>
 
-                      <div className="bg-slate-50 border border-slate-200 p-3.5 rounded-xl">
-                        <div className="text-xs font-bold text-blue-700 flex items-center gap-1.5 mb-1">
+                      <div className="bg-gradient-to-b from-slate-50 to-white border border-slate-200/90 p-4 rounded-xl shadow-2xs hover:shadow-xs transition-all">
+                        <div className="text-xs font-extrabold text-blue-700 flex items-center gap-1.5 mb-1">
                           🌐 Remote / Hybrid
                         </div>
-                        <p className="text-[11px] text-slate-500">Up to 2 days/week remote + $500 home office stipend.</p>
+                        <p className="text-[11px] text-slate-500 leading-relaxed font-medium">Up to 2 days/week remote + $500 home office stipend.</p>
                       </div>
 
-                      <div className="bg-slate-50 border border-slate-200 p-3.5 rounded-xl">
-                        <div className="text-xs font-bold text-purple-700 flex items-center gap-1.5 mb-1">
+                      <div className="bg-gradient-to-b from-slate-50 to-white border border-slate-200/90 p-4 rounded-xl shadow-2xs hover:shadow-xs transition-all">
+                        <div className="text-xs font-extrabold text-purple-700 flex items-center gap-1.5 mb-1">
                           🩺 Health &amp; Wellness
                         </div>
-                        <p className="text-[11px] text-slate-500">Comprehensive health, vision, and mental wellness coverage.</p>
+                        <p className="text-[11px] text-slate-500 leading-relaxed font-medium">Comprehensive health, vision, and mental wellness coverage.</p>
                       </div>
 
-                      <div className="bg-slate-50 border border-slate-200 p-3.5 rounded-xl">
-                        <div className="text-xs font-bold text-amber-700 flex items-center gap-1.5 mb-1">
+                      <div className="bg-gradient-to-b from-slate-50 to-white border border-slate-200/90 p-4 rounded-xl shadow-2xs hover:shadow-xs transition-all">
+                        <div className="text-xs font-extrabold text-amber-700 flex items-center gap-1.5 mb-1">
                           🚀 Learning &amp; Growth
                         </div>
-                        <p className="text-[11px] text-slate-500">$2,500 annual budget for cloud certifications and conferences.</p>
+                        <p className="text-[11px] text-slate-500 leading-relaxed font-medium">$2,500 annual budget for cloud certifications and conferences.</p>
                       </div>
                     </div>
                   </div>
 
-                  {/* Apply Callout Card at Bottom of Job Details */}
-                  <div className="pt-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4 bg-gradient-to-r from-blue-50/80 to-indigo-50/80 p-5 rounded-xl border border-blue-200/80">
+                  {/* Bottom CTA Card */}
+                  <div className="pt-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 p-6 rounded-2xl border border-indigo-500/30 text-white shadow-xl">
                     <div>
-                      <h4 className="text-sm font-bold text-slate-900">Ready to join Nexus Enterprise?</h4>
-                      <p className="text-xs text-slate-600 mt-0.5">Submit your resume for the {selectedJob.title} position. An official acknowledgment email will be dispatched upon receipt.</p>
+                      <h4 className="text-base font-extrabold text-white tracking-tight">Ready to join Nexus Enterprise?</h4>
+                      <p className="text-xs text-slate-300 mt-1 max-w-md">Submit your resume for the {selectedJob.title} position. An official acknowledgment email will be dispatched upon receipt.</p>
                     </div>
                     <button
                       type="button"
@@ -534,9 +547,9 @@ export const CandidateApplicationPortal: React.FC<CandidateApplicationPortalProp
                         setError(null);
                         setIsApplyModalOpen(true);
                       }}
-                      className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white rounded-xl font-bold text-xs shadow-md shadow-blue-500/20 flex items-center gap-2 cursor-pointer transition-all shrink-0"
+                      className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 active:scale-[0.98] text-white rounded-xl font-bold text-xs shadow-lg shadow-blue-500/20 flex items-center gap-2 cursor-pointer transition-all shrink-0"
                     >
-                      <Upload className="w-4 h-4" />
+                      <Upload className="w-4 h-4 text-cyan-300" />
                       <span>Apply for this Position</span>
                     </button>
                   </div>

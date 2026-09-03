@@ -804,3 +804,19 @@ export async function rejectCandidate(applicationId: number, stage: 'Screening' 
   }
   return res.json();
 }
+
+export async function fetchGeminiSuggestions(input: string): Promise<Array<{ label: string; completedText: string; category: string }>> {
+  try {
+    const res = await fetch(`${API_BASE}/llm/suggestions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ input })
+    });
+    if (!res.ok) return [];
+    const data = await res.json();
+    return Array.isArray(data) ? data : [];
+  } catch (err) {
+    console.error('Failed to fetch Gemini suggestions:', err);
+    return [];
+  }
+}

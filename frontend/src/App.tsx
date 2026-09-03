@@ -11,18 +11,21 @@ import { ApprovalsView } from './components/ApprovalsView';
 import { OnboardingView } from './components/OnboardingView';
 import { AuditLogsView } from './components/AuditLogsView';
 import { CvCheckerView } from './components/CvCheckerView';
-import { TicketsView } from './components/TicketsView';
 import { JobOpeningsView } from './components/JobOpeningsView';
 import { CandidateApplicationPortal } from './components/CandidateApplicationPortal';
+import { WelcomeModal } from './components/WelcomeModal';
+import { InstructionsView } from './components/InstructionsView';
 import { fetchPendingApprovals, checkLLMHealth } from './services/api';
 
 import type { LLMHealthStatus } from './services/api';
 
 export function App() {
-  const [activeTab, setActiveTab] = useState('console');
+  const [activeTab, setActiveTab] = useState(() => localStorage.getItem('nexus_active_tab') || 'console');
   const [userRole, setUserRole] = useState('Admin');
   const [pendingCount, setPendingCount] = useState(0);
   const [health, setHealth] = useState<LLMHealthStatus | null>(null);
+  const [isWelcomeOpen, setIsWelcomeOpen] = useState(true);
+  const [prefillCommand, setPrefillCommand] = useState<string | undefined>(undefined);
 
   // Candidate Portal standalone routing
   const [candidatePortalJobId, setCandidatePortalJobId] = useState<number | null>(() => {
@@ -55,6 +58,10 @@ export function App() {
       console.error('Global state sync error:', err);
     }
   };
+
+  useEffect(() => {
+    localStorage.setItem('nexus_active_tab', activeTab);
+  }, [activeTab]);
 
   useEffect(() => {
     refreshGlobalState();
@@ -114,6 +121,13 @@ export function App() {
           onNavigateToApprovals={() => setActiveTab('approvals')}
         />
 
+        {/* Welcome Pop-up Modal */}
+        <WelcomeModal
+          isOpen={isWelcomeOpen}
+          onClose={() => setIsWelcomeOpen(false)}
+          onGoToInstructions={() => setActiveTab('instructions')}
+        />
+
         {/* Page Content */}
         <main className="flex-1 pb-16">
           {activeTab === 'console' && (
@@ -121,6 +135,17 @@ export function App() {
               userRole={userRole}
               onApprovalStateChange={refreshGlobalState}
               onNavigate={handleNavigate}
+              prefillCommand={prefillCommand}
+            />
+          )}
+          {activeTab === 'instructions' && (
+            <InstructionsView
+              onNavigateToConsole={(cmd) => {
+                if (cmd) {
+                  setPrefillCommand(cmd);
+                }
+                setActiveTab('console');
+              }}
             />
           )}
           {activeTab === 'dashboard' && (
@@ -151,7 +176,6 @@ export function App() {
             />
           )}
           {activeTab === 'policies' && <PoliciesView />}
-          {activeTab === 'tickets' && <TicketsView />}
           {activeTab === 'expenses' && <ExpensesView />}
 
           {activeTab === 'approvals' && (

@@ -49,7 +49,8 @@ Additional tables:
 Table: Departments — Columns: Id, Name, Description
 Table: Employees — Columns: Id, Name, Email, DepartmentId, Designation, Salary, ExperienceYears, Status (INT: 1 = Active, 2 = Inactive, 3 = OnLeave, 4 = Terminated. When querying for active employees, always use Status = 1)
 Table: Budgets — Columns: Id, DepartmentId, Year, Quarter, AllocatedAmount, SpentAmount
-Table: MasterBudgets — Columns: Id, Year, TotalBudgetPool, AllocatedTotal, RemainingBalance, Description
+Table: MasterBudgets — Columns: Id, Year, FiscalYear, TotalBudgetPool, UpdatedAt
+NOTE: MasterBudgets does NOT have RemainingBalance or AllocatedTotal columns. To compute remaining balance use: (mb.TotalBudgetPool - ISNULL((SELECT SUM(AllocatedAmount) FROM Budgets), 0))
 Table: Expenses — Columns: Id, EmployeeId, ExpenseType, Amount, ExpenseDate, Status, Description
 Table: Tickets — Columns: Id, TicketId, EmployeeName, Department, RequestType, Priority, Status, Details, CreatedAt
 Table: Policies — Columns: Id, Code, Title, Category, DocumentPath, ContentSummary, IsActive

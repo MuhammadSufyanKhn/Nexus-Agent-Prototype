@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   executeAgentPrompt,
   decideApproval,
   fetchDepartments,
-  updateExpenseStatus
+  updateExpenseStatus,
+  fetchGeminiSuggestions
 } from '../services/api';
 import { getCommandSuggestions } from '../utils/commandEngine';
 import type { CommandSuggestion } from '../utils/commandEngine';
@@ -23,6 +24,7 @@ import {
   AlertTriangle,
   ShieldAlert,
   Sparkles,
+  CornerDownLeft,
   ChevronDown,
   ChevronRight,
   AlertCircle,
@@ -51,14 +53,17 @@ interface AgentConsoleProps {
   userRole: string;
   onApprovalStateChange: () => void;
   onNavigate?: (tab: string, context?: any) => void;
+  prefillCommand?: string;
 }
 
 export const AgentConsole: React.FC<AgentConsoleProps> = ({
   userRole,
   onApprovalStateChange,
-  onNavigate
+  onNavigate,
+  prefillCommand
 }) => {
   const [prompt, setPrompt] = useState('');
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<AgentResult | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -85,6 +90,48 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
   const [departmentsList, setDepartmentsList] = useState<string[]>(['IT', 'HR', 'Marketing', 'Operations', 'R&D']);
 
   useEffect(() => {
+    if (prefillCommand) {
+      setPrompt(prefillCommand);
+      handlePromptChange(prefillCommand);
+      if (textareaRef.current) {
+        textareaRef.current.focus();
+      }
+    }
+  }, [prefillCommand]);
+
+  useEffect(() => {
+    const handlePrefillEvent = (e: any) => {
+      if (e.detail) {
+        setPrompt(e.detail);
+        handlePromptChange(e.detail);
+        if (textareaRef.current) {
+          textareaRef.current.focus();
+        }
+      }
+    };
+    window.addEventListener('prefill-command' as any, handlePrefillEvent);
+    return () => window.removeEventListener('prefill-command' as any, handlePrefillEvent);
+  }, []);
+
+  // Auto-expand textarea height as content grows
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = `${Math.max(88, textareaRef.current.scrollHeight)}px`;
+    }
+  }, [prompt]);
+
+  // Compute Copilot inline ghost text suffix
+  const activeSuggestion = suggestions[selectedSuggestionIndex] || suggestions[0];
+  let ghostSuffix = '';
+  if (showSuggestions && activeSuggestion && prompt.trim().length > 0) {
+    const fullText = activeSuggestion.completedText;
+    if (fullText.toLowerCase().startsWith(prompt.toLowerCase())) {
+      ghostSuffix = fullText.slice(prompt.length);
+    }
+  }
+
+  useEffect(() => {
     fetchDepartments().then(depts => {
       if (depts && depts.length > 0) {
         setDepartmentsList(depts.map(d => d.name));
@@ -99,6 +146,37 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
       setSuggestions(sugs);
       setSelectedSuggestionIndex(0);
       setShowSuggestions(sugs.length > 0);
+
+      // Fetch Gemini AI powered prompt suggestions dynamically
+      fetchGeminiSuggestions(val).then(geminiSugs => {
+        if (geminiSugs && geminiSugs.length > 0) {
+          const geminiFormatted: CommandSuggestion[] = geminiSugs.map((g, i) => ({
+            command: {
+              id: `gemini-${i}`,
+              intent: 'GEMINI_AI',
+              category: g.category || 'Gemini AI',
+              label: g.label || 'Gemini AI Suggestion',
+              keywords: [val],
+              aliases: [],
+              examples: [g.completedText],
+              template: g.completedText
+            },
+            displayText: g.label || 'Gemini AI Suggestion',
+            completedText: g.completedText,
+            score: 110 - i,
+            matchedBy: 'prefix'
+          }));
+
+          setSuggestions(prev => {
+            const combined = [...geminiFormatted, ...prev];
+            const unique = combined.filter((v, idx, self) => 
+              idx === self.findIndex(t => t.completedText === v.completedText)
+            );
+            return unique.slice(0, 8);
+          });
+          setShowSuggestions(true);
+        }
+      }).catch(() => {});
     } else {
       setSuggestions([]);
       setShowSuggestions(false);
@@ -214,7 +292,7 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
     employees: 'Employee Directory', departments: 'Departments & Budgets',
     policies: 'HR Policy Center', expenses: 'Expense Review',
     onboarding: 'Onboarding Hub', audit: 'Activity History',
-    approvals: 'HR Approval Center', dashboard: 'Workforce Dashboard', tickets: 'Workplace Service Desk',
+    approvals: 'HR Approval Center', dashboard: 'Workforce Dashboard',
     jobs: 'Job Openings & Requisitions',
     cv: 'Candidate CV Screening'
   };
@@ -237,7 +315,7 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
       EXECUTE_AUTOMATION: 'audit', PAYROLL_HOLD: 'departments', PAYROLL_BONUS: 'departments',
       LEAVE_CREATE: 'employees', UPDATE_SALARY: 'employees',
       JOB_OPENING_CREATE: 'jobs', JOB_OPENING_READ: 'jobs',
-      CV_SCREEN: 'cv', TICKET_READ: 'tickets', TICKET_CREATE: 'tickets', TICKET_TRIAGE: 'tickets',
+      CV_SCREEN: 'cv',
       SECURITY_TEST: 'audit', SQL_AGENT: 'dashboard'
     };
     return map[intent] ?? null;
@@ -671,6 +749,115 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
           <div><span className="text-slate-400 block text-[10px]">Employee</span><span className="font-bold text-slate-800">{comp.employeeName || '—'}</span></div>
         </div>
         {comp.reason && <p className={`text-xs ${isCompliant ? 'text-emerald-800' : 'text-rose-800'} font-medium`}>{comp.reason}</p>}
+      </div>
+    );
+  };
+
+  const renderPolicyResult = (data: any) => {
+    if (!data) return null;
+    const policiesList = data.policies || [];
+    const policyCode = data.policyCode || 'POL-REF-001';
+    const title = data.policyTitle || data.title || 'Corporate Governance Policy';
+    const category = data.category || 'Compliance';
+    const summary = data.summary || data.ContentSummary || data.description || 'Policy content guidelines.';
+
+    if (policiesList.length > 0) {
+      return (
+        <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-4">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 bg-blue-50 text-blue-600 rounded-xl">
+                <FileText className="w-5 h-5" />
+              </div>
+              <div>
+                <h4 className="text-sm font-bold text-slate-900">Active Policy Handbook Catalog</h4>
+                <p className="text-xs text-slate-500">{data.summary || `Found ${policiesList.length} active policy document(s)`}</p>
+              </div>
+            </div>
+            <button
+              onClick={() => onNavigate?.('policies')}
+              className="px-3 py-1 bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer"
+            >
+              <span>Policy Hub</span>
+              <ArrowUpRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3">
+            {policiesList.map((p: any, idx: number) => (
+              <div key={idx} className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2 hover:bg-slate-100/60 transition">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-xs font-extrabold bg-blue-100 text-blue-800 px-2 py-0.5 rounded border border-blue-200">{p.Code || p.code}</span>
+                    <h5 className="text-xs font-bold text-slate-900">{p.Title || p.title}</h5>
+                  </div>
+                  <span className="text-[10px] font-bold px-2 py-0.5 bg-slate-200 text-slate-700 rounded-full">{p.Category || p.category}</span>
+                </div>
+                <p className="text-xs text-slate-600 font-medium leading-relaxed">{p.ContentSummary || p.contentSummary || p.summary}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-4">
+        <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+          <div className="flex items-center gap-3">
+            <div className="p-3 bg-blue-100 text-blue-700 rounded-2xl shadow-xs">
+              <FileText className="w-6 h-6" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="font-mono text-xs font-extrabold bg-blue-600 text-white px-2.5 py-0.5 rounded-md shadow-xs">{policyCode}</span>
+                <span className="text-xs font-bold px-2 py-0.5 bg-slate-100 text-slate-700 rounded-full border border-slate-200">{category}</span>
+              </div>
+              <h4 className="text-base font-bold text-slate-900 mt-1">{title}</h4>
+            </div>
+          </div>
+          <button
+            onClick={() => onNavigate?.('policies', { policyCode })}
+            className="px-3.5 py-1.5 text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition border border-blue-200 flex items-center gap-1.5 cursor-pointer"
+          >
+            <span>Open Policy Document</span>
+            <ArrowUpRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+
+        {/* Highlight Metrics / Parameters */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+          {data.limit && (
+            <div className="p-3 bg-blue-50/60 border border-blue-100 rounded-xl">
+              <span className="text-[10px] font-bold text-blue-500 uppercase tracking-wider block">Expense Limit / Cap</span>
+              <span className="text-xs font-bold text-slate-800">{data.limit}</span>
+            </div>
+          )}
+          {data.remoteDays && (
+            <div className="p-3 bg-purple-50/60 border border-purple-100 rounded-xl">
+              <span className="text-[10px] font-bold text-purple-500 uppercase tracking-wider block">Remote Allowance</span>
+              <span className="text-xs font-bold text-slate-800">{data.remoteDays}</span>
+            </div>
+          )}
+          {data.coreHours && (
+            <div className="p-3 bg-amber-50/60 border border-amber-100 rounded-xl">
+              <span className="text-[10px] font-bold text-amber-600 uppercase tracking-wider block">Core Working Hours</span>
+              <span className="text-xs font-bold text-slate-800">{data.coreHours}</span>
+            </div>
+          )}
+          {data.equipmentStipend && (
+            <div className="p-3 bg-emerald-50/60 border border-emerald-100 rounded-xl">
+              <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider block">Equipment Stipend</span>
+              <span className="text-xs font-bold text-slate-800">{data.equipmentStipend}</span>
+            </div>
+          )}
+        </div>
+
+        {/* Policy Content Text */}
+        <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-4 space-y-2">
+          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Official Policy Guidelines &amp; Scope</span>
+          <p className="text-xs text-slate-800 font-medium leading-relaxed whitespace-pre-line">{summary}</p>
+        </div>
       </div>
     );
   };
@@ -1218,6 +1405,66 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
   const renderFilteredEmployees = (data: any) => {
     const emps = data?.employees || [];
     const dept = data?.department || 'Requested Department';
+
+    if (emps.length === 1) {
+      const emp = emps[0];
+      return (
+        <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-5">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-extrabold text-lg flex items-center justify-center shadow-md shadow-blue-500/20">
+                {emp.name ? emp.name.charAt(0) : 'E'}
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h4 className="text-base font-bold text-slate-900">{emp.name}</h4>
+                  <span className="inline-flex items-center gap-1 text-[10px] px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-200">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                    {emp.status || 'Active'}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 font-medium">{emp.designation || 'Staff Member'} • <span className="text-blue-600 font-semibold">{emp.department || dept}</span></p>
+              </div>
+            </div>
+            <button
+              onClick={() => onNavigate?.('employees', { highlightName: emp.name })}
+              className="px-3.5 py-1.5 text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition border border-blue-200 flex items-center gap-1.5 cursor-pointer"
+            >
+              <Users className="w-3.5 h-3.5" />
+              <span>View Directory Profile</span>
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+            <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-100">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Corporate Email</span>
+              <span className="text-xs font-bold text-slate-800 break-all">{emp.email || `${emp.name?.toLowerCase().replace(/\s+/g, '.')}@nexus.local`}</span>
+            </div>
+            <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-100">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Reporting Manager</span>
+              <span className="text-xs font-bold text-slate-800">{emp.manager || 'Executive Management'}</span>
+            </div>
+            <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-100">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Annual Compensation</span>
+              <span className="text-xs font-bold text-emerald-700">{emp.salary ? `$${Number(emp.salary).toLocaleString()}/yr` : '$85,000/yr'}</span>
+            </div>
+            {emp.location && (
+              <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-100">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Location</span>
+                <span className="text-xs font-bold text-slate-800">{emp.location}</span>
+              </div>
+            )}
+            {emp.experienceYears !== undefined && (
+              <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-100">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Experience</span>
+                <span className="text-xs font-bold text-slate-800">{emp.experienceYears} Years</span>
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-4">
         <div className="flex items-center justify-between border-b border-slate-100 pb-3">
@@ -2449,9 +2696,9 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
       return renderJobOpeningResult(data);
     }
 
-    // Ticket Create / Update / Read
-    if (intent.startsWith('TICKET') || intent === 'TICKET_CREATE' || intent === 'TICKET_UPDATE' || intent === 'TICKET_READ' || intent === 'TICKET_TRIAGE') {
-      return renderTicketResult(data, intent);
+    // Policy Read / Search
+    if (intent.startsWith('POLICY') || intent === 'POLICY_READ') {
+      return renderPolicyResult(data);
     }
 
     // CV Fit Screening
@@ -2498,7 +2745,21 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
       {/* Input Box */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-md p-4 space-y-4">
         <div className="relative">
+          {/* Overlay for Copilot Inline Ghost Text */}
+          <div
+            aria-hidden="true"
+            className="absolute inset-0 p-4 font-medium text-sm leading-relaxed pointer-events-none whitespace-pre-wrap break-words overflow-hidden text-transparent select-none z-0"
+          >
+            <span>{prompt}</span>
+            {ghostSuffix && (
+              <span className="text-slate-400/80 font-normal bg-indigo-50/60 rounded px-0.5 border-b border-indigo-300/40">
+                {ghostSuffix}
+              </span>
+            )}
+          </div>
+
           <textarea
+            ref={textareaRef}
             value={prompt}
             onChange={(e) => handlePromptChange(e.target.value)}
             onKeyDown={(e) => {
@@ -2531,8 +2792,8 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
               }
             }}
             placeholder="What would you like Nexus to do? e.g. 'alloc', 'onboard Ali', 'show leave policy', 'freeze IT budget'..."
-            rows={3}
-            className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all resize-none font-medium"
+            style={{ minHeight: '88px' }}
+            className="w-full p-4 bg-transparent border border-slate-200 focus:border-blue-600 rounded-xl text-sm text-slate-900 placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 transition-all resize-none font-medium leading-relaxed relative z-10"
           />
 
           <CommandSuggestions
@@ -2541,23 +2802,56 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
             onSelectSuggestion={applySuggestion}
             onClose={() => setShowSuggestions(false)}
           />
-          <button
-            onClick={() => handleExecute()}
-            disabled={loading || !prompt.trim()}
-            className="absolute right-3 bottom-4 px-5 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold text-xs rounded-lg shadow-sm transition-all flex items-center gap-2"
-          >
-            {loading ? (
-              <>
-                <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                <span>Processing...</span>
-              </>
+        </div>
+
+        {/* Input Action Footer Bar (No overlap, auto-expands with textarea height) */}
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2 border-t border-slate-100">
+          <div className="flex items-center gap-2 text-xs text-slate-500 font-medium">
+            {ghostSuffix ? (
+              <span className="flex items-center gap-1.5 text-indigo-700 bg-indigo-50 border border-indigo-200 px-2.5 py-1 rounded-lg font-mono text-[11px] font-bold shadow-xs">
+                <Sparkles className="w-3.5 h-3.5 text-indigo-500 animate-pulse" />
+                <span>Press TAB to complete:</span>
+                <span className="text-slate-700 font-normal truncate max-w-xs">{ghostSuffix}</span>
+              </span>
             ) : (
-              <>
-                <span>Execute Request</span>
-                <Send className="w-3.5 h-3.5" />
-              </>
+              <span className="text-[11px] text-slate-400 font-medium flex items-center gap-1">
+                <CornerDownLeft className="w-3 h-3 text-slate-400" />
+                <span>Shift + Enter for new line • TAB for AI suggestion completion</span>
+              </span>
             )}
-          </button>
+          </div>
+
+          <div className="flex items-center gap-2 ml-auto">
+            {prompt && (
+              <button
+                onClick={() => {
+                  setPrompt('');
+                  setShowSuggestions(false);
+                  if (textareaRef.current) textareaRef.current.style.height = '88px';
+                }}
+                className="px-3 py-2 text-slate-400 hover:text-slate-600 font-semibold text-xs transition cursor-pointer"
+              >
+                Clear
+              </button>
+            )}
+            <button
+              onClick={() => handleExecute()}
+              disabled={loading || !prompt.trim()}
+              className="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 disabled:opacity-50 text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center gap-2 cursor-pointer"
+            >
+              {loading ? (
+                <>
+                  <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  <span>Processing...</span>
+                </>
+              ) : (
+                <>
+                  <span>Execute Request</span>
+                  <Send className="w-3.5 h-3.5" />
+                </>
+              )}
+            </button>
+          </div>
         </div>
 
         {/* Quick Action Badges */}
@@ -2680,7 +2974,7 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
             </div>
 
             {/* User Message */}
-            {result.userMessage && result.state !== 'ANSWER_DIRECT' && !result.intent?.startsWith('EXPENSE_') && (
+            {result.userMessage && (result.state === 'CONFIRMATION_REQUIRED' || result.state === 'CLARIFICATION_REQUIRED' || result.state === 'ANSWER_DIRECT') && (
               <div className="mt-3 pt-3 border-t border-slate-100 text-xs text-slate-700 font-medium leading-relaxed whitespace-pre-line">
                 {result.userMessage}
               </div>

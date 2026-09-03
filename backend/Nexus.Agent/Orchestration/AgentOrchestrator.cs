@@ -1453,14 +1453,34 @@ public class AgentOrchestrator : IAgentOrchestrator
         }
         else if (parsedIntent.ParsedIntentType == IntentType.ONBOARDING_DOCUMENT_GENERATE)
         {
-            var empName = parsedIntent.Parameters?.GetValueOrDefault("employeeName")?.ToString() ?? "Ali Khan";
+            var empName = parsedIntent.Parameters?.GetValueOrDefault("employeeName")?.ToString()
+                ?? parsedIntent.Entities?.GetValueOrDefault("employeeName")
+                ?? parsedIntent.Entities?.GetValueOrDefault("name") ?? "Ali Khan";
+
             var emp = await _db.Employees.Include(e => e.Department)
                 .FirstOrDefaultAsync(e => e.Name.ToLower().Contains(empName.ToLower()), cancellationToken);
 
-            string deptName = emp?.Department?.Name ?? "IT";
-            string designation = emp?.Designation ?? "Senior Developer";
+            var candApp = emp == null
+                ? await _db.CandidateApplications.Include(a => a.JobOpening).FirstOrDefaultAsync(a => a.CandidateName.ToLower().Contains(empName.ToLower()), cancellationToken)
+                : null;
+
+            string deptName = emp?.Department?.Name
+                ?? parsedIntent.Entities?.GetValueOrDefault("department")
+                ?? "IT";
+
+            string designation = emp?.Designation
+                ?? candApp?.JobOpening?.Title
+                ?? parsedIntent.Entities?.GetValueOrDefault("designation")
+                ?? "Senior Developer";
+
             decimal salary = emp?.Salary ?? 95000m;
-            DateTime startDate = emp?.StartDate ?? DateTime.UtcNow.AddDays(7);
+            if (salary == 95000m && parsedIntent.Entities?.TryGetValue("salary", out var salStr) == true && decimal.TryParse(salStr, out var salVal) && salVal > 0)
+                salary = salVal;
+
+            // Automatically calculate next Monday as joining date
+            int daysUntilNextMonday = ((int)DayOfWeek.Monday - (int)DateTime.UtcNow.DayOfWeek + 7) % 7;
+            if (daysUntilNextMonday == 0) daysUntilNextMonday = 7;
+            DateTime startDate = emp?.StartDate ?? DateTime.UtcNow.AddDays(daysUntilNextMonday).Date;
 
             var generatedDoc = await _documentService.GenerateOnboardingPackageAsync(
                 empName, deptName, designation, salary, startDate, agentRun.Id);
@@ -1867,11 +1887,19 @@ public class AgentOrchestrator : IAgentOrchestrator
 
         if (!combinedArgs.ContainsKey("message") || string.IsNullOrWhiteSpace(combinedArgs["message"]?.ToString()))
         {
-            var empNameForMsg = combinedArgs.TryGetValue("employeeName", out var enm) ? enm?.ToString() : (combinedArgs.TryGetValue("name", out var nm) ? nm?.ToString() : "Sarah Jenkins");
+            // Resolve employee name from parsedIntent entities first, then combinedArgs, never hardcode
+            var empNameForMsg = parsedIntent?.Entities?.GetValueOrDefault("name")
+                ?? parsedIntent?.Entities?.GetValueOrDefault("employee_name")
+                ?? parsedIntent?.Entities?.GetValueOrDefault("employeeName")
+                ?? (combinedArgs.TryGetValue("employeeName", out var enm) ? enm?.ToString() : null)
+                ?? (combinedArgs.TryGetValue("name", out var nm) ? nm?.ToString() : null)
+                ?? "the employee";
             var dateStrForMsg = DateTime.UtcNow.ToString("MMMM dd, yyyy");
             combinedArgs["message"] = $"📢 Sick Day Alert: {empNameForMsg} has logged a sick day for today ({dateStrForMsg}). Team workload coverage has been activated.";
+            // Always set employeeName so SlackNotifyTool can look up the real email from DB
             combinedArgs["employeeName"] = empNameForMsg;
         }
+
 
         // Ensure tool-specific args are set for payroll / freeze / transfer intents
         var resumeIntentType = parsedIntent?.ParsedIntentType ?? IntentType.UNKNOWN;
@@ -3151,12 +3179,27 @@ public class AgentOrchestrator : IAgentOrchestrator
         // ── 2. BUDGET REALLOCATE ───────────────────────────────────────────
         if (intentType == IntentType.BUDGET_REALLOCATE || pLower.Contains("reallocate budget") || (pLower.Contains("reallocate") && pLower.Contains("budget")))
         {
+            // Extract sourceDepartment from parsed entities/parameters or fallback to prompt keyword extraction
             var srcDept = intent.Parameters.GetValueOrDefault("sourceDepartment")?.ToString()
-                ?? intent.Entities.GetValueOrDefault("sourceDepartment")
-                ?? "Marketing";
+                ?? intent.Entities.GetValueOrDefault("sourceDepartment");
+            // If still not found, try to extract "from {DeptName}" from the prompt
+            if (string.IsNullOrWhiteSpace(srcDept))
+            {
+                var fromMatch = System.Text.RegularExpressions.Regex.Match(pLower, @"\bfrom\s+([a-z]+)");
+                if (fromMatch.Success) srcDept = fromMatch.Groups[1].Value;
+            }
+
             var tgtDept = intent.Parameters.GetValueOrDefault("targetDepartment")?.ToString()
-                ?? intent.Entities.GetValueOrDefault("targetDepartment")
-                ?? "IT";
+                ?? intent.Entities.GetValueOrDefault("targetDepartment");
+            // If still not found, try to extract "to {DeptName}" from the prompt
+            if (string.IsNullOrWhiteSpace(tgtDept))
+            {
+                var toMatch = System.Text.RegularExpressions.Regex.Match(pLower, @"\bto\s+([a-z]+)");
+                if (toMatch.Success) tgtDept = toMatch.Groups[1].Value;
+            }
+
+            srcDept ??= string.Empty;
+            tgtDept ??= string.Empty;
 
             decimal amount = 20000m;
             if (intent.Parameters.TryGetValue("amount", out var aObj) && decimal.TryParse(aObj?.ToString(), out var aVal))
@@ -3414,10 +3457,12 @@ public class AgentOrchestrator : IAgentOrchestrator
                 PrimaryLabel = emp?.Name ?? empName,
                 Changes = new List<Nexus.Data.ActionPlan.ChangePreview>
                 {
+                    new Nexus.Data.ActionPlan.ChangePreview { FieldName = "Email Address", OldValue = emp?.Email ?? "(not found)", NewValue = emp?.Email ?? "(not found)", Difference = "Unchanged" },
                     new Nexus.Data.ActionPlan.ChangePreview { FieldName = "Department", OldValue = emp?.Department?.Name ?? "(current)", NewValue = targetDept, Difference = "Transfer" },
                     new Nexus.Data.ActionPlan.ChangePreview { FieldName = "Designation", OldValue = emp?.Designation ?? "(current)", NewValue = targetRole, Difference = isAppointment ? "Leadership Role" : "Role Change" }
                 }
             });
+
 
             if (isAppointment && !string.IsNullOrWhiteSpace(targetDept))
             {
@@ -3493,6 +3538,7 @@ public class AgentOrchestrator : IAgentOrchestrator
                         PrimaryLabel = emp.Name,
                         Changes = new List<Nexus.Data.ActionPlan.ChangePreview>
                         {
+                            new Nexus.Data.ActionPlan.ChangePreview { FieldName = "Email Address", OldValue = emp.Email, NewValue = emp.Email, Difference = "Unchanged" },
                             new Nexus.Data.ActionPlan.ChangePreview
                             {
                                 FieldName = "Salary",

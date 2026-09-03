@@ -171,7 +171,14 @@ export const ExpensesView: React.FC = () => {
     return true;
   });
 
-  const totalAmount = expenses.reduce((sum, e) => sum + e.amount, 0);
+  const isRejectedExpense = (e: Expense): boolean => {
+    const statusStr = (e.statusName || String(e.status)).toLowerCase();
+    return statusStr.includes('reject') || e.status === 3;
+  };
+
+  // Exclude rejected expense claims from active total amount claimed
+  const validExpenses = expenses.filter(e => !isRejectedExpense(e));
+  const totalAmount = validExpenses.reduce((sum, e) => sum + e.amount, 0);
   const violationCount = expenses.filter(isViolation).length;
   const compliantCount = expenses.filter(e => !isViolation(e)).length;
 
@@ -244,7 +251,7 @@ export const ExpensesView: React.FC = () => {
           <div>
             <p className="text-xs font-medium text-slate-500">Total Expenses Claimed</p>
             <h3 className="text-2xl font-bold text-slate-900 mt-1">${totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</h3>
-            <span className="text-[11px] text-slate-400 font-medium">{expenses.length} Total Claims</span>
+            <span className="text-[11px] text-slate-400 font-medium">{validExpenses.length} Active Claims ({expenses.length - validExpenses.length} Rejected)</span>
           </div>
           <div className="p-3 bg-blue-50 text-blue-600 rounded-xl">
             <Receipt className="w-5 h-5" />

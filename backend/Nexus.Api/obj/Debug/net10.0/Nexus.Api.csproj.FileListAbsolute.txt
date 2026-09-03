@@ -352,3 +352,5 @@ E:\nexus\Nexus-Agent-Prototype\backend\Nexus.Api\obj\Debug\net10.0\compressed\vo
 E:\nexus\Nexus-Agent-Prototype\backend\Nexus.Api\obj\Debug\net10.0\compressed\1kd4wledeq-{0}-2qjmxk2zjb-2qjmxk2zjb.gz
 E:\nexus\Nexus-Agent-Prototype\backend\Nexus.Api\obj\Debug\net10.0\compressed\um12h0eks1-{0}-acraft7rx4-acraft7rx4.gz
 E:\nexus\Nexus-Agent-Prototype\backend\Nexus.Api\obj\Debug\net10.0\compressed\ttd2xwrcp2-{0}-2qjmxk2zjb-2qjmxk2zjb.gz
+D:\.NET PROJECTS\NEXUS AGENT LITE\backend\Nexus.Api\obj\Debug\net10.0\compressed\1xcjt8sr68-{0}-qchkd1ujc1-qchkd1ujc1.gz
+D:\.NET PROJECTS\NEXUS AGENT LITE\backend\Nexus.Api\obj\Debug\net10.0\compressed\xwi54npj40-{0}-qchkd1ujc1-qchkd1ujc1.gz

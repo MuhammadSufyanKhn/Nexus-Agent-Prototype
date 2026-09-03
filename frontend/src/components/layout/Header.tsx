@@ -22,6 +22,8 @@ export const Header: React.FC<HeaderProps> = ({
         return { title: 'Executive HR Dashboard', desc: 'Workforce overview, pending approvals, and operational health metrics.' };
       case 'console':
         return { title: 'Nexus AI Assistant', desc: 'Ask Nexus to analyze workforce data, manage employee profiles, or execute HR actions.' };
+      case 'instructions':
+        return { title: 'Instructions & System Guide', desc: 'Comprehensive documentation, workflow guide, and example commands to get started.' };
       case 'employees':
         return { title: 'Employee Directory', desc: 'Manage workforce profiles, designations, compensation bands, and status.' };
       case 'departments':
