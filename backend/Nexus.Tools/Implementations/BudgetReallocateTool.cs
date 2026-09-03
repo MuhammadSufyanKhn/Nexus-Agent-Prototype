@@ -44,9 +44,9 @@ public class BudgetReallocateTool : IAgentTool
 
     public Task<ValidationResult> ValidateInputAsync(ToolExecutionContext context)
     {
-        var src  = context.GetArgument<string>("sourceDepartment");
-        var tgt  = context.GetArgument<string>("targetDepartment");
-        var amt  = context.GetArgument<decimal?>("amount");
+        var src = context.GetArgument<string>("sourceDepartment") ?? context.GetArgument<string>("fromDepartment") ?? context.GetArgument<string>("source") ?? context.GetArgument<string>("from");
+        var tgt = context.GetArgument<string>("targetDepartment") ?? context.GetArgument<string>("toDepartment") ?? context.GetArgument<string>("target") ?? context.GetArgument<string>("to");
+        var amt = context.GetArgument<decimal?>("amount") ?? context.GetArgument<decimal?>("budgetAmount");
         if (string.IsNullOrWhiteSpace(src) || string.IsNullOrWhiteSpace(tgt))
             return Task.FromResult(ValidationResult.Failure("Both sourceDepartment and targetDepartment are required."));
         if (!amt.HasValue || amt.Value <= 0)
@@ -63,9 +63,9 @@ public class BudgetReallocateTool : IAgentTool
         var sw = Stopwatch.StartNew();
         try
         {
-            var srcName = context.GetArgument<string>("sourceDepartment")!;
-            var tgtName = context.GetArgument<string>("targetDepartment")!;
-            var amount  = context.GetArgument<decimal>("amount");
+            var srcName = context.GetArgument<string>("sourceDepartment") ?? context.GetArgument<string>("fromDepartment") ?? context.GetArgument<string>("source") ?? context.GetArgument<string>("from")!;
+            var tgtName = context.GetArgument<string>("targetDepartment") ?? context.GetArgument<string>("toDepartment") ?? context.GetArgument<string>("target") ?? context.GetArgument<string>("to")!;
+            var amount  = context.GetArgument<decimal?>("amount") ?? context.GetArgument<decimal?>("budgetAmount") ?? 20000m;
             var quarter = context.GetArgument<string>("quarter") ?? "Q3";
             var year    = context.GetArgument<int?>("year") ?? DateTime.UtcNow.Year;
 

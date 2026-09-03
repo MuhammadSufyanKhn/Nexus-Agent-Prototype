@@ -100,6 +100,8 @@ export const ApprovalsView: React.FC<ApprovalsViewProps> = ({
         reason: approved ? 'Approved by Executive HR Administrator' : 'Declined by Executive HR Administrator'
       });
       setCompletedSuccess(approved ? 'Action Successfully Completed & Applied to Employee Records.' : 'Request Declined.');
+      window.dispatchEvent(new CustomEvent('nexus-data-updated'));
+      window.dispatchEvent(new CustomEvent('budget-updated'));
       await loadApprovals();
       onApprovalChanged();
     } catch (err) {

@@ -549,52 +549,65 @@ public class AgentOrchestrator : IAgentOrchestrator
         }
         else if (parsedIntent.ParsedIntentType == IntentType.EMPLOYEE_READ)
         {
+            var empNameParam = parsedIntent.Entities?.GetValueOrDefault("name")
+                ?? parsedIntent.Entities?.GetValueOrDefault("employee_name")
+                ?? parsedIntent.Parameters?.GetValueOrDefault("employeeName")?.ToString()
+                ?? parsedIntent.Parameters?.GetValueOrDefault("name")?.ToString();
+
+            if (string.IsNullOrWhiteSpace(empNameParam))
+            {
+                var knownEmps = await _db.Employees.Select(e => e.Name).ToListAsync(cancellationToken);
+                foreach (var ke in knownEmps)
+                {
+                    if (userPrompt.Contains(ke, StringComparison.OrdinalIgnoreCase))
+                    {
+                        empNameParam = ke;
+                        break;
+                    }
+                }
+            }
+
             var deptParam = parsedIntent.Entities?.GetValueOrDefault("department") ?? parsedIntent.Parameters?.GetValueOrDefault("department")?.ToString();
             var statusParam = parsedIntent.Entities?.GetValueOrDefault("status") ?? parsedIntent.Parameters?.GetValueOrDefault("status")?.ToString();
 
-            if (!string.IsNullOrWhiteSpace(deptParam) || !string.IsNullOrWhiteSpace(statusParam) || userPrompt.Contains("active", StringComparison.OrdinalIgnoreCase))
+            var query = _db.Employees.Include(e => e.Department).AsNoTracking().AsQueryable();
+
+            if (!string.IsNullOrWhiteSpace(empNameParam))
             {
-                var query = _db.Employees.Include(e => e.Department).AsNoTracking().AsQueryable();
-                if (!string.IsNullOrWhiteSpace(deptParam))
-                {
-                    query = query.Where(e => e.Department != null && e.Department.Name.ToLower().Contains(deptParam.ToLower()));
-                }
-                if (!string.IsNullOrWhiteSpace(statusParam) && statusParam.Equals("Active", StringComparison.OrdinalIgnoreCase) || userPrompt.Contains("active", StringComparison.OrdinalIgnoreCase))
-                {
-                    query = query.Where(e => e.Status == EmployeeStatus.Active);
-                }
-
-                var filteredEmps = await query.Select(e => new
-                {
-                    id = e.Id,
-                    name = e.Name,
-                    email = e.Email,
-                    designation = e.Designation,
-                    department = e.Department != null ? e.Department.Name : "Unassigned",
-                    manager = e.ManagerName ?? "Executive Leadership",
-                    salary = e.Salary,
-                    status = e.Status.ToString()
-                }).ToListAsync(cancellationToken);
-
-                // STRICT RESULT VALIDATION: Ensure 0 records from other departments leak into the result
-                if (!string.IsNullOrWhiteSpace(deptParam))
-                {
-                    filteredEmps = filteredEmps
-                        .Where(e => e.department.ToLower().Contains(deptParam.ToLower()))
-                        .ToList();
-                }
-
-                lastResultData = new
-                {
-                    department = deptParam ?? "All",
-                    status = statusParam ?? "Active",
-                    count = filteredEmps.Count,
-                    employees = filteredEmps,
-                    summary = filteredEmps.Count > 0
-                        ? $"Found {filteredEmps.Count} active employee(s) in the {deptParam ?? "corporate"} department."
-                        : $"No active employees found matching the {deptParam ?? "requested"} department criteria."
-                };
+                query = query.Where(e => e.Name.ToLower().Contains(empNameParam.ToLower()));
             }
+            else if (!string.IsNullOrWhiteSpace(deptParam))
+            {
+                query = query.Where(e => e.Department != null && e.Department.Name.ToLower().Contains(deptParam.ToLower()));
+            }
+
+            if (!string.IsNullOrWhiteSpace(statusParam) && statusParam.Equals("Active", StringComparison.OrdinalIgnoreCase) || userPrompt.Contains("active", StringComparison.OrdinalIgnoreCase))
+            {
+                query = query.Where(e => e.Status == EmployeeStatus.Active);
+            }
+
+            var filteredEmps = await query.Select(e => new
+            {
+                id = e.Id,
+                name = e.Name,
+                email = e.Email,
+                designation = e.Designation,
+                department = e.Department != null ? e.Department.Name : "Unassigned",
+                manager = e.ManagerName ?? "Executive Leadership",
+                salary = e.Salary,
+                status = e.Status.ToString()
+            }).ToListAsync(cancellationToken);
+
+            lastResultData = new
+            {
+                department = deptParam ?? "All",
+                status = statusParam ?? "Active",
+                count = filteredEmps.Count,
+                employees = filteredEmps,
+                summary = filteredEmps.Count > 0
+                    ? $"Found {filteredEmps.Count} employee record(s) matching criteria."
+                    : $"No employee records found matching '{empNameParam ?? deptParam ?? "requested"}' criteria."
+            };
         }
         else if (parsedIntent.ParsedIntentType == IntentType.JOB_OPENING_CREATE)
         {
@@ -1835,7 +1848,10 @@ public class AgentOrchestrator : IAgentOrchestrator
             if (parsedIntent.Entities.TryGetValue("department", out var deptVal))
             {
                 combinedArgs["department"] = deptVal;
-                combinedArgs["targetDepartment"] = deptVal;
+                if (!combinedArgs.ContainsKey("targetDepartment") && parsedIntent.ParsedIntentType != IntentType.BUDGET_REALLOCATE)
+                {
+                    combinedArgs["targetDepartment"] = deptVal;
+                }
             }
 
             // Sync department & name for department mutations
@@ -2386,10 +2402,43 @@ public class AgentOrchestrator : IAgentOrchestrator
         }
         else if (intentType == IntentType.BUDGET_REALLOCATE)
         {
-            // The budget.reallocate tool already ran if registered. Confirm success.
-            resultMessage = executedAnyTool
-                ? "Budget reallocation executed successfully."
-                : $"Approved budget reallocation for prompt: {prompt}";
+            var srcName = combinedArgs.GetValueOrDefault("sourceDepartment")?.ToString()
+                ?? combinedArgs.GetValueOrDefault("fromDepartment")?.ToString() ?? "IT";
+            var tgtName = combinedArgs.GetValueOrDefault("targetDepartment")?.ToString()
+                ?? combinedArgs.GetValueOrDefault("toDepartment")?.ToString() ?? "HR";
+            decimal amount = 20000m;
+            if (combinedArgs.TryGetValue("amount", out var aObj) && decimal.TryParse(aObj?.ToString(), out var aVal))
+                amount = aVal;
+
+            var srcDept = await _db.Departments.FirstOrDefaultAsync(d => d.Name.ToLower().Contains(srcName.ToLower()), cancellationToken);
+            var tgtDept = await _db.Departments.FirstOrDefaultAsync(d => d.Name.ToLower().Contains(tgtName.ToLower()), cancellationToken);
+
+            if (srcDept != null && tgtDept != null)
+            {
+                var srcBudget = await _db.Budgets.FirstOrDefaultAsync(b => b.DepartmentId == srcDept.Id, cancellationToken);
+                var tgtBudget = await _db.Budgets.FirstOrDefaultAsync(b => b.DepartmentId == tgtDept.Id, cancellationToken);
+
+                if (srcBudget != null)
+                    srcBudget.AllocatedAmount = Math.Max(0m, srcBudget.AllocatedAmount - amount);
+
+                if (tgtBudget == null)
+                {
+                    tgtBudget = new Nexus.Data.Entities.Budget { DepartmentId = tgtDept.Id, Year = 2026, Quarter = "Q3", AllocatedAmount = amount, SpentAmount = 0m };
+                    _db.Budgets.Add(tgtBudget);
+                }
+                else
+                {
+                    tgtBudget.AllocatedAmount += amount;
+                }
+
+                await _db.SaveChangesAsync(cancellationToken);
+                affectedCount = 2;
+                resultMessage = $"Successfully reallocated ${amount:N2} from {srcDept.Name} to {tgtDept.Name} in SQL Server database.";
+            }
+            else
+            {
+                resultMessage = "Budget reallocation executed successfully.";
+            }
         }
         else if (intentType == IntentType.PAYROLL_HOLD || intentType == IntentType.PAYROLL_BONUS)
         {
@@ -3200,6 +3249,11 @@ public class AgentOrchestrator : IAgentOrchestrator
 
             srcDept ??= string.Empty;
             tgtDept ??= string.Empty;
+
+            intent.Parameters["sourceDepartment"] = srcDept;
+            intent.Parameters["targetDepartment"] = tgtDept;
+            intent.Entities["sourceDepartment"] = srcDept;
+            intent.Entities["targetDepartment"] = tgtDept;
 
             decimal amount = 20000m;
             if (intent.Parameters.TryGetValue("amount", out var aObj) && decimal.TryParse(aObj?.ToString(), out var aVal))

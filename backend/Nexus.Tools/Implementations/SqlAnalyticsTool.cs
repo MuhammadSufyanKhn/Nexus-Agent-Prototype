@@ -321,13 +321,13 @@ Output: FALLBACK_TRIGGERED
         // 7. Employees & Directory filtering
         if (q.Contains("employee") || q.Contains("headcount") || q.Contains("staff") || q.Contains("hire") || q.Contains("directory"))
         {
-            if (q.Contains("marketing"))
+            if (Regex.IsMatch(q, @"\bmarketing\b"))
                 return "SELECT e.Name, d.Name AS Department, e.Designation, e.Salary, e.ManagerName, e.Status FROM Employees e JOIN Departments d ON e.DepartmentId = d.Id WHERE d.Name = 'Marketing'";
-            if (q.Contains("it"))
+            if (Regex.IsMatch(q, @"\b(it|information technology)\b"))
                 return "SELECT e.Name, d.Name AS Department, e.Designation, e.Salary, e.ManagerName, e.Status FROM Employees e JOIN Departments d ON e.DepartmentId = d.Id WHERE d.Name = 'IT'";
-            if (q.Contains("operations"))
+            if (Regex.IsMatch(q, @"\boperations\b"))
                 return "SELECT e.Name, d.Name AS Department, e.Designation, e.Salary, e.ManagerName, e.Status FROM Employees e JOIN Departments d ON e.DepartmentId = d.Id WHERE d.Name = 'Operations'";
-            if (q.Contains("hr"))
+            if (Regex.IsMatch(q, @"\b(hr|human resources)\b"))
                 return "SELECT e.Name, d.Name AS Department, e.Designation, e.Salary, e.ManagerName, e.Status FROM Employees e JOIN Departments d ON e.DepartmentId = d.Id WHERE d.Name = 'HR'";
 
             return "SELECT e.Name, d.Name AS Department, e.Designation, e.Salary, e.ManagerName, e.Status FROM Employees e JOIN Departments d ON e.DepartmentId = d.Id";

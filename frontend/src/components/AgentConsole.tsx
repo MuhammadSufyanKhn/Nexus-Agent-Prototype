@@ -89,6 +89,9 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [departmentsList, setDepartmentsList] = useState<string[]>(['IT', 'HR', 'Marketing', 'Operations', 'R&D']);
 
+  const activePromptRef = useRef<string>('');
+  const isExecutingRef = useRef<boolean>(false);
+
   useEffect(() => {
     if (prefillCommand) {
       setPrompt(prefillCommand);
@@ -128,6 +131,14 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
     const fullText = activeSuggestion.completedText;
     if (fullText.toLowerCase().startsWith(prompt.toLowerCase())) {
       ghostSuffix = fullText.slice(prompt.length);
+    } else {
+      const promptLower = prompt.toLowerCase();
+      if (fullText.toLowerCase().includes(promptLower)) {
+        const idx = fullText.toLowerCase().indexOf(promptLower);
+        if (idx === 0) {
+          ghostSuffix = fullText.slice(prompt.length);
+        }
+      }
     }
   }
 
@@ -141,7 +152,10 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
 
   const handlePromptChange = (val: string) => {
     setPrompt(val);
-    if (val.trim().length >= 2) {
+    activePromptRef.current = val;
+    isExecutingRef.current = false;
+
+    if (val.trim().length >= 1) {
       const sugs = getCommandSuggestions(val, departmentsList);
       setSuggestions(sugs);
       setSelectedSuggestionIndex(0);
@@ -149,6 +163,11 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
 
       // Fetch Gemini AI powered prompt suggestions dynamically
       fetchGeminiSuggestions(val).then(geminiSugs => {
+        // Prevent late-resolving async AI promises from triggering popup after command execution
+        if (isExecutingRef.current || activePromptRef.current !== val) {
+          return;
+        }
+
         if (geminiSugs && geminiSugs.length > 0) {
           const geminiFormatted: CommandSuggestion[] = geminiSugs.map((g, i) => ({
             command: {
@@ -185,7 +204,9 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
 
   const applySuggestion = (sug: CommandSuggestion) => {
     setPrompt(sug.completedText);
+    activePromptRef.current = sug.completedText;
     setShowSuggestions(false);
+    setSuggestions([]);
   };
 
   // Editable workflow preview state
@@ -334,6 +355,10 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
     const targetPrompt = promptToRun || prompt;
     if (!targetPrompt.trim()) return;
 
+    isExecutingRef.current = true;
+    activePromptRef.current = '';
+    setShowSuggestions(false);
+    setSuggestions([]);
     setLoading(true);
     setErrorMsg(null);
     setResult(null);

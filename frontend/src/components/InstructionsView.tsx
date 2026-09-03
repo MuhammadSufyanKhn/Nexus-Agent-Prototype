@@ -144,7 +144,7 @@ export const InstructionsView: React.FC<InstructionsViewProps> = ({ onNavigateTo
         },
         {
           id: 'e4',
-          text: 'Log [name] sick day today and notify his team on Slack.',
+          text: 'Log [name] sick day today and notify his team on gmail.',
           desc: 'Registers full-day sick leave entry in HR attendance logs.'
         }
       ]
@@ -211,8 +211,8 @@ export const InstructionsView: React.FC<InstructionsViewProps> = ({ onNavigateTo
         },
         {
           id: 'p3',
-          text: 'Explain the company remote work and hybrid attendance policy',
-          desc: 'Displays rules for 3-day hybrid attendance allowance.'
+          text: 'explain policy for meal',
+          desc: 'Returns the reimbursement rules for meals and dining expenses'
         },
         {
           id: 'p4',
@@ -251,6 +251,11 @@ export const InstructionsView: React.FC<InstructionsViewProps> = ({ onNavigateTo
           id: 'o3',
           text: 'Generate complete Onboarding Package document for new hire Ali Khan.',
           desc: 'Renders formal HR appointment letter & policy document packet.'
+        },
+        {
+          id: 'o4',
+          text: ' Find employee records for Ahmed Khan, display current designation, and retrieve current annual salary',
+          desc: 'Fetches comprehensive employee profile with designation and annual salary details.'
         }
       ]
     }
