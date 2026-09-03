@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("Nexus.Api")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+7344e5892ffc1f3e39666292b6cf106137842fd4")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+c0d8021322d09925b6f9247188df47c24bd6a40a")]
 [assembly: System.Reflection.AssemblyProductAttribute("Nexus.Api")]
 [assembly: System.Reflection.AssemblyTitleAttribute("Nexus.Api")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
