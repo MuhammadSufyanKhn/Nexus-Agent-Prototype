@@ -2247,7 +2247,8 @@ public class AgentOrchestrator : IAgentOrchestrator
             }
 
             await _db.SaveChangesAsync(cancellationToken);
-            resultMessage = $"Department '{deptName}' created successfully in database (Head: {headName ?? "Assigned Lead"}, Budget: ${initialBudget:N2}).";
+            var displayHeadMsg = !string.IsNullOrWhiteSpace(headName) ? headName : "Not Assigned";
+            resultMessage = $"Department '{deptName}' created successfully in database (Head: {displayHeadMsg}, Budget: ${initialBudget:N2}).";
         }
         else if (intentType == IntentType.DEPARTMENT_DELETE)
         {
@@ -3039,15 +3040,38 @@ public class AgentOrchestrator : IAgentOrchestrator
         {
             var deptName = intent.Parameters.GetValueOrDefault("name")?.ToString()
                 ?? intent.Entities.GetValueOrDefault("name")
-                ?? "Finance";
+                ?? intent.Parameters.GetValueOrDefault("department")?.ToString()
+                ?? intent.Entities.GetValueOrDefault("department");
+            if (!string.IsNullOrWhiteSpace(deptName))
+            {
+                deptName = IntentParser.CleanDepartmentName(deptName);
+            }
+            if (string.IsNullOrWhiteSpace(deptName)) deptName = "New Department";
 
             var head = intent.Parameters.GetValueOrDefault("head")?.ToString()
                 ?? intent.Entities.GetValueOrDefault("head")
-                ?? "Sufyan";
+                ?? intent.Parameters.GetValueOrDefault("departmentHead")?.ToString()
+                ?? intent.Entities.GetValueOrDefault("departmentHead")
+                ?? intent.Parameters.GetValueOrDefault("manager")?.ToString()
+                ?? intent.Entities.GetValueOrDefault("manager");
 
-            decimal budgetAmt = 50000m;
-            if (intent.Parameters.TryGetValue("budgetAmount", out var bObj) && decimal.TryParse(bObj?.ToString(), out var bVal))
-                budgetAmt = bVal;
+            var displayHead = !string.IsNullOrWhiteSpace(head) ? head : "Not Assigned";
+
+            decimal budgetAmt = 0m;
+            var bObj = intent.Parameters.GetValueOrDefault("budgetAmount")
+                ?? intent.Entities.GetValueOrDefault("budgetAmount")
+                ?? intent.Parameters.GetValueOrDefault("budget")
+                ?? intent.Entities.GetValueOrDefault("budget")
+                ?? intent.Parameters.GetValueOrDefault("amount")
+                ?? intent.Entities.GetValueOrDefault("amount");
+
+            if (bObj != null)
+            {
+                var val = bObj.ToString()?.Replace(",", "").Trim() ?? "";
+                if (val.EndsWith("k", StringComparison.OrdinalIgnoreCase) && decimal.TryParse(val[..^1], out var kv)) budgetAmt = kv * 1000m;
+                else if (val.EndsWith("m", StringComparison.OrdinalIgnoreCase) && decimal.TryParse(val[..^1], out var mv)) budgetAmt = mv * 1_000_000m;
+                else decimal.TryParse(val, out budgetAmt);
+            }
 
             var actionPlan = new Nexus.Data.ActionPlan.ActionPlan
             {
@@ -3066,19 +3090,19 @@ public class AgentOrchestrator : IAgentOrchestrator
                 Changes = new List<Nexus.Data.ActionPlan.ChangePreview>
                 {
                     new Nexus.Data.ActionPlan.ChangePreview { FieldName = "Department Name", OldValue = "[NEW]", NewValue = deptName, Difference = "New Entity" },
-                    new Nexus.Data.ActionPlan.ChangePreview { FieldName = "Department Head", OldValue = "None", NewValue = head, Difference = "Assignment" },
+                    new Nexus.Data.ActionPlan.ChangePreview { FieldName = "Department Head", OldValue = "None", NewValue = displayHead, Difference = "Assignment" },
                     new Nexus.Data.ActionPlan.ChangePreview { FieldName = "Initial Staff Count", OldValue = "0", NewValue = "0", Difference = "Empty Dept" },
                     new Nexus.Data.ActionPlan.ChangePreview { FieldName = "Allocated Q3 Budget", OldValue = "$0.00", NewValue = $"${budgetAmt:N2}", Difference = "Budget Allocation" }
                 }
             });
 
-            actionPlan.Steps.Add(new Nexus.Data.ActionPlan.ActionPlanStep { StepNumber = 1, ToolName = "department.crud", Description = $"Create Department record '{deptName}' (Head: {head})", RiskLevel = RiskLevel.Medium });
+            actionPlan.Steps.Add(new Nexus.Data.ActionPlan.ActionPlanStep { StepNumber = 1, ToolName = "department.crud", Description = $"Create Department record '{deptName}' (Head: {displayHead})", RiskLevel = RiskLevel.Medium });
             if (budgetAmt > 0)
             {
                 actionPlan.Steps.Add(new Nexus.Data.ActionPlan.ActionPlanStep { StepNumber = 2, ToolName = "budget.update", Description = $"Initialize allocated Q3 budget (${budgetAmt:N2})", RiskLevel = RiskLevel.Medium });
             }
 
-            actionPlan.Warnings.Add($"Creates new {deptName} department with ${budgetAmt:N2} allocated Q3 budget and {head} as Department Head.");
+            actionPlan.Warnings.Add($"Creates new {deptName} department with ${budgetAmt:N2} allocated Q3 budget and {displayHead} as Department Head.");
             return actionPlan;
         }
 
@@ -3592,14 +3616,14 @@ public class AgentOrchestrator : IAgentOrchestrator
                         PrimaryLabel = emp.Name,
                         Changes = new List<Nexus.Data.ActionPlan.ChangePreview>
                         {
-                            new Nexus.Data.ActionPlan.ChangePreview { FieldName = "Email Address", OldValue = emp.Email, NewValue = emp.Email, Difference = "Unchanged" },
                             new Nexus.Data.ActionPlan.ChangePreview
                             {
                                 FieldName = "Salary",
                                 OldValue = $"${emp.Salary:N2}",
                                 NewValue = $"${newSal:N2}",
                                 Difference = $"+${diff:N2}"
-                            }
+                            },
+                            new Nexus.Data.ActionPlan.ChangePreview { FieldName = "Email Address", OldValue = emp.Email, NewValue = emp.Email, Difference = "Unchanged" }
                         }
                     });
                 }

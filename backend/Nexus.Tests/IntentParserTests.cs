@@ -147,6 +147,33 @@ public class IntentParserTests
     }
 
     [Theory]
+    // Original prompt
+    [InlineData("Create AI Innovations department with head Tariq Mahmood with initial budget 35000$", "AI Innovations", "Tariq Mahmood", "35000")]
+    // 5 Prompt-provided variations
+    [InlineData("Create a new department called AI Innovations with Tariq Mahmood as head and a budget of $35,000.", "AI Innovations", "Tariq Mahmood", "35000")]
+    [InlineData("Set up AI Innovations department. Head: Tariq Mahmood. Budget: $35,000.", "AI Innovations", "Tariq Mahmood", "35000")]
+    [InlineData("Add a new department named AI Innovations under Tariq Mahmood with $35,000 initial budget.", "AI Innovations", "Tariq Mahmood", "35000")]
+    [InlineData("Establish AI Innovations department with Tariq Mahmood as department head. Initial budget: 35000.", "AI Innovations", "Tariq Mahmood", "35000")]
+    [InlineData("Create department AI Innovations, assign Tariq Mahmood as head, allocate $35,000 budget.", "AI Innovations", "Tariq Mahmood", "35000")]
+    // 5 Additional variations
+    [InlineData("Create Cloud Services department led by Sarah Jenkins with a budget of $120,000.", "Cloud Services", "Sarah Jenkins", "120000")]
+    [InlineData("Set up Cybersecurity department under Marcus Vance with $85,000 initial budget.", "Cybersecurity", "Marcus Vance", "85000")]
+    [InlineData("Establish R&D department with head Elena Rostova and initial allocation $250000.", "R&D", "Elena Rostova", "250000")]
+    [InlineData("Create department Data Engineering, manager Bilal Khan, allocated budget $95,000.", "Data Engineering", "Bilal Khan", "95000")]
+    [InlineData("Add a new department named Human Capital with Alex Rivera as department head and $45000 budget.", "Human Capital", "Alex Rivera", "45000")]
+    public async Task IntentParser_Parses_Department_Create_Variations(string prompt, string expectedName, string expectedHead, string expectedBudget)
+    {
+        var mockLlm = new MockLLMService(null);
+        var parser = new IntentParser(mockLlm, NullLogger<IntentParser>.Instance);
+
+        var result = await parser.ParseIntentAsync(prompt);
+        Assert.Equal(IntentType.DEPARTMENT_CREATE, result.ParsedIntentType);
+        Assert.Equal(expectedName, result.Entities["name"]);
+        Assert.Equal(expectedHead, result.Entities["head"]);
+        Assert.Equal(expectedBudget, result.Entities["budgetAmount"]);
+    }
+
+    [Theory]
     [InlineData("Log Ali sick day today and notify his team on gmail")]
     [InlineData("Log a sick day for Ali and notify on gmail")]
     public async Task IntentParser_Parses_Leave_Create_Correctly(string prompt)

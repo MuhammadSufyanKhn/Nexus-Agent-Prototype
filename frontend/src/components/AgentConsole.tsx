@@ -1306,16 +1306,22 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-1">
               <div>
                 <span className="text-[10px] text-slate-400 uppercase font-semibold block">Department Name</span>
-                <span className="font-bold text-slate-800 text-xs">{data.name || data.department || 'Finance'}</span>
+                <span className="font-bold text-slate-800 text-xs">{data.name || data.department || data.deptName || 'N/A'}</span>
               </div>
               <div>
                 <span className="text-[10px] text-slate-400 uppercase font-semibold block">Department Head</span>
-                <span className="font-bold text-slate-800 text-xs">{data.head || 'Assigned Lead'}</span>
+                <span className="font-bold text-slate-800 text-xs">{data.head || data.headOfDepartment || data.departmentHead || data.manager || 'Not Assigned'}</span>
               </div>
               <div>
                 <span className="text-[10px] text-slate-400 uppercase font-semibold block">Initial Budget</span>
                 <span className="font-bold text-emerald-700 text-xs">
-                  {data.budgetAmount ? `$${Number(data.budgetAmount).toLocaleString()}` : (data.amount ? `$${Number(data.amount).toLocaleString()}` : '$500,000')}
+                  {(() => {
+                    const val = data.budgetAmount ?? data.allocatedBudget ?? data.budget ?? data.amount;
+                    if (val !== undefined && val !== null) {
+                      return `$${Number(val).toLocaleString()}`;
+                    }
+                    return '$0';
+                  })()}
                 </span>
               </div>
             </div>

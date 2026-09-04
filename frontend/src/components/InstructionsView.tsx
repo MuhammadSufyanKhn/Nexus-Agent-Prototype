@@ -225,7 +225,7 @@ export const InstructionsView: React.FC<InstructionsViewProps> = ({ onNavigateTo
 
     {
       id: 'onboarding',
-      title: '7. Employee Onboarding Hub & Email Automation',
+      title: '6. Employee Onboarding Hub & Email Automation',
       icon: UserPlus,
       color: 'from-indigo-600 to-purple-600',
       borderColor: 'border-indigo-500/30',

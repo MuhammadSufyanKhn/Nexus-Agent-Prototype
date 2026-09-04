@@ -1,36 +1,30 @@
 {
   "format": 1,
   "restore": {
-    "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Tools\\Nexus.Tools.csproj": {}
+    "E:\\nexus\\Nexus-Agent-Prototype\\backend\\Nexus.Tools\\Nexus.Tools.csproj": {}
   },
   "projects": {
-    "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Data\\Nexus.Data.csproj": {
+    "E:\\nexus\\Nexus-Agent-Prototype\\backend\\Nexus.Data\\Nexus.Data.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Data\\Nexus.Data.csproj",
+        "projectUniqueName": "E:\\nexus\\Nexus-Agent-Prototype\\backend\\Nexus.Data\\Nexus.Data.csproj",
         "projectName": "Nexus.Data",
-        "projectPath": "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Data\\Nexus.Data.csproj",
-        "packagesPath": "C:\\Users\\DELL\\.nuget\\packages\\",
-        "outputPath": "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Data\\obj\\",
+        "projectPath": "E:\\nexus\\Nexus-Agent-Prototype\\backend\\Nexus.Data\\Nexus.Data.csproj",
+        "packagesPath": "C:\\Users\\umr\\.nuget\\packages\\",
+        "outputPath": "E:\\nexus\\Nexus-Agent-Prototype\\backend\\Nexus.Data\\obj\\",
         "projectStyle": "PackageReference",
-        "fallbackFolders": [
-          "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
-        ],
         "configFilePaths": [
-          "C:\\Users\\DELL\\AppData\\Roaming\\NuGet\\NuGet.Config",
-          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
-          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
+          "C:\\Users\\umr\\AppData\\Roaming\\NuGet\\NuGet.Config"
         ],
         "originalTargetFrameworks": [
           "net10.0"
         ],
         "sources": {
-          "C:\\Program Files (x86)\\Microsoft SDKs\\NuGetPackages\\": {},
-          "C:\\Program Files\\dotnet\\library-packs": {},
           "https://api.nuget.org/v3/index.json": {}
         },
         "frameworks": {
           "net10.0": {
+            "framework": "net10.0",
             "targetAlias": "net10.0",
             "projectReferences": {}
           }
@@ -45,10 +39,11 @@
           "auditLevel": "low",
           "auditMode": "all"
         },
-        "SdkAnalysisLevel": "10.0.100"
+        "SdkAnalysisLevel": "10.0.400"
       },
       "frameworks": {
         "net10.0": {
+          "framework": "net10.0",
           "targetAlias": "net10.0",
           "dependencies": {
             "Microsoft.EntityFrameworkCore": {
@@ -86,7 +81,7 @@
               "privateAssets": "all"
             }
           },
-          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.101/PortableRuntimeIdentifierGraph.json",
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.400/PortableRuntimeIdentifierGraph.json",
           "packagesToPrune": {
             "Microsoft.CSharp": "(,4.7.32767]",
             "Microsoft.VisualBasic": "(,10.4.32767]",
@@ -364,37 +359,31 @@
         }
       }
     },
-    "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Security\\Nexus.Security.csproj": {
+    "E:\\nexus\\Nexus-Agent-Prototype\\backend\\Nexus.Security\\Nexus.Security.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Security\\Nexus.Security.csproj",
+        "projectUniqueName": "E:\\nexus\\Nexus-Agent-Prototype\\backend\\Nexus.Security\\Nexus.Security.csproj",
         "projectName": "Nexus.Security",
-        "projectPath": "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Security\\Nexus.Security.csproj",
-        "packagesPath": "C:\\Users\\DELL\\.nuget\\packages\\",
-        "outputPath": "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Security\\obj\\",
+        "projectPath": "E:\\nexus\\Nexus-Agent-Prototype\\backend\\Nexus.Security\\Nexus.Security.csproj",
+        "packagesPath": "C:\\Users\\umr\\.nuget\\packages\\",
+        "outputPath": "E:\\nexus\\Nexus-Agent-Prototype\\backend\\Nexus.Security\\obj\\",
         "projectStyle": "PackageReference",
-        "fallbackFolders": [
-          "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
-        ],
         "configFilePaths": [
-          "C:\\Users\\DELL\\AppData\\Roaming\\NuGet\\NuGet.Config",
-          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
-          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
+          "C:\\Users\\umr\\AppData\\Roaming\\NuGet\\NuGet.Config"
         ],
         "originalTargetFrameworks": [
           "net10.0"
         ],
         "sources": {
-          "C:\\Program Files (x86)\\Microsoft SDKs\\NuGetPackages\\": {},
-          "C:\\Program Files\\dotnet\\library-packs": {},
           "https://api.nuget.org/v3/index.json": {}
         },
         "frameworks": {
           "net10.0": {
+            "framework": "net10.0",
             "targetAlias": "net10.0",
             "projectReferences": {
-              "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Data\\Nexus.Data.csproj": {
-                "projectPath": "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Data\\Nexus.Data.csproj"
+              "E:\\nexus\\Nexus-Agent-Prototype\\backend\\Nexus.Data\\Nexus.Data.csproj": {
+                "projectPath": "E:\\nexus\\Nexus-Agent-Prototype\\backend\\Nexus.Data\\Nexus.Data.csproj"
               }
             }
           }
@@ -409,10 +398,11 @@
           "auditLevel": "low",
           "auditMode": "all"
         },
-        "SdkAnalysisLevel": "10.0.100"
+        "SdkAnalysisLevel": "10.0.400"
       },
       "frameworks": {
         "net10.0": {
+          "framework": "net10.0",
           "targetAlias": "net10.0",
           "imports": [
             "net461",
@@ -430,7 +420,7 @@
               "privateAssets": "all"
             }
           },
-          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.101/PortableRuntimeIdentifierGraph.json",
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.400/PortableRuntimeIdentifierGraph.json",
           "packagesToPrune": {
             "Microsoft.CSharp": "(,4.7.32767]",
             "Microsoft.VisualBasic": "(,10.4.32767]",
@@ -708,40 +698,34 @@
         }
       }
     },
-    "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Tools\\Nexus.Tools.csproj": {
+    "E:\\nexus\\Nexus-Agent-Prototype\\backend\\Nexus.Tools\\Nexus.Tools.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Tools\\Nexus.Tools.csproj",
+        "projectUniqueName": "E:\\nexus\\Nexus-Agent-Prototype\\backend\\Nexus.Tools\\Nexus.Tools.csproj",
         "projectName": "Nexus.Tools",
-        "projectPath": "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Tools\\Nexus.Tools.csproj",
-        "packagesPath": "C:\\Users\\DELL\\.nuget\\packages\\",
-        "outputPath": "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Tools\\obj\\",
+        "projectPath": "E:\\nexus\\Nexus-Agent-Prototype\\backend\\Nexus.Tools\\Nexus.Tools.csproj",
+        "packagesPath": "C:\\Users\\umr\\.nuget\\packages\\",
+        "outputPath": "E:\\nexus\\Nexus-Agent-Prototype\\backend\\Nexus.Tools\\obj\\",
         "projectStyle": "PackageReference",
-        "fallbackFolders": [
-          "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
-        ],
         "configFilePaths": [
-          "C:\\Users\\DELL\\AppData\\Roaming\\NuGet\\NuGet.Config",
-          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
-          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
+          "C:\\Users\\umr\\AppData\\Roaming\\NuGet\\NuGet.Config"
         ],
         "originalTargetFrameworks": [
           "net10.0"
         ],
         "sources": {
-          "C:\\Program Files (x86)\\Microsoft SDKs\\NuGetPackages\\": {},
-          "C:\\Program Files\\dotnet\\library-packs": {},
           "https://api.nuget.org/v3/index.json": {}
         },
         "frameworks": {
           "net10.0": {
+            "framework": "net10.0",
             "targetAlias": "net10.0",
             "projectReferences": {
-              "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Data\\Nexus.Data.csproj": {
-                "projectPath": "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Data\\Nexus.Data.csproj"
+              "E:\\nexus\\Nexus-Agent-Prototype\\backend\\Nexus.Data\\Nexus.Data.csproj": {
+                "projectPath": "E:\\nexus\\Nexus-Agent-Prototype\\backend\\Nexus.Data\\Nexus.Data.csproj"
               },
-              "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Security\\Nexus.Security.csproj": {
-                "projectPath": "D:\\.NET PROJECTS\\NEXUS AGENT LITE\\backend\\Nexus.Security\\Nexus.Security.csproj"
+              "E:\\nexus\\Nexus-Agent-Prototype\\backend\\Nexus.Security\\Nexus.Security.csproj": {
+                "projectPath": "E:\\nexus\\Nexus-Agent-Prototype\\backend\\Nexus.Security\\Nexus.Security.csproj"
               }
             }
           }
@@ -756,10 +740,11 @@
           "auditLevel": "low",
           "auditMode": "all"
         },
-        "SdkAnalysisLevel": "10.0.100"
+        "SdkAnalysisLevel": "10.0.400"
       },
       "frameworks": {
         "net10.0": {
+          "framework": "net10.0",
           "targetAlias": "net10.0",
           "imports": [
             "net461",
@@ -777,7 +762,7 @@
               "privateAssets": "all"
             }
           },
-          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.101/PortableRuntimeIdentifierGraph.json",
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.400/PortableRuntimeIdentifierGraph.json",
           "packagesToPrune": {
             "Microsoft.CSharp": "(,4.7.32767]",
             "Microsoft.VisualBasic": "(,10.4.32767]",

@@ -120,20 +120,25 @@ public class DepartmentCrudTool : IAgentTool
             ?? ctx.GetArgument<string>("manager");
         if (string.IsNullOrWhiteSpace(headName))
         {
-            var headMatch = System.Text.RegularExpressions.Regex.Match(prompt, @"(?:head|lead|manager)\s+([A-Za-z]+)", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-            if (headMatch.Success) headName = headMatch.Groups[1].Value;
+            var headAsMatch = System.Text.RegularExpressions.Regex.Match(prompt, @"\b(?:with|under|assign|appoint)\s+([A-Za-z]+(?:\s+[A-Za-z]+)?)\s+(?:as\s+(?:head|department\s+head|lead|manager))\b", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            if (headAsMatch.Success) headName = headAsMatch.Groups[1].Value;
+            else
+            {
+                var headMatch = System.Text.RegularExpressions.Regex.Match(prompt, @"(?:head|lead|manager)\s+(?::|is|of)?\s*([A-Za-z]+(?:\s+[A-Za-z]+)?)", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                if (headMatch.Success) headName = headMatch.Groups[1].Value;
+            }
         }
 
         if (!string.IsNullOrWhiteSpace(headName))
         {
-            headName = System.Globalization.CultureInfo.CurrentCulture.TextInfo.ToTitleCase(headName.ToLower());
+            headName = System.Globalization.CultureInfo.CurrentCulture.TextInfo.ToTitleCase(headName.ToLower().Trim());
             var headEmp = await _db.Employees.FirstOrDefaultAsync(e => e.DepartmentId == dept.Id && e.Name.ToLower() == headName.ToLower());
             if (headEmp == null)
             {
                 headEmp = new Employee
                 {
                     Name = headName,
-                    Email = $"{headName.ToLower()}@nexus.local",
+                    Email = $"{headName.ToLower().Replace(" ", ".")}@nexus.local",
                     DepartmentId = dept.Id,
                     Designation = $"Head of {name}",
                     Salary = 95000.00m,
@@ -166,10 +171,13 @@ public class DepartmentCrudTool : IAgentTool
             }
             else
             {
-                var budMatch = System.Text.RegularExpressions.Regex.Match(prompt, @"(?:budget|allocation)\s+(?:of\s+)?\$?([0-9kKmM\.\,]+)", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                var budMatch = System.Text.RegularExpressions.Regex.Match(prompt, @"(?:\$([0-9\.,]+[kKmM]?)|([0-9\.,]+[kKmM]?)\$|\b(?:budget|allocation|allocated)\s+(?:of\s+|is\s+|at\s+|:\s*)?\$?([0-9\.,]+[kKmM]?)\$?)", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
                 if (budMatch.Success)
                 {
-                    var val = budMatch.Groups[1].Value.Replace(",", "").Trim();
+                    var extracted = !string.IsNullOrEmpty(budMatch.Groups[1].Value) ? budMatch.Groups[1].Value :
+                                    !string.IsNullOrEmpty(budMatch.Groups[2].Value) ? budMatch.Groups[2].Value :
+                                    budMatch.Groups[3].Value;
+                    var val = extracted.Replace(",", "").Trim();
                     if (val.EndsWith("k", StringComparison.OrdinalIgnoreCase) && decimal.TryParse(val[..^1], out var kv)) initialBudget = kv * 1000m;
                     else if (val.EndsWith("m", StringComparison.OrdinalIgnoreCase) && decimal.TryParse(val[..^1], out var mv)) initialBudget = mv * 1_000_000m;
                     else if (decimal.TryParse(val, out var sv)) initialBudget = sv;
@@ -202,14 +210,23 @@ public class DepartmentCrudTool : IAgentTool
         await _db.SaveChangesAsync();
         sw.Stop();
 
+        var displayHead = !string.IsNullOrWhiteSpace(headName) ? headName : "Not Assigned";
+
         return ToolExecutionResult.Success(new
         {
-            message = $"Department '{name}' created successfully (Head: {headName ?? "Assigned Lead"}, Budget: ${initialBudget:N2}).",
+            message = $"Department '{name}' created successfully (Head: {displayHead}, Budget: ${initialBudget:N2}).",
             dept.Id,
             dept.Name,
             dept.Description,
-            headOfDepartment = headName ?? "Assigned Lead",
-            allocatedBudget = initialBudget
+            name = dept.Name,
+            department = dept.Name,
+            head = headName,
+            headOfDepartment = headName,
+            departmentHead = headName,
+            budgetAmount = initialBudget,
+            allocatedBudget = initialBudget,
+            amount = initialBudget,
+            budget = initialBudget
         }, RiskLevel.Medium, sw.ElapsedMilliseconds);
     }
 

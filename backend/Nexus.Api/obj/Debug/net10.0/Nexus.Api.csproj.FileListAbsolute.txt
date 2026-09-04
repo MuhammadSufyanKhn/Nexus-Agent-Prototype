@@ -356,3 +356,7 @@ D:\.NET PROJECTS\NEXUS AGENT LITE\backend\Nexus.Api\obj\Debug\net10.0\compressed
 D:\.NET PROJECTS\NEXUS AGENT LITE\backend\Nexus.Api\obj\Debug\net10.0\compressed\xwi54npj40-{0}-qchkd1ujc1-qchkd1ujc1.gz
 D:\.NET PROJECTS\NEXUS AGENT LITE\backend\Nexus.Api\obj\Debug\net10.0\compressed\blpp09yhg9-{0}-vji2kbe4e2-vji2kbe4e2.gz
 D:\.NET PROJECTS\NEXUS AGENT LITE\backend\Nexus.Api\obj\Debug\net10.0\compressed\xtx16yk1re-{0}-bk43avx6cz-bk43avx6cz.gz
+E:\nexus\Nexus-Agent-Prototype\backend\Nexus.Api\obj\Debug\net10.0\compressed\blpp09yhg9-{0}-q1tgb6ya49-q1tgb6ya49.gz
+E:\nexus\Nexus-Agent-Prototype\backend\Nexus.Api\obj\Debug\net10.0\compressed\1xcjt8sr68-{0}-9umt9r0mwn-9umt9r0mwn.gz
+E:\nexus\Nexus-Agent-Prototype\backend\Nexus.Api\obj\Debug\net10.0\compressed\xwi54npj40-{0}-9umt9r0mwn-9umt9r0mwn.gz
+E:\nexus\Nexus-Agent-Prototype\backend\Nexus.Api\obj\Debug\net10.0\compressed\xtx16yk1re-{0}-7vt7pz90k6-7vt7pz90k6.gz

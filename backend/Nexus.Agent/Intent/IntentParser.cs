@@ -1660,9 +1660,8 @@ User: ""Screen submitted candidate CVs for Senior Full Stack Developer and score
         bool isPolicyUpdateAction = (p.Contains("policy") || p.Contains("policies") || p.Contains("pol-")) &&
                                     (p.Contains("update") || p.Contains("edit") || p.Contains("modify") || p.Contains("revise") || p.Contains("change"));
 
-        bool isDeptCreateAction = Regex.IsMatch(p, @"\b(?:create|add|new|make|setup)\s+(?:a\s+|the\s+)?([A-Za-z0-9\&]+)\s+(?:department|dept)\b", RegexOptions.IgnoreCase) ||
-                                  Regex.IsMatch(p, @"\b(?:create|add|new|make|setup)\s+(?:department|dept)\s+([A-Za-z0-9\&]+)\b", RegexOptions.IgnoreCase) ||
-                                  (p.Contains("department") && (p.Contains("create") || p.Contains("bana do") || p.Contains("banao") || p.Contains("add karo")));
+        bool isDeptCreateAction = Regex.IsMatch(p, @"\b(?:create|add|new|make|setup|set\s+up|establish)\s+(?:a\s+|the\s+|new\s+)*(?:([A-Za-z0-9\&\s]+?)\s+(?:department|dept)|department\s+(?:called|named)?\s+([A-Za-z0-9\&\s]+?))\b", RegexOptions.IgnoreCase) ||
+                                  (p.Contains("department") && (p.Contains("create") || p.Contains("add") || p.Contains("set up") || p.Contains("setup") || p.Contains("establish") || p.Contains("bana do") || p.Contains("banao") || p.Contains("add karo")));
 
         // Leadership Appointment Action Guard (e.g. "Appoint Ali as Acting Head of Admission department")
         bool isAppointmentAction = p.Contains("appoint") || p.Contains("acting head") || p.Contains("interim head") ||
@@ -2258,11 +2257,41 @@ User: ""Screen submitted candidate CVs for Senior Full Stack Developer and score
 
         if (isDeptIntent)
         {
-            var deptCreateMatch = Regex.Match(prompt, @"\b(?:create|add|new|make|setup)\s+(?:a\s+|the\s+)?([A-Za-z0-9\&]+)\s+(?:department|dept)\b", RegexOptions.IgnoreCase);
-            if (deptCreateMatch.Success)
+            // Extract department name
+            string? extractedDept = null;
+
+            // Pattern 1: "Create a new department called AI Innovations", "Add a new department named AI Innovations"
+            var namedDeptMatch = Regex.Match(prompt, @"\b(?:create|add|new|make|setup|set\s+up|establish)\s+(?:a\s+|new\s+)*department\s+(?:called|named)\s+([A-Za-z0-9\&\s]+?)(?=\s+(?:with|under|head|budget|assign|allocate|for|\.|\,|$))", RegexOptions.IgnoreCase);
+            if (namedDeptMatch.Success)
             {
-                var dName = CleanDepartmentName(deptCreateMatch.Groups[1].Value);
-                if (!string.IsNullOrWhiteSpace(dName) && !dName.Equals("a", StringComparison.OrdinalIgnoreCase) && !dName.Equals("the", StringComparison.OrdinalIgnoreCase) && !dName.Equals("new", StringComparison.OrdinalIgnoreCase))
+                extractedDept = namedDeptMatch.Groups[1].Value;
+            }
+
+            // Pattern 2: "Create department AI Innovations", "Set up department AI Innovations"
+            if (string.IsNullOrWhiteSpace(extractedDept))
+            {
+                var deptFirstMatch = Regex.Match(prompt, @"\b(?:create|add|new|make|setup|set\s+up|establish)\s+department\s+([A-Za-z0-9\&\s]+?)(?=\s*(?:,|\.|\s+with|\s+under|\s+assign|\s+allocate|\s+head|\s+budget|$))", RegexOptions.IgnoreCase);
+                if (deptFirstMatch.Success)
+                {
+                    extractedDept = deptFirstMatch.Groups[1].Value;
+                }
+            }
+
+            // Pattern 3: "Create AI Innovations department", "Set up AI Innovations department"
+            if (string.IsNullOrWhiteSpace(extractedDept))
+            {
+                var deptCreateMatch = Regex.Match(prompt, @"\b(?:create|add|new|make|setup|set\s+up|establish)\s+(?:a\s+|the\s+|new\s+)*([A-Za-z0-9\&\s]+?)\s+(?:department|dept)\b", RegexOptions.IgnoreCase);
+                if (deptCreateMatch.Success)
+                {
+                    extractedDept = deptCreateMatch.Groups[1].Value;
+                }
+            }
+
+            if (!string.IsNullOrWhiteSpace(extractedDept))
+            {
+                var dName = CleanDepartmentName(extractedDept);
+                var invalidDepts = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "a", "the", "new", "department", "dept" };
+                if (!string.IsNullOrWhiteSpace(dName) && !invalidDepts.Contains(dName))
                 {
                     entities["name"] = dName;
                     entities["department"] = dName;
@@ -2276,36 +2305,85 @@ User: ""Screen submitted candidate CVs for Senior Full Stack Developer and score
 
             if (!string.IsNullOrWhiteSpace(deptVal) && string.IsNullOrWhiteSpace(nameVal))
             {
-                entities["name"] = deptVal;
-                parameters["name"] = deptVal;
+                var cleaned = CleanDepartmentName(deptVal);
+                entities["name"] = cleaned;
+                parameters["name"] = cleaned;
+                entities["department"] = cleaned;
+                parameters["department"] = cleaned;
             }
             else if (!string.IsNullOrWhiteSpace(nameVal) && string.IsNullOrWhiteSpace(deptVal))
             {
-                entities["department"] = nameVal;
-                parameters["department"] = nameVal;
+                var cleaned = CleanDepartmentName(nameVal);
+                entities["department"] = cleaned;
+                parameters["department"] = cleaned;
+                entities["name"] = cleaned;
+                parameters["name"] = cleaned;
+            }
+            else if (!string.IsNullOrWhiteSpace(nameVal))
+            {
+                var cleaned = CleanDepartmentName(nameVal);
+                entities["name"] = cleaned;
+                parameters["name"] = cleaned;
+                entities["department"] = cleaned;
+                parameters["department"] = cleaned;
             }
 
-            var headMatch = Regex.Match(prompt, @"\b(?:with\s+head|head\s+(?:is|of)?|new\s+head\s+(?:is)?|manager\s+(?:is)?|lead\s+(?:is)?)\s+([A-Za-z]+(?:\s+[A-Za-z]+)?)\b", RegexOptions.IgnoreCase);
-            if (headMatch.Success)
+            // Head extraction
+            string? extractedHead = null;
+
+            // Pattern A: "with Tariq Mahmood as head", "with Tariq Mahmood as department head", "under Tariq Mahmood", "assign Tariq Mahmood as head"
+            var headAsMatch = Regex.Match(prompt, @"\b(?:with|under|assign|appoint)\s+([A-Za-z]+(?:\s+[A-Za-z]+)?)\s+(?:as\s+(?:head|department\s+head|lead|manager))\b", RegexOptions.IgnoreCase);
+            if (headAsMatch.Success)
             {
-                var headName = headMatch.Groups[1].Value.Trim();
-                headName = Regex.Replace(headName, @"\s+(?:and|with|budget|at|for)$", "", RegexOptions.IgnoreCase).Trim();
-                var invalidHead = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "department", "dept", "finance", "it", "hr", "operations", "and", "with", "budget" };
-                if (!invalidHead.Contains(headName))
+                extractedHead = headAsMatch.Groups[1].Value;
+            }
+
+            // Pattern B: "with head Tariq Mahmood", "Head: Tariq Mahmood", "manager Tariq Mahmood", "led by Tariq Mahmood"
+            if (string.IsNullOrWhiteSpace(extractedHead))
+            {
+                var headMatch = Regex.Match(prompt, @"\b(?:with\s+head|head\s*(?::|is|of)?|new\s+head\s*(?::|is)?|manager\s*(?::|is)?|lead\s*(?::|is)?|led\s+by|under)\s+([A-Za-z]+(?:\s+[A-Za-z]+)?)\b", RegexOptions.IgnoreCase);
+                if (headMatch.Success)
                 {
-                    entities["head"] = CultureInfo.CurrentCulture.TextInfo.ToTitleCase(headName.ToLower());
-                    parameters["head"] = entities["head"];
+                    extractedHead = headMatch.Groups[1].Value;
                 }
             }
 
-            var budMatch = Regex.Match(prompt, @"\b(?:budget|allocation)\s+(?:of\s+|is\s+|at\s+)?\$?([0-9]+(?:\.[0-9]+)?)\b", RegexOptions.IgnoreCase);
+            if (!string.IsNullOrWhiteSpace(extractedHead))
+            {
+                var headName = extractedHead.Trim();
+                headName = Regex.Replace(headName, @"\s+(?:and|with|budget|at|for|as|initial|a|allocated)$", "", RegexOptions.IgnoreCase).Trim();
+                var invalidHead = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "department", "dept", "finance", "it", "hr", "operations", "and", "with", "budget", "initial", "allocated", "assigned" };
+                if (!invalidHead.Contains(headName) && headName.Length > 1)
+                {
+                    var formattedHead = CultureInfo.CurrentCulture.TextInfo.ToTitleCase(headName.ToLower());
+                    entities["head"] = formattedHead;
+                    parameters["head"] = formattedHead;
+                    entities["departmentHead"] = formattedHead;
+                    parameters["departmentHead"] = formattedHead;
+                }
+            }
+
+            // Budget extraction
+            string? extractedBud = null;
+
+            // Dollar amount with $ before/after or label "budget" / "allocation" / "initial budget"
+            var budMatch = Regex.Match(prompt, @"(?:\$([0-9\.,]+[kKmM]?)|([0-9\.,]+[kKmM]?)\$|\b(?:budget|allocation|allocated)\s+(?:of\s+|is\s+|at\s+|:\s*)?\$?([0-9\.,]+[kKmM]?)\$?)", RegexOptions.IgnoreCase);
             if (budMatch.Success)
             {
-                var budVal = budMatch.Groups[1].Value.Trim();
+                extractedBud = !string.IsNullOrEmpty(budMatch.Groups[1].Value) ? budMatch.Groups[1].Value :
+                               !string.IsNullOrEmpty(budMatch.Groups[2].Value) ? budMatch.Groups[2].Value :
+                               budMatch.Groups[3].Value;
+            }
+
+            if (!string.IsNullOrWhiteSpace(extractedBud))
+            {
+                var budVal = extractedBud.TrimEnd('.', ',').Replace(",", "").Trim();
                 entities["budgetAmount"] = budVal;
                 entities["amount"] = budVal;
+                entities["budget"] = budVal;
                 parameters["budgetAmount"] = budVal;
                 parameters["amount"] = budVal;
+                parameters["budget"] = budVal;
             }
         }
 
@@ -2944,15 +3022,24 @@ User: ""Screen submitted candidate CVs for Senior Full Stack Developer and score
             cleaned = cleaned[5..].Trim();
         }
 
-        if (cleaned.Equals("IT", StringComparison.OrdinalIgnoreCase) || cleaned.Equals("HR", StringComparison.OrdinalIgnoreCase) || cleaned.Equals("QA", StringComparison.OrdinalIgnoreCase) || cleaned.Equals("SQA", StringComparison.OrdinalIgnoreCase))
+        var acronyms = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
-            return cleaned.ToUpperInvariant();
-        }
-        if (cleaned.Equals("R&D", StringComparison.OrdinalIgnoreCase) || cleaned.Equals("R & D", StringComparison.OrdinalIgnoreCase))
-        {
-            return "R&D";
-        }
+            "AI", "IT", "HR", "QA", "SQA", "R&D", "ML", "UI", "UX", "BI", "API", "ERP", "CRM", "VP", "PR", "IP"
+        };
 
-        return CultureInfo.CurrentCulture.TextInfo.ToTitleCase(cleaned.ToLower());
+        var words = cleaned.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        for (int i = 0; i < words.Length; i++)
+        {
+            var w = words[i];
+            if (acronyms.Contains(w) || (w.Length <= 3 && w.All(char.IsUpper)))
+            {
+                words[i] = w.ToUpperInvariant();
+            }
+            else
+            {
+                words[i] = CultureInfo.CurrentCulture.TextInfo.ToTitleCase(w.ToLower());
+            }
+        }
+        return string.Join(" ", words);
     }
 }
