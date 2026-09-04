@@ -15,7 +15,7 @@ def generate_sick_leave_email(args: dict) -> dict:
 
     primary_target_email = "nexusagent.notifications@gmail.com"
     sender_email = os.environ.get("SMTP_SENDER_EMAIL") or os.environ.get("GMAIL_SENDER_EMAIL") or primary_target_email
-    smtp_password = args.get("password") or args.get("smtp_password") or os.environ.get("GMAIL_APP_PASSWORD") or os.environ.get("SMTP_PASSWORD") or "ibww vttv kyno zuti"
+    smtp_password = args.get("password") or args.get("smtp_password") or os.environ.get("GMAIL_APP_PASSWORD") or os.environ.get("SMTP_PASSWORD") or ""
 
     # Build recipient list: nexusagent.notifications@gmail.com AND the employee's exact DB email
     recipients = [primary_target_email]

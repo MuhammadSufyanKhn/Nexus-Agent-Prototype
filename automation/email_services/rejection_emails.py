@@ -13,7 +13,7 @@ def generate_screening_rejection_email(args: dict) -> dict:
     recipient_email = args.get("email") or args.get("recipient_email") or args.get("to_email") or ""
 
     sender_email = os.environ.get("SMTP_SENDER_EMAIL") or os.environ.get("GMAIL_SENDER_EMAIL") or "nexusagent.notifications@gmail.com"
-    smtp_password = os.environ.get("GMAIL_APP_PASSWORD") or os.environ.get("SMTP_PASSWORD") or "ibww vttv kyno zuti"
+    smtp_password = os.environ.get("GMAIL_APP_PASSWORD") or os.environ.get("SMTP_PASSWORD") or ""
 
     subject = f"Application Update: {position} — Nexus Enterprise"
 
@@ -132,7 +132,7 @@ def generate_interview_rejection_email(args: dict) -> dict:
     recipient_email = args.get("email") or args.get("recipient_email") or args.get("to_email") or ""
 
     sender_email = os.environ.get("SMTP_SENDER_EMAIL") or os.environ.get("GMAIL_SENDER_EMAIL") or "nexusagent.notifications@gmail.com"
-    smtp_password = os.environ.get("GMAIL_APP_PASSWORD") or os.environ.get("SMTP_PASSWORD") or "ibww vttv kyno zuti"
+    smtp_password = os.environ.get("GMAIL_APP_PASSWORD") or os.environ.get("SMTP_PASSWORD") or ""
 
     subject = f"Update Regarding Your Interview for {position} — Nexus Enterprise"
 
@@ -214,7 +214,7 @@ def generate_interview_rejection_email(args: dict) -> dict:
     mock_domains = [".local", "devmail.com", "example.com", "test.com", "company.com", "nexus.local"]
     is_mock = not recipient_email or "@" not in recipient_email or any(recipient_email.lower().endswith(d) or f"@{d}" in recipient_email.lower() for d in mock_domains)
 
-    if recipient_email and not is_mock:
+    if recipient_email and smtp_password and not is_mock:
         try:
             msg = MIMEMultipart("alternative")
             msg["Subject"] = subject
@@ -230,9 +230,11 @@ def generate_interview_rejection_email(args: dict) -> dict:
             smtp_sent = True
         except Exception as e:
             error_detail = str(e)
+    elif not smtp_password:
+        error_detail = "NOTICE: SMTP transmission simulated (preview mode - GMAIL_APP_PASSWORD not set)."
 
     return {
-        "status": "SUCCESS" if smtp_sent else ("FAILED" if error_detail else "NO_RECIPIENT"),
+        "status": "SUCCESS" if (smtp_sent or not smtp_password or not recipient_email) else "FAILED",
         "action": "INTERVIEW_REJECTION_DISPATCHED",
         "candidate": name,
         "recipient": recipient_email,

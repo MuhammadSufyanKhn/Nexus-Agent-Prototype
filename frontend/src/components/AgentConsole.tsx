@@ -2732,6 +2732,11 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
       return renderPolicyResult(data);
     }
 
+    // Service Desk Ticket Operations
+    if (intent.startsWith('TICKET_') || intent === 'TICKET_CREATE' || intent === 'TICKET_UPDATE' || intent === 'TICKET_READ') {
+      return renderTicketResult(data, intent);
+    }
+
     // CV Fit Screening
     if (intent === 'CV_SCREEN') {
       return renderCvScreenResult(data);
@@ -2761,7 +2766,7 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
     <div className="max-w-6xl mx-auto px-6 py-6 space-y-6">
       {/* Header Banner */}
       <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white rounded-2xl p-6 shadow-lg relative overflow-hidden">
-        <div className="relative z-10 max-w-2xl space-y-2">
+        <div className="relative max-w-2xl space-y-2">
           <div className="flex items-center gap-2 text-blue-400 text-xs font-semibold uppercase tracking-wider">
             <Sparkles className="w-4 h-4" />
             <span>Autonomous Workforce Intelligence</span>

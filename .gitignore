@@ -1,0 +1,33 @@
+# Secrets & Environment Files
+.env
+.env.*
+*.env
+appsettings.Development.json
+
+# .NET Build Output & Cache
+bin/
+obj/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Node / Frontend
+node_modules/
+dist/
+dist-ssr/
+*.local
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+venv/
+.pytest_cache/
+
+# OS & Editor Files
+.vscode/
+.idea/
+Thumbs.db
+Desktop.ini

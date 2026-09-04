@@ -16,7 +16,7 @@ def generate_welcome_email(args: dict) -> dict:
     
     sender_email = os.environ.get("SMTP_SENDER_EMAIL") or os.environ.get("GMAIL_SENDER_EMAIL") or "nexusagent.notifications@gmail.com"
     recipient_email = args.get("email") or args.get("recipient_email") or args.get("to_email") or args.get("officialEmail") or ""
-    smtp_password = args.get("password") or args.get("smtp_password") or os.environ.get("GMAIL_APP_PASSWORD") or os.environ.get("SMTP_PASSWORD") or "ibww vttv kyno zuti"
+    smtp_password = args.get("password") or args.get("smtp_password") or os.environ.get("GMAIL_APP_PASSWORD") or os.environ.get("SMTP_PASSWORD") or ""
 
     subject = f"Welcome to the Team, {name}! — Your Onboarding Details"
 

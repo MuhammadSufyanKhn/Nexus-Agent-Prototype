@@ -1,146 +1,137 @@
-# NEXUS-AGENT LITE — Enterprise AI HR Assistant & Talent Intelligence Platform
+# 🚀 NEXUS-AGENT LITE — Enterprise Autonomous AI Workforce & Talent Platform
 
-> **Turn Natural Language Requests into Safe, Automated HR & Operations Workflows.**
+> **Turn Plain English Requests into Safe, Automated Enterprise Operations.**
 
-NEXUS-AGENT LITE is an enterprise workforce automation platform built with **C# .NET 10 Web API**, **Entity Framework Core**, **SQL Server**, **React 19**, **Gemini 2.5 LLM Intelligence**, and **Python Automation**. 
+**NEXUS-AGENT LITE** is a modern, full-stack enterprise workforce management platform powered by **C# .NET 10 Web API**, **Entity Framework Core**, **Google Gemini AI**, **Python Automation**, and **React 19**.
 
-It enables HR managers to interact with enterprise databases using conversational AI, automates employee onboarding and policy enforcement, and provides an end-to-end **Talent Acquisition, PDF Resume Extraction, and AI CV Screening pipeline**.
-
----
-
-## 🌟 Key Features
-
-### 1. 🤖 Conversational HR Assistant & Workflow Execution
-* Plain English natural language command execution:
-  * *"Onboard Ahmed Khan as a mid-level .NET developer in IT"*
-  * *"Log Sufyan's sick day today and notify his team"*
-  * *"Show me departments exceeding their allocated Q3 budget"*
-* Automated action execution with fallback safety guards.
-
-### 2. 💼 Job Requisition & Pipeline Management
-* Full CRUD requisition lifecycle with compensation ranges, department tagging, and required competencies.
-* Real-time counters showing total candidate applications stored in SQL Server.
-* 1-click shareable public application link generator with clipboard copy.
-* Interactive applicants drawer to view and inspect all submissions.
-
-### 3. 🌐 Dedicated Public Candidate Portal (`http://localhost:3001`)
-* **Department Filtering**: Filter active openings by unit (e.g. **`All Departments`**, **`IT`**, **`Marketing`**, **`HR`**, etc.) with live opening counters.
-* **Role Transparency**: Detailed role descriptions, core responsibilities, required competencies, and a **4-Card Perks Grid** (Top Compensation, Hybrid/Remote, Health & Wellness, Learning Stipends).
-* **PDF-Only Applications**: Strictly accepts `.pdf` documents (no raw text paste needed) with drag-and-drop or file browsing and instant file validation.
-* **Vertical Layout**: Clear, natural top-to-bottom layout with job specifications on top and the candidate submission form directly below.
-
-### 4. ✨ AI CV Screening with Embedded PDF Viewer
-* **Embedded PDF Document Viewer**: Direct in-browser PDF viewer displaying the candidate's actual submitted resume document with 1-click PDF download.
-* **Automated PDF Word Extraction**: Powered by **`UglyToad.PdfPig`**, the agent automatically extracts every word and token from candidate PDF pages on the backend and saves the text to the database.
-* **View Extracted Words Switcher**: Recruiter toggle between the visual PDF document and the agent's parsed word stream (with exact word count).
-* **Neural Match Scoring**: Gemini dynamically calculates match percentages, evaluates candidate fit against job requirements, and highlights ⭐ **Best Fit** candidates.
-* **Dynamic Role-Specific Interview Questions**: Generates 5 technical interview questions based directly on the candidate's actual projects, claims, and identified skill gaps (no hardcoded questions).
-* **1-Click Onboarding**: Direct action to approve candidate and create an employee record in the directory.
-
-### 5. 🛡️ Human-in-the-Loop Approval Center
-* Plan of Action review gate for high-risk operations (salary changes, terminations, department budget freezes).
-* Visual diff tables and financial impact calculation before committing database changes.
-
-### 6. 🔒 Cryptographic Audit Ledger & RBAC
-* Read-only SQL Sandbox preventing destructive queries (`DROP`, `DELETE`).
-* Immutable SHA-256 cryptographic audit ledger tracking every agent-executed action.
+It empowers HR leaders, department managers, and recruiters to manage employees, track department budgets, query corporate policies, audit expenses, and screen job applicants using natural language.
 
 ---
 
-## 🚀 Quick Start Guide
+## 📋 System Prerequisites
 
-### Prerequisites
-* **.NET 10 SDK**
-* **Node.js** (v20+) & **npm**
-* **Python 3.12** (`py` launcher installed)
-* **SQL Server** (LocalDB / Express / Developer Edition)
+Before running the project, make sure you have the following installed on your computer:
+
+| Requirement | Minimum Version | Note |
+| :--- | :--- | :--- |
+| **.NET SDK** | `.NET 9.0` or `.NET 10.0` | Powers the backend Web API |
+| **Node.js & npm** | `Node.js v18+` & `npm v9+` | Powers the React frontend |
+| **Python** | `Python 3.10+` | Powers background automation & email services |
+| **Database** | *Zero manual setup* | Automatically connects to **SQL Server LocalDB** if available, or falls back to **InMemory DB**! |
 
 ---
 
-### Step 1: Start Backend API (Port 5160)
-```powershell
+## 🔑 AI Configuration (Google Gemini API Key)
+
+To enable conversational AI and smart CV screening, configure a Google Gemini API key:
+
+1. **Get a Free Key:** Visit **[Google AI Studio](https://aistudio.google.com/app/apikey)** and generate a free API key (takes 10 seconds).
+2. **Add Key to Backend:** Open `backend/Nexus.Api/appsettings.json` and insert your key:
+   ```json
+   {
+     "LLM": {
+       "Provider": "Gemini",
+       "ApiKey": "YOUR_GEMINI_API_KEY_HERE",
+       "Model": "gemini-3.5-flash"
+     }
+   }
+   ```
+   *(Alternatively, you can create a private `backend/Nexus.Api/appsettings.Development.json` or set the environment variable: `export LLM__ApiKey="your-key"`).*
+
+---
+
+## 🚀 Quick Start Guide (3 Simple Steps)
+
+### Step 1: Start the Backend API (Port 5160)
+Open a terminal in the root folder:
+```bash
 cd backend/Nexus.Api
 dotnet run --launch-profile http
 ```
-> Runs ASP.NET Core API at **`http://localhost:5160`** (Swagger docs at `/swagger`)
+* **API URL:** `http://localhost:5160`
+* **Swagger Documentation:** `http://localhost:5160/swagger`
 
 ---
 
-### Step 2: Start HR Admin App & AI Assistant (Port 3000)
-```powershell
+### Step 2: Start the HR Admin Portal & AI Assistant (Port 3000)
+Open a second terminal:
+```bash
 cd frontend
+npm install
 npm run dev
 ```
-> Open browser at **`http://localhost:3000`**
+* **HR Admin App URL:** Open **`http://localhost:3000`** in your browser.
 
 ---
 
-### Step 3: Start Public Candidate Application Portal (Port 3001)
-```powershell
+### Step 3: (Optional) Start the Public Candidate Portal (Port 3001)
+Open a third terminal to test the public applicant experience:
+```bash
 cd frontend
 npm run dev:portal
 ```
-> Open browser at **`http://localhost:3001`** *(Dedicated public portal with department filtering and PDF resume upload)*
+* **Public Careers Portal URL:** Open **`http://localhost:3001`** in your browser.
 
 ---
 
-### Step 4: Standalone Production HTML Application
-The repository also includes a production-ready, single-file HTML/CSS/JS version with dark theme (`#0d1117` base) located at:
-* File path: [`frontend/nexus-hr.html`](file:///d:/.NET%20PROJECTS/NEXUS%20AGENT%20LITE/frontend/nexus-hr.html)
-* Or visit via dev server: **`http://localhost:3000/nexus-hr.html`**
+## 🌟 Key Platform Modules
+
+### 1. 🤖 Conversational AI Assistant
+Execute real organizational actions from natural language commands:
+* **Workforce:** *"Onboard Ahmed Khan as a mid-level .NET developer in IT at $75,000"*
+* **Leaves:** *"Log sick leave for Sarah today and notify her team"*
+* **Budgets:** *"Reallocate $30,000 from Marketing budget to Engineering"*
+* **Analytics:** *"Show me departments exceeding their Q3 allocated budget"*
 
 ---
 
-## 📁 Repository Structure
-
-```text
-NEXUS AGENT LITE/
-├── backend/
-│   ├── Nexus.Api/             # ASP.NET Core Web API Controllers & Endpoints
-│   │   ├── Controllers/       # AgentController, CvController, JobOpeningsController
-│   ├── Nexus.Data/            # EF Core DbContext, Entities, and Gemini LLM Service
-│   ├── Nexus.Agent/           # AI Intent Parsing & Autonomous Execution Engine
-│   ├── Nexus.Tools/           # Automation Tools & SQL Sandbox
-│   ├── Nexus.Security/        # RBAC & Cryptographic SHA-256 Audit Ledger
-│   └── Nexus.Tests/           # Complete xUnit Test Suite (91 Tests)
-├── frontend/
-│   ├── src/
-│   │   ├── components/
-│   │   │   ├── CandidateApplicationPortal.tsx  # Public Portal (Dept filter & PDF-only)
-│   │   │   ├── CvCheckerView.tsx               # Embedded PDF Viewer & AI Screening
-│   │   │   ├── JobOpeningsView.tsx             # Job Requisitions & Pipeline Manager
-│   │   │   ├── AgentConsole.tsx                # Natural Language AI Chat Assistant
-│   │   │   ├── EmployeesView.tsx               # Workforce Directory
-│   │   │   └── DepartmentsView.tsx             # Corporate Budget Pools & Depts
-│   │   ├── services/api.ts                     # Full TypeScript API Client
-│   │   └── App.tsx                             # Port 3001 / Route Switcher
-│   ├── public/
-│   │   └── nexus-hr.html      # Standalone Single-File App (Public)
-│   ├── nexus-hr.html          # Standalone Single-File App (Frontend Root)
-│   ├── package.json           # Scripts: "dev" (3000) & "dev:portal" (3001)
-│   └── vite.config.ts         # Vite Configuration & Backend Proxy
-├── mock-portal/               # Python Mock Legacy HR Server (Port 8088)
-├── docs/                      # Technical Architecture & Setup Documentation
-└── README.md                  # System Documentation & Run Guide
-```
+### 2. 🎯 AI Talent Acquisition & CV Screening Pipeline
+* **Dedicated Candidate Portal (`:3001`):** Filter roles by department (IT, Marketing, HR), review compensation/perks, and upload PDF resumes.
+* **In-Browser PDF Viewer & Word Extraction:** Uses `UglyToad.PdfPig` to extract every word token from submitted PDF resumes.
+* **Neural Match Scoring:** Calculates transparent 0–100% match scores against role requirements.
+* **Tailored Interview Questions:** Dynamically generates 5 technical interview questions based on the candidate's actual projects and skill gaps.
+* **1-Click Scheduling & Onboarding:** Dispatches styled HTML interview invitations and promotes candidates directly into the employee directory.
 
 ---
 
-## 🎬 Core Demonstration Scenarios
-
-| Scenario | Location / URL | What Happens |
-| :--- | :--- | :--- |
-| **1. Department Filtered Career Portal** | `http://localhost:3001` | Candidate selects **IT** or **Marketing** filter; attaches candidate `.pdf` resume; application & PDF are submitted and stored in SQL database. |
-| **2. Embedded PDF Screening & Word Extraction** | `http://localhost:3000` (CV Tab) | Agent displays the uploaded PDF in the embedded viewer, automatically extracts words with `UglyToad.PdfPig`, and provides a toggle to inspect extracted words. |
-| **3. AI Fit Assessment & Dynamic Questions** | `http://localhost:3000` (CV Tab) | Click **"Run AI Evaluation"** to trigger multi-ring spinner, fit score reveal, and 5 dynamic role-specific interview questions generated by Gemini. |
-| **4. Natural Language Onboarding** | `http://localhost:3000` (Console) | Command: `"Onboard Ahmed Khan as a mid-level .NET developer in IT"` triggers policy check, creates Action Plan, and provisions employee upon approval. |
-| **5. Sick Leave & Email Dispatch** | `http://localhost:3000` (Console) | Command: `"Log Sufyan's sick day today and notify his team"` logs leave in SQL Server and dispatches real SMTP emails. |
+### 3. 💳 Expense Tracker & 1-Click AI Audit Engine
+* **Employee Expense Logging:** Submit claims with categories (Meals, Travel, Equipment, Software).
+* **Automated AI Policy Audit:** Scans claims against company spending caps (e.g. $50 meal limit, $500 travel pre-approval).
+* **Policy Variance ($):** Calculates exact over-budget dollar amounts and flags unapproved weekend expenses.
 
 ---
 
-## 🧪 Running Automated Unit Tests
+### 4. 🏛️ Department Operations & Safe Budget Controls
+* **Live Financial Overview:** Real-time visibility into Allocated Funds vs. Spent Budgets across all business units.
+* **Safe Reallocations:** Built-in financial guards prevent negative balances or unauthorized budget transfers.
 
-```powershell
+---
+
+### 5. 📋 Corporate Policy Knowledge Base
+* **Document Ingestion:** Ingests official policy documentation (Remote Work, Travel, Leave policies).
+* **Instant Q&A:** Answers employee questions (e.g. *"Can I work remotely on Mondays?"*) with direct citations.
+
+---
+
+### 6. 🛡️ Enterprise Safety & Cryptographic Ledger
+* **Human-in-the-Loop Approvals:** High-risk actions (salary changes, terminations, budget reallocations) require explicit manager sign-off.
+* **Read-Only SQL Sandbox:** Strict AST validator blocks destructive SQL keywords (`DROP`, `DELETE`, `TRUNCATE`).
+* **SHA-256 Cryptographic Audit Ledger:** Immutable audit trail tracking every agent-executed action with hash verification.
+
+---
+
+## 🧪 Running Automated Tests
+
+To run the complete automated test suite (Unit tests, Intent parser tests, and Security verification):
+
+```bash
 dotnet test backend/Nexus.slnx
 ```
 *(All 91 unit and integration tests run cleanly with 0 failures!)*
+
+---
+
+## 👥 Team & Authors
+
+* **Muhammad Sufyan Khan** — Full-Stack & AI Systems Engineer
+* **Umar Danish** — Software Architecture & QA Lead

@@ -50,7 +50,7 @@ export const Header: React.FC<HeaderProps> = ({
   const { title, desc } = getTabTitle(activeTab);
 
   return (
-    <header className="bg-white border-b border-slate-200 sticky top-0 z-10 px-8 py-4 flex items-center justify-between shadow-2xs select-none">
+    <header className="bg-white/98 backdrop-blur-md border-b border-slate-200 sticky top-0 z-30 px-8 py-4 flex items-center justify-between shadow-xs select-none">
       {/* Contextual Title */}
       <div>
         <h2 className="text-xl font-bold text-slate-900 tracking-tight">{title}</h2>

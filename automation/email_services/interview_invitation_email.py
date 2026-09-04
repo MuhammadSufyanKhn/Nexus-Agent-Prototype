@@ -19,7 +19,7 @@ def generate_interview_invitation_email(args: dict) -> dict:
     notes = args.get("notes") or ""
 
     sender_email = os.environ.get("SMTP_SENDER_EMAIL") or os.environ.get("GMAIL_SENDER_EMAIL") or "nexusagent.notifications@gmail.com"
-    smtp_password = os.environ.get("GMAIL_APP_PASSWORD") or os.environ.get("SMTP_PASSWORD") or "ibww vttv kyno zuti"
+    smtp_password = os.environ.get("GMAIL_APP_PASSWORD") or os.environ.get("SMTP_PASSWORD") or ""
     
     subject = f"Interview Invitation: {position} — Nexus Enterprise"
 
@@ -243,7 +243,7 @@ def generate_interview_invitation_email(args: dict) -> dict:
     mock_domains = [".local", "devmail.com", "example.com", "test.com", "company.com", "nexus.local"]
     is_mock_local = not recipient_email or "@" not in recipient_email or any(recipient_email.lower().endswith(d) or f"@{d}" in recipient_email.lower() for d in mock_domains)
 
-    if recipient_email and not is_mock_local:
+    if recipient_email and smtp_password and not is_mock_local:
         try:
             msg = MIMEMultipart("alternative")
             msg["Subject"] = subject
@@ -262,9 +262,11 @@ def generate_interview_invitation_email(args: dict) -> dict:
             smtp_sent = True
         except Exception as e:
             smtp_error = str(e)
+    elif not smtp_password:
+        smtp_error = "NOTICE: SMTP transmission simulated (preview mode - GMAIL_APP_PASSWORD not set)."
 
     return {
-        "status": "SUCCESS" if (smtp_sent or not recipient_email) else "FAILED",
+        "status": "SUCCESS" if (smtp_sent or not smtp_password or not recipient_email) else "FAILED",
         "action": "INTERVIEW_INVITATION_DISPATCHED",
         "candidate": name,
         "recipient": recipient_email,
