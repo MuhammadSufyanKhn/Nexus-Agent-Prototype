@@ -133,5 +133,5 @@ dotnet test backend/Nexus.slnx
 
 ## 👥 Team & Authors
 
-* **Muhammad Sufyan Khan** — Full-Stack & AI Systems Engineer
-* **Umar Danish** — Software Architecture & QA Lead
+* **Muhammad Sufyan Khan** — Full-Stack & QA Engineer
+* **Umar Danish** — Software Architecture & AI Automation Engineer
