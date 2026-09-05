@@ -19,7 +19,7 @@ def generate_interview_invitation_email(args: dict) -> dict:
     notes = args.get("notes") or ""
 
     sender_email = os.environ.get("SMTP_SENDER_EMAIL") or os.environ.get("GMAIL_SENDER_EMAIL") or "nexusagent.notifications@gmail.com"
-    smtp_password = os.environ.get("GMAIL_APP_PASSWORD") or os.environ.get("SMTP_PASSWORD") or ""
+    smtp_password = args.get("password") or args.get("smtp_password") or os.environ.get("GMAIL_APP_PASSWORD") or os.environ.get("SMTP_PASSWORD") or ""
     
     subject = f"Interview Invitation: {position} — Nexus Enterprise"
 

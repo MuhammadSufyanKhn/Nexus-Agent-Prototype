@@ -42,14 +42,11 @@ Your ONLY job is to convert natural-language requests into correct T-SQL and ret
 
 DATABASE SCHEMA (USE ONLY THESE TABLES AND COLUMNS):
 
-Table: DepartmentBudgets
-Columns: DepartmentName VARCHAR, Year INT, Quarter VARCHAR, AllocatedAmount DECIMAL, SpentAmount DECIMAL
-
-Additional tables:
-Table: Departments — Columns: Id, Name, Description
-Table: Employees — Columns: Id, Name, Email, DepartmentId, Designation, Salary, ExperienceYears, Status (INT: 1 = Active, 2 = Inactive, 3 = OnLeave, 4 = Terminated. When querying for active employees, always use Status = 1)
-Table: Budgets — Columns: Id, DepartmentId, Year, Quarter, AllocatedAmount, SpentAmount
-Table: MasterBudgets — Columns: Id, Year, FiscalYear, TotalBudgetPool, UpdatedAt
+PRIMARY TABLES:
+Table: Departments — Columns: Id INT, Name VARCHAR, Description VARCHAR
+Table: Budgets — Columns: Id INT, DepartmentId INT, Year INT, Quarter VARCHAR, AllocatedAmount DECIMAL, SpentAmount DECIMAL
+Table: Employees — Columns: Id INT, Name VARCHAR, Email VARCHAR, DepartmentId INT, Designation VARCHAR, Salary DECIMAL, ExperienceYears INT, Status INT (1 = Active, 2 = Inactive, 3 = OnLeave, 4 = Terminated. When querying for active employees, always use Status = 1)
+Table: MasterBudgets — Columns: Id INT, Year INT, FiscalYear VARCHAR, TotalBudgetPool DECIMAL, UpdatedAt DATETIME
 NOTE: MasterBudgets does NOT have RemainingBalance or AllocatedTotal columns. To compute remaining balance use: (mb.TotalBudgetPool - ISNULL((SELECT SUM(AllocatedAmount) FROM Budgets), 0))
 Table: Expenses — Columns: Id, EmployeeId, ExpenseType, Amount, ExpenseDate, Status, Description
 Table: Tickets — Columns: Id, TicketId, EmployeeName, Department, RequestType, Priority, Status, Details, CreatedAt
@@ -58,6 +55,9 @@ Table: Approvals — Columns: Id, AgentRunId, RiskLevel, RequestedBy, ApprovedBy
 Table: OnboardingTasks — Columns: Id, EmployeeId, TaskName, Category, Status, DueDate
 Table: AuditLogs — Columns: Id, AgentRunId, ActionType, Details, Timestamp, Severity
 Table: Leaves — Columns: Id, EmployeeId, LeaveType, StartDate, EndDate, Status, Notes
+
+VIEW / ALIAS:
+View: DepartmentBudgets — Columns: DepartmentName VARCHAR, Year INT, Quarter VARCHAR, AllocatedAmount DECIMAL, SpentAmount DECIMAL (joins Budgets and Departments: b.DepartmentId = d.Id and d.Name = DepartmentName)
 
 INTENT DETECTION RULES:
 - show/list/give/get/find/display/check/which/what/how many → SELECT
@@ -70,11 +70,12 @@ DEFAULT VALUES FOR INSERT (use when not specified by user):
 - Quarter = 'Q3'
 - SpentAmount = 0
 
-AMOUNT PARSING: '50k' = 50000, '100 thousand' = 100000, '1.5m' = 1500000
+AMOUNT PARSING: '50k' = 50000, '100 thousand' = 100000, '1.5m' = 1500000, '200k' = 200000
 
-DEPARTMENT NAME RULES:
-- 'give me department names' or 'list all departments' → SELECT DISTINCT DepartmentName FROM DepartmentBudgets;
-- Use DISTINCT when the intent is 'which departments exist'
+DEPARTMENT & BUDGET RULES:
+- 'give me department names' or 'list all departments' → SELECT Name AS Department FROM Departments
+- 'departments with budget > 200k' or 'budget greater than 200k' → SELECT d.Name AS Department, b.Year, b.Quarter, b.AllocatedAmount, b.SpentAmount FROM Budgets b JOIN Departments d ON b.DepartmentId = d.Id WHERE b.AllocatedAmount > 200000 ORDER BY b.AllocatedAmount DESC
+- 'headcount distribution' or 'distribution report' → SELECT d.Name AS Department, COUNT(e.Id) AS Headcount FROM Departments d LEFT JOIN Employees e ON d.Id = e.DepartmentId AND e.Status = 1 GROUP BY d.Name ORDER BY Headcount DESC
 - Use WHERE SpentAmount > AllocatedAmount for 'exceeding budget'
 - Use WHERE SpentAmount < AllocatedAmount for 'under budget'
 
@@ -99,10 +100,16 @@ CRITICAL:
 EXAMPLES:
 
 Request: give me department names
-Output: SELECT DISTINCT DepartmentName FROM DepartmentBudgets
+Output: SELECT Name AS Department FROM Departments
+
+Request: show departments with budget > 200k
+Output: SELECT d.Name AS Department, b.Year, b.Quarter, b.AllocatedAmount, b.SpentAmount FROM Budgets b JOIN Departments d ON b.DepartmentId = d.Id WHERE b.AllocatedAmount > 200000 ORDER BY b.AllocatedAmount DESC
+
+Request: headcount distribution report
+Output: SELECT d.Name AS Department, COUNT(e.Id) AS Headcount FROM Departments d LEFT JOIN Employees e ON d.Id = e.DepartmentId AND e.Status = 1 GROUP BY d.Name ORDER BY Headcount DESC
 
 Request: which departments exceed budget
-Output: SELECT DISTINCT DepartmentName FROM DepartmentBudgets WHERE SpentAmount > AllocatedAmount
+Output: SELECT d.Name AS DepartmentName, b.AllocatedAmount, b.SpentAmount FROM Budgets b JOIN Departments d ON b.DepartmentId = d.Id WHERE b.SpentAmount > b.AllocatedAmount
 
 Request: add Finance with budget 50k
 Output: INSERT INTO DepartmentBudgets (DepartmentName, Year, Quarter, AllocatedAmount, SpentAmount) VALUES ('Finance', 2026, 'Q3', 50000, 0)
@@ -123,10 +130,10 @@ Request: how much did Finance spend
 Output: SELECT SUM(SpentAmount) AS TotalSpent FROM DepartmentBudgets WHERE DepartmentName = 'Finance'
 
 Request: which department has highest spending
-Output: SELECT TOP 1 DepartmentName, SpentAmount FROM DepartmentBudgets ORDER BY SpentAmount DESC
+Output: SELECT TOP 1 d.Name AS DepartmentName, b.SpentAmount FROM Budgets b JOIN Departments d ON b.DepartmentId = d.Id ORDER BY b.SpentAmount DESC
 
 Request: show total allocated budget by department
-Output: SELECT DepartmentName, SUM(AllocatedAmount) AS TotalAllocatedAmount FROM DepartmentBudgets GROUP BY DepartmentName
+Output: SELECT d.Name AS DepartmentName, SUM(b.AllocatedAmount) AS TotalAllocatedAmount FROM Budgets b JOIN Departments d ON b.DepartmentId = d.Id GROUP BY d.Name
 
 Request: tell me a joke
 Output: FALLBACK_TRIGGERED
@@ -253,6 +260,12 @@ Output: FALLBACK_TRIGGERED
         t = Regex.Replace(t, @"\b(?:e\.)?Status\s*=\s*['""]OnLeave['""]", "Status = 3", RegexOptions.IgnoreCase);
         t = Regex.Replace(t, @"\b(?:e\.)?Status\s*=\s*['""]Terminated['""]", "Status = 4", RegexOptions.IgnoreCase);
 
+        // Rewrite queries that group only by raw DepartmentId in distribution/count queries to use Department Name
+        if (Regex.IsMatch(t, @"\bGROUP\s+BY\s+(?:e\.)?DepartmentId\b", RegexOptions.IgnoreCase) && !t.Contains("Departments", StringComparison.OrdinalIgnoreCase))
+        {
+            t = "SELECT d.Name AS Department, COUNT(e.Id) AS Headcount FROM Departments d LEFT JOIN Employees e ON d.Id = e.DepartmentId AND e.Status = 1 GROUP BY d.Name ORDER BY Headcount DESC";
+        }
+
         // Remove trailing semicolon — the validator will decide
         return t.Trim().TrimEnd(';').Trim();
     }
@@ -268,6 +281,43 @@ Output: FALLBACK_TRIGGERED
         if (q.Contains("executive overview") || (q.Contains("workforce") && q.Contains("metrics")) || (q.Contains("department") && q.Contains("headcount") && q.Contains("overview")))
         {
             return "SELECT d.Name AS Department, COUNT(e.Id) AS ActiveHeadcount, ISNULL(AVG(e.Salary), 0) AS AverageSalary, ISNULL(SUM(e.Salary), 0) AS TotalPayrollCost FROM Departments d LEFT JOIN Employees e ON d.Id = e.DepartmentId AND e.Status = 1 GROUP BY d.Name";
+        }
+
+        // 0b. Headcount Distribution Report
+        if ((q.Contains("headcount") || q.Contains("employee")) && (q.Contains("distribution") || q.Contains("breakdown") || q.Contains("by department") || q.Contains("per department") || q.Contains("distribution report")))
+        {
+            return "SELECT d.Name AS Department, COUNT(e.Id) AS Headcount FROM Departments d LEFT JOIN Employees e ON d.Id = e.DepartmentId AND e.Status = 1 GROUP BY d.Name ORDER BY Headcount DESC";
+        }
+
+        // 0c. Budget Thresholds (e.g. > 200k, over 130k, allocated budgets over 500k, over $500,000)
+        if (q.Contains("budget") && (q.Contains(">") || q.Contains("greater") || q.Contains("more than") || q.Contains("above") || q.Contains("over") || q.Contains("exceeding") || q.Contains("higher than") || q.Contains("at least") || Regex.IsMatch(q, @"\b(?:over|above|exceeding|\>)\s*\$?\d+", RegexOptions.IgnoreCase) || Regex.IsMatch(q, @"\b\d+\s*(?:k|m|thousand|million)\b", RegexOptions.IgnoreCase)))
+        {
+            decimal minBudget = 130000;
+            var match = Regex.Match(q, @"(?:over|above|greater than|more than|exceeding|higher than|at least|\>|\>\=)\s*\$?([0-9,]+(?:\.[0-9]+)?)\s*(k|thousand|m|million)?", RegexOptions.IgnoreCase);
+            if (!match.Success)
+            {
+                match = Regex.Match(q, @"\$?([0-9,]+(?:\.[0-9]+)?)\s*(k|thousand|m|million)", RegexOptions.IgnoreCase);
+            }
+            if (match.Success)
+            {
+                var numStr = match.Groups[1].Value.Replace(",", "");
+                if (decimal.TryParse(numStr, out var num))
+                {
+                    var unit = match.Groups[2].Value.ToLower();
+                    if (unit == "k" || unit == "thousand") num *= 1000;
+                    else if (unit == "m" || unit == "million") num *= 1000000;
+                    if (num > 0) minBudget = num;
+                }
+            }
+            bool isInclusive = q.Contains("at least") || q.Contains(">=") || q.Contains("greater than or equal");
+            string op = isInclusive ? ">=" : ">";
+            return $"SELECT d.Name AS Department, b.Year, b.Quarter, b.AllocatedAmount, b.SpentAmount FROM Budgets b JOIN Departments d ON b.DepartmentId = d.Id WHERE b.AllocatedAmount {op} {minBudget} ORDER BY b.AllocatedAmount DESC";
+        }
+
+        // 0d. Department Names / List departments
+        if (q.Contains("department name") || q.Contains("list departments") || q.Contains("list all departments") || q.Contains("which departments exist") || q.Contains("give me departments"))
+        {
+            return "SELECT Name AS Department FROM Departments";
         }
 
         // 1. Average Salary & Compensation

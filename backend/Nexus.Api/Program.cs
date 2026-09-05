@@ -289,6 +289,19 @@ using (var scope = app.Services.CreateScope())
         try
         {
             db.Database.ExecuteSqlRaw(@"
+                IF NOT EXISTS (SELECT * FROM sys.views WHERE name = 'DepartmentBudgets')
+                BEGIN
+                    EXEC('CREATE VIEW DepartmentBudgets AS
+                    SELECT d.Name AS DepartmentName, b.Year, b.Quarter, b.AllocatedAmount, b.SpentAmount
+                    FROM Budgets b
+                    JOIN Departments d ON b.DepartmentId = d.Id');
+                END;
+            ");
+        } catch { }
+
+        try
+        {
+            db.Database.ExecuteSqlRaw(@"
                 IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'Tickets')
                 BEGIN
                     CREATE TABLE Tickets (
@@ -300,6 +313,27 @@ using (var scope = app.Services.CreateScope())
                         Priority NVARCHAR(50) NOT NULL DEFAULT 'High',
                         Status NVARCHAR(50) NOT NULL DEFAULT 'Open',
                         Details NVARCHAR(MAX) NOT NULL,
+                        CreatedAt DATETIME2 NOT NULL DEFAULT GETUTCDATE()
+                    );
+                END;
+            ");
+        } catch { }
+
+        try
+        {
+            db.Database.ExecuteSqlRaw(@"
+                IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'GeneratedDocuments')
+                BEGIN
+                    CREATE TABLE GeneratedDocuments (
+                        Id NVARCHAR(450) PRIMARY KEY,
+                        DocumentType NVARCHAR(100) NOT NULL,
+                        Title NVARCHAR(255) NOT NULL,
+                        FilePath NVARCHAR(500) NOT NULL,
+                        ContentHtml NVARCHAR(MAX) NOT NULL,
+                        EmployeeId INT NULL,
+                        EmployeeName NVARCHAR(150) NOT NULL,
+                        DepartmentName NVARCHAR(100) NOT NULL,
+                        AgentRunId UNIQUEIDENTIFIER NULL,
                         CreatedAt DATETIME2 NOT NULL DEFAULT GETUTCDATE()
                     );
                 END;

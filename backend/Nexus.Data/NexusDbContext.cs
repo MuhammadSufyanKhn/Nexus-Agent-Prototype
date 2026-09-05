@@ -27,6 +27,7 @@ public class NexusDbContext : DbContext
     public DbSet<Ticket> Tickets => Set<Ticket>();
     public DbSet<JobOpening> JobOpenings => Set<JobOpening>();
     public DbSet<CandidateApplication> CandidateApplications => Set<CandidateApplication>();
+    public DbSet<GeneratedDocument> GeneratedDocuments => Set<GeneratedDocument>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -92,6 +93,8 @@ public class NexusDbContext : DbContext
         {
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Amount).HasPrecision(18, 2);
+            entity.Property(e => e.PolicyLimit).HasPrecision(18, 2);
+            entity.Property(e => e.Variance).HasPrecision(18, 2);
             entity.Property(e => e.Description).HasMaxLength(500);
             entity.HasOne(e => e.Employee)
                   .WithMany(emp => emp.Expenses)

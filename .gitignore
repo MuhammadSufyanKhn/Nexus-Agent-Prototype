@@ -11,6 +11,8 @@ obj/
 *.suo
 *.userosscache
 *.sln.docstates
+wwwroot/documents/
+**/wwwroot/documents/
 
 # Node / Frontend
 node_modules/

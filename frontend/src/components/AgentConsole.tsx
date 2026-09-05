@@ -342,8 +342,10 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
     return map[intent] ?? null;
   };
 
-  const triggerNavigation = (intent: string) => {
+  const triggerNavigation = (intent: string, res?: any) => {
     if (!onNavigate) return;
+    if (res?.targetSystem === 'DOCUMENT_MANAGEMENT' || res?.target_system === 'DOCUMENT_MANAGEMENT') return;
+    if (res?.resultData?.documentId || res?.resultData?.downloadUrl || res?.resultData?.documentType) return;
     const tab = getTargetTab(intent);
     if (!tab) return;
     const label = TAB_LABELS[tab] ?? tab;
@@ -376,7 +378,7 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
         // Navigate for read-only successful results
         // Trigger 7-second choice card for navigation
         if (res.intent && !res.requiresApproval) {
-          triggerNavigation(res.intent);
+          triggerNavigation(res.intent, res);
         }
       }
       if (!res.isSuccess && res.errorMessage) {
@@ -431,7 +433,7 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
           window.dispatchEvent(new CustomEvent('budget-updated'));
           // Trigger 7-second choice card for navigation after approval
           if (result.intent) {
-            triggerNavigation(result.intent);
+            triggerNavigation(result.intent, result);
           }
         }
         if (onApprovalStateChange) onApprovalStateChange();
@@ -877,6 +879,56 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
             </div>
           )}
         </div>
+
+        {/* Corporate Salary Bands Table (POL-HR-001) */}
+        {data.salaryBands && Array.isArray(data.salaryBands) && (
+          <div className="space-y-2 border border-slate-200 rounded-xl overflow-hidden shadow-xs">
+            <div className="bg-slate-100 px-4 py-2.5 border-b border-slate-200 flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-800 uppercase tracking-wider">Authorized Enterprise Salary Bands</span>
+              <span className="text-[11px] font-mono text-slate-500">POL-HR-001 Standard</span>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="border-b border-slate-200 bg-slate-50 text-slate-600 font-bold">
+                    <th className="py-2.5 px-3">Band Level</th>
+                    <th className="py-2.5 px-3">Classification</th>
+                    <th className="py-2.5 px-3">Authorized Salary Range</th>
+                    <th className="py-2.5 px-3">Typical Applicable Roles</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {data.salaryBands.map((sb: any, idx: number) => (
+                    <tr key={idx} className="hover:bg-blue-50/40 transition">
+                      <td className="py-2 px-3 font-mono font-bold text-blue-700">{sb.Band || sb.band}</td>
+                      <td className="py-2 px-3 font-semibold text-slate-800">{sb.Level || sb.level}</td>
+                      <td className="py-2 px-3 font-bold text-emerald-700">{sb.Range || sb.range}</td>
+                      <td className="py-2 px-3 text-slate-600">{sb.Description || sb.description}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* Review Cycle & Governance Notes */}
+        {(data.annualReview || data.governance) && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {data.annualReview && (
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Compensation Review Cycle</span>
+                <p className="text-xs text-slate-700 leading-relaxed">{data.annualReview}</p>
+              </div>
+            )}
+            {data.governance && (
+              <div className="p-3 bg-amber-50/60 border border-amber-200/80 rounded-xl space-y-1">
+                <span className="text-[10px] font-bold text-amber-700 uppercase tracking-wider block">Executive Governance &amp; Exceptions</span>
+                <p className="text-xs text-amber-900 leading-relaxed">{data.governance}</p>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Policy Content Text */}
         <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-4 space-y-2">
@@ -1694,7 +1746,7 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
 
   const renderCvScreenResult = (data: any) => {
     const name = data?.candidateName || 'Candidate';
-    const score = data?.matchScore || 85;
+    const score = Number(data?.fitScore ?? data?.matchScore ?? 0);
     const isBestFit = data?.isBestFit === true || score >= 80;
     const questions = data?.recommendedInterviewQuestions || [];
 

@@ -195,6 +195,88 @@ public class PlanOfActionTests
         Assert.Equal(ApprovalStatus.Rejected, approvalInDb!.Status);
     }
 
+    [Fact]
+    public async Task ApprovalController_Executes_DesignationUpdate_When_Approved()
+    {
+        using var db = GetInMemoryDbContext("DesignationApproveDb");
+        var empService = new EmployeeService(db);
+        var registry = new ToolRegistry();
+        registry.RegisterTool(new EmployeeUpdateTool(empService));
+        registry.RegisterTool(new EmployeeReadTool(empService));
+
+        var runId = Guid.NewGuid();
+        db.AgentRuns.Add(new AgentRun
+        {
+            Id = runId,
+            OriginalPrompt = "Update Designation for Tariq to Principal Engineer.",
+            Status = AgentRunStatus.WaitingForApproval
+        });
+
+        var intent = new ParsedIntentResult
+        {
+            Intent = "EMPLOYEE_UPDATE",
+            Entities = new Dictionary<string, string>
+            {
+                { "name", "Tariq Mahmood" },
+                { "designation", "Principal Engineer" },
+                { "department", "IT" }
+            },
+            Confidence = 0.98
+        };
+
+        var actionPlan = new Nexus.Data.ActionPlan.ActionPlan
+        {
+            Title = "Plan of Action: Update Designation for Tariq Mahmood",
+            RiskLevel = RiskLevel.High,
+            Status = "AWAITING_APPROVAL",
+            Metadata = JsonSerializer.Serialize(intent),
+            Steps = new List<Nexus.Data.ActionPlan.ActionPlanStep>
+            {
+                new Nexus.Data.ActionPlan.ActionPlanStep
+                {
+                    StepNumber = 1,
+                    ToolName = "employee.update",
+                    Description = "Update designation for Tariq Mahmood to 'Principal Engineer'",
+                    RiskLevel = RiskLevel.High
+                }
+            }
+        };
+
+        var approvalId = Guid.NewGuid();
+        db.Approvals.Add(new Approval
+        {
+            Id = approvalId,
+            AgentRunId = runId,
+            RiskLevel = RiskLevel.High,
+            RequestedBy = "System",
+            Status = ApprovalStatus.Pending,
+            Reason = JsonSerializer.Serialize(actionPlan)
+        });
+        db.SaveChanges();
+
+        var mockLlm = new MockLLMService(intent);
+        var intentParser = new IntentParser(mockLlm, NullLogger<IntentParser>.Instance);
+        var orchestrator = new AgentOrchestrator(intentParser, registry, db, NullLogger<AgentOrchestrator>.Instance);
+
+        var controller = new Nexus.Api.Controllers.ApprovalController(db, orchestrator);
+        var request = new ApprovalDecisionRequest
+        {
+            ApprovalId = approvalId,
+            Approved = true,
+            ApprovedBy = "HR Manager"
+        };
+
+        var actionResult = await controller.DecideApproval(request);
+        var okResult = actionResult as Microsoft.AspNetCore.Mvc.OkObjectResult;
+        Assert.NotNull(okResult);
+
+        // Assert designation was updated in DB
+        var tariqInDb = await db.Employees.FindAsync(1);
+        Assert.NotNull(tariqInDb);
+        Assert.Equal("Principal Engineer", tariqInDb.Designation);
+        Assert.Equal(75000.00m, tariqInDb.Salary); // Unchanged salary
+    }
+
     private class MockLLMService : ILLMService
     {
         private readonly object? _responseObject;

@@ -345,6 +345,7 @@ public class ExpenseService : IExpenseService
             FlaggedClaimsCount = flaggedCount,
             TotalPolicyVariance = totalVariance,
             FlaggedClaims = flaggedList,
+            AllClaims = claims.Select(MapToDto).ToList(),
             Summary = sb.ToString().TrimEnd()
         };
     }

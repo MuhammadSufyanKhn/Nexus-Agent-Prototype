@@ -57,6 +57,11 @@ public class BudgetReadTool : IAgentTool
             var year = context.GetArgument<int?>("year");
 
             var budgets = await _budgetService.GetAllAsync(departmentId, quarter, year);
+            var minBudget = context.GetArgument<decimal?>("minBudget") ?? context.GetArgument<decimal?>("minAllocatedAmount") ?? context.GetArgument<decimal?>("minAmount");
+            if (minBudget.HasValue && minBudget.Value > 0)
+            {
+                budgets = System.Linq.Enumerable.ToList(System.Linq.Enumerable.Where(budgets, b => b.AllocatedAmount > minBudget.Value));
+            }
             sw.Stop();
             return ToolExecutionResult.Success(budgets, Definition.RiskLevel, sw.ElapsedMilliseconds);
         }

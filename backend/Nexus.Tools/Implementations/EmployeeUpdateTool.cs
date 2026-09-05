@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using System.Threading.Tasks;
 using Nexus.Data.Services;
 using Nexus.Data.DTOs;
@@ -42,7 +44,7 @@ public class EmployeeUpdateTool : IAgentTool
     public Task<ValidationResult> ValidateInputAsync(ToolExecutionContext context)
     {
         var id = context.GetArgument<int?>("id");
-        var name = context.GetArgument<string>("name");
+        var name = context.GetArgument<string>("name") ?? context.GetArgument<string>("employeeName");
         var dept = context.GetArgument<string>("department");
         var deptId = context.GetArgument<int?>("departmentId");
         var prompt = context.GetArgument<string>("prompt");
@@ -65,25 +67,52 @@ public class EmployeeUpdateTool : IAgentTool
         try
         {
             var id = context.GetArgument<int?>("id");
-            var name = context.GetArgument<string>("name");
+            var name = context.GetArgument<string>("name") ?? context.GetArgument<string>("employeeName");
             var deptName = context.GetArgument<string>("department");
             var deptId = context.GetArgument<int?>("departmentId");
             var prompt = context.GetArgument<string>("prompt") ?? string.Empty;
             var pctStr = context.GetArgument<string>("percentage") ?? context.GetArgument<string>("pct");
 
+            var invalidNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            {
+                "Designation", "Title", "Role", "Job Title", "Salary", "Compensation", "Status", "Email", "Department", "Dept"
+            };
+
+            if (!string.IsNullOrWhiteSpace(name) && invalidNames.Contains(name.Trim()))
+            {
+                name = null;
+            }
+
+            if (string.IsNullOrWhiteSpace(name) && !id.HasValue && !string.IsNullOrWhiteSpace(prompt))
+            {
+                var nameMatch = System.Text.RegularExpressions.Regex.Match(prompt, @"(?:designation|salary|role|promotion|status|record|profile)\s+(?:for|of)?\s+([A-Za-z0-9\s]+?)\s+(?:to|in|at|\b)", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                if (nameMatch.Success)
+                {
+                    var cand = nameMatch.Groups[1].Value.Trim();
+                    if (!string.IsNullOrWhiteSpace(cand) && !invalidNames.Contains(cand))
+                    {
+                        name = cand;
+                    }
+                }
+            }
+
             decimal? pctVal = null;
             if (!string.IsNullOrWhiteSpace(pctStr) && decimal.TryParse(pctStr, out var pParsed))
                 pctVal = pParsed;
 
-            if (!pctVal.HasValue)
+            if (!pctVal.HasValue && !string.IsNullOrWhiteSpace(prompt))
             {
                 var pctMatch = System.Text.RegularExpressions.Regex.Match(prompt, @"\b([0-9]+(?:\.[0-9]+)?)\s*%\b");
                 if (pctMatch.Success && decimal.TryParse(pctMatch.Groups[1].Value, out var pMatchVal))
                     pctVal = pMatchVal;
             }
 
-            // Bulk department / team salary update path
-            if ((pctVal.HasValue && pctVal.Value > 0) || !string.IsNullOrWhiteSpace(deptName) || (deptId.HasValue && string.IsNullOrWhiteSpace(name) && !id.HasValue))
+            bool isSingleEmployee = (id.HasValue && id.Value > 0) || !string.IsNullOrWhiteSpace(name);
+
+            // Bulk department / team salary update path (ONLY when no specific employee is targeted)
+            bool isBulkUpdate = !isSingleEmployee && ((pctVal.HasValue && pctVal.Value > 0) || (!string.IsNullOrWhiteSpace(deptName) && (pctVal.HasValue || prompt.Contains("raise", StringComparison.OrdinalIgnoreCase) || prompt.Contains("salary", StringComparison.OrdinalIgnoreCase) || prompt.Contains("bonus", StringComparison.OrdinalIgnoreCase))));
+
+            if (isBulkUpdate)
             {
                 var allEmployees = (await _employeeService.GetAllAsync(departmentId: deptId)).ToList();
                 if (!string.IsNullOrWhiteSpace(deptName))
@@ -94,7 +123,6 @@ public class EmployeeUpdateTool : IAgentTool
 
                 if (allEmployees.Count == 0 && string.IsNullOrWhiteSpace(name))
                 {
-                    // Fallback to all active employees if department filter matched none
                     allEmployees = (await _employeeService.GetAllAsync()).ToList();
                 }
 
@@ -147,6 +175,13 @@ public class EmployeeUpdateTool : IAgentTool
                 }
             }
 
+            if (existing == null && !string.IsNullOrWhiteSpace(prompt))
+            {
+                // Fallback: match by prompt containing employee name
+                var allEmps = (await _employeeService.GetAllAsync()).ToList();
+                existing = allEmps.FirstOrDefault(e => prompt.Contains(e.Name, StringComparison.OrdinalIgnoreCase));
+            }
+
             if (existing == null)
             {
                 // Fallback: take first employee in system if prompt was generic
@@ -159,20 +194,57 @@ public class EmployeeUpdateTool : IAgentTool
                 return ToolExecutionResult.Failure($"Employee record '{name ?? id?.ToString()}' not found.", Definition.RiskLevel);
             }
 
-            var targetSalary = context.GetArgument<decimal?>("salary") ?? existing.Salary;
+            var targetSalary = context.GetArgument<decimal?>("salary") 
+                ?? context.GetArgument<decimal?>("newSalary") 
+                ?? existing.Salary;
+
             if (pctVal.HasValue && pctVal.Value > 0 && targetSalary == existing.Salary)
             {
                 targetSalary = Math.Round(existing.Salary * (1m + (pctVal.Value / 100m)), 2);
             }
 
-            var targetDeptId = context.GetArgument<int?>("departmentId") ?? existing.DepartmentId ?? 1;
-            var targetDesig  = context.GetArgument<string>("designation") ?? existing.Designation;
-            var targetEmail  = context.GetArgument<string>("email") ?? existing.Email;
-            var targetExp    = context.GetArgument<int?>("experienceYears") ?? existing.ExperienceYears;
+            var targetDeptId = context.GetArgument<int?>("departmentId") 
+                ?? context.GetArgument<int?>("targetDepartmentId") 
+                ?? existing.DepartmentId 
+                ?? 1;
+
+            var targetDesig = context.GetArgument<string>("designation") 
+                ?? context.GetArgument<string>("role") 
+                ?? context.GetArgument<string>("targetRole") 
+                ?? context.GetArgument<string>("new_designation")
+                ?? context.GetArgument<string>("newDesignation")
+                ?? context.GetArgument<string>("title");
+
+            if (string.IsNullOrWhiteSpace(targetDesig) || targetDesig.Equals(existing.Designation, StringComparison.OrdinalIgnoreCase))
+            {
+                // Extract from prompt if not explicitly in args, e.g. "Update Designation for Sufyan to Senior .NET Developer"
+                var desigMatch = System.Text.RegularExpressions.Regex.Match(prompt, @"(?:designation|role|title)\s+(?:of|for)?\s+[\w\s]+\s+to\s+([A-Za-z0-9\.\s\+\#\-]+)", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                if (desigMatch.Success)
+                {
+                    var extracted = desigMatch.Groups[1].Value.Trim().TrimEnd('.', ',');
+                    if (!string.IsNullOrWhiteSpace(extracted) && !extracted.Equals(existing.Name, StringComparison.OrdinalIgnoreCase))
+                    {
+                        targetDesig = extracted;
+                    }
+                }
+            }
+
+            if (string.IsNullOrWhiteSpace(targetDesig))
+            {
+                targetDesig = existing.Designation;
+            }
+
+            var targetEmail = context.GetArgument<string>("email") ?? existing.Email;
+            var targetExp = context.GetArgument<int?>("experienceYears") ?? existing.ExperienceYears;
+            var targetName = context.GetArgument<string>("name") ?? context.GetArgument<string>("employeeName");
+            if (string.IsNullOrWhiteSpace(targetName) || invalidNames.Contains(targetName.Trim()))
+            {
+                targetName = existing.Name;
+            }
 
             var dto = new UpdateEmployeeDto
             {
-                Name = context.GetArgument<string>("name") ?? existing.Name,
+                Name = targetName,
                 Email = targetEmail,
                 DepartmentId = targetDeptId,
                 Designation = targetDesig,

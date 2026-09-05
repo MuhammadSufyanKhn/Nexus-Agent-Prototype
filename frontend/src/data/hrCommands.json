@@ -85,14 +85,18 @@
       "candidate cv screening",
       "score match fit",
       "best fit candidate",
-      "interview questions"
+      "interview questions",
+      "hammad",
+      "database administrator"
     ],
     "aliases": [
+      "Generate interview question recommendations based on Hammad's CV and the Database Administrator position he applied for",
       "Screen submitted candidate CVs for Senior Full Stack Developer and score match fit",
       "screen candidate resume",
       "evaluate candidate cv"
     ],
     "examples": [
+      "Generate interview question recommendations based on Hammad's CV and the Database Administrator position he applied for",
       "Screen submitted candidate CVs for Senior Full Stack Developer and score match fit.",
       "Screen candidate CV for Lead Cloud Architect and generate 5 technical interview questions.",
       "Evaluate candidate fit score against role competencies."
@@ -135,14 +139,18 @@
       "active staff",
       "active employees in",
       "engineering employees",
-      "active staff in department"
+      "active staff in department",
+      "find employee records for sufyan",
+      "sufyan"
     ],
     "aliases": [
+      "Find employee records for sufyan, display current designation, and retrieve current annual salary",
       "Show all active employees in the Engineering department",
       "list active employees in engineering",
       "show active staff in it department"
     ],
     "examples": [
+      "Find employee records for sufyan, display current designation, and retrieve current annual salary",
       "Show all active employees in the Engineering department",
       "Show all active employees in the IT department",
       "Show all active employees in the Finance department"
@@ -161,15 +169,19 @@
       "add employee",
       "join",
       "orientation",
-      "create employee"
+      "create employee",
+      "onboarding package",
+      "ali ahmed"
     ],
     "aliases": [
+      "Generate complete Onboarding Package document for new hire Ali Ahmed",
       "onboard employee",
       "add new employee",
       "create employee record",
       "hire employee"
     ],
     "examples": [
+      "Generate complete Onboarding Package document for new hire Ali Ahmed",
       "Onboard a new employee",
       "Add a new employee to IT department",
       "Onboard software engineer Alex Rivera"

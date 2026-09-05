@@ -13,7 +13,7 @@ def generate_screening_rejection_email(args: dict) -> dict:
     recipient_email = args.get("email") or args.get("recipient_email") or args.get("to_email") or ""
 
     sender_email = os.environ.get("SMTP_SENDER_EMAIL") or os.environ.get("GMAIL_SENDER_EMAIL") or "nexusagent.notifications@gmail.com"
-    smtp_password = os.environ.get("GMAIL_APP_PASSWORD") or os.environ.get("SMTP_PASSWORD") or ""
+    smtp_password = args.get("password") or args.get("smtp_password") or os.environ.get("GMAIL_APP_PASSWORD") or os.environ.get("SMTP_PASSWORD") or ""
 
     subject = f"Application Update: {position} — Nexus Enterprise"
 
@@ -132,7 +132,7 @@ def generate_interview_rejection_email(args: dict) -> dict:
     recipient_email = args.get("email") or args.get("recipient_email") or args.get("to_email") or ""
 
     sender_email = os.environ.get("SMTP_SENDER_EMAIL") or os.environ.get("GMAIL_SENDER_EMAIL") or "nexusagent.notifications@gmail.com"
-    smtp_password = os.environ.get("GMAIL_APP_PASSWORD") or os.environ.get("SMTP_PASSWORD") or ""
+    smtp_password = args.get("password") or args.get("smtp_password") or os.environ.get("GMAIL_APP_PASSWORD") or os.environ.get("SMTP_PASSWORD") or ""
 
     subject = f"Update Regarding Your Interview for {position} — Nexus Enterprise"
 

@@ -150,18 +150,24 @@ public class EmployeeService : IEmployeeService
         var employee = await _db.Employees.FindAsync(id);
         if (employee == null) return null;
 
-        var department = await _db.Departments.FindAsync(dto.DepartmentId);
+        var targetDeptId = dto.DepartmentId > 0 ? dto.DepartmentId : (employee.DepartmentId ?? 1);
+        var department = await _db.Departments.FindAsync(targetDeptId);
         if (department == null)
         {
-            throw new ArgumentException($"Department with ID {dto.DepartmentId} does not exist.");
+            department = await _db.Departments.FindAsync(employee.DepartmentId ?? 1)
+                ?? await _db.Departments.FirstOrDefaultAsync();
+            if (department == null)
+            {
+                throw new ArgumentException($"Department with ID {dto.DepartmentId} does not exist.");
+            }
         }
 
-        employee.Name = dto.Name;
-        employee.Email = dto.Email;
-        employee.DepartmentId = dto.DepartmentId;
-        employee.Designation = dto.Designation;
-        employee.Salary = dto.Salary;
-        employee.ExperienceYears = dto.ExperienceYears;
+        employee.Name = !string.IsNullOrWhiteSpace(dto.Name) ? dto.Name : employee.Name;
+        employee.Email = !string.IsNullOrWhiteSpace(dto.Email) ? dto.Email : employee.Email;
+        employee.DepartmentId = department.Id;
+        employee.Designation = !string.IsNullOrWhiteSpace(dto.Designation) ? dto.Designation : employee.Designation;
+        employee.Salary = dto.Salary > 0 ? dto.Salary : employee.Salary;
+        employee.ExperienceYears = dto.ExperienceYears >= 0 ? dto.ExperienceYears : employee.ExperienceYears;
         employee.Status = dto.Status;
         employee.UpdatedAt = DateTime.UtcNow;
 

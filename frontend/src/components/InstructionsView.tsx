@@ -13,7 +13,8 @@ import {
   Zap,
   Info,
   UserPlus,
-  Search
+  Search,
+  FileText
 } from 'lucide-react';
 
 
@@ -103,8 +104,8 @@ export const InstructionsView: React.FC<InstructionsViewProps> = ({ onNavigateTo
         },
         {
           id: 'j3',
-          text: 'Generate interview question recommendations based on candidate CV.',
-          desc: 'Produces role-tailored technical & behavioral interview questions.'
+          text: "Generate interview question recommendations based on Hammad's CV and the Database Administrator position he applied for",
+          desc: 'Produces role-tailored technical & behavioral interview questions based on candidate CV and applied position.'
         },
         {
           id: 'j4',
@@ -134,8 +135,8 @@ export const InstructionsView: React.FC<InstructionsViewProps> = ({ onNavigateTo
         },
         {
           id: 'e2',
-          text: 'Find employee records for Sarah Ahmed and show current designation and salary.',
-          desc: 'Fetches detailed employee profile and active compensation details.'
+          text: 'Find employee records for sufyan, display current designation, and retrieve current annual salary',
+          desc: 'Fetches comprehensive employee profile with current designation and annual salary details.'
         },
         {
           id: 'e3',
@@ -218,6 +219,11 @@ export const InstructionsView: React.FC<InstructionsViewProps> = ({ onNavigateTo
           id: 'p4',
           text: 'Show the current corporate compensation policy POL-HR-001',
           desc: 'Retrieves policy handbook guidelines for Compensation Policy (POL-HR-001).'
+        },
+        {
+          id: 'p5',
+          text: 'Submit meal expense claim of $40.00 for Client Dinner under Khattak',
+          desc: 'Submits a $40 client dinner meal claim under employee Khattak and evaluates against POL-FIN-002.'
         }
       ]
     },
@@ -249,13 +255,49 @@ export const InstructionsView: React.FC<InstructionsViewProps> = ({ onNavigateTo
         },
         {
           id: 'o3',
-          text: 'Generate complete Onboarding Package document for new hire Ali Khan.',
-          desc: 'Renders formal HR appointment letter & policy document packet.'
+          text: 'Generate complete Onboarding Package document for new hire Ali Ahmed',
+          desc: 'Renders formal HR appointment letter & policy document packet for new hire Ali Ahmed.'
         },
         {
           id: 'o4',
-          text: ' Find employee records for Ahmed Khan, display current designation, and retrieve current annual salary',
+          text: 'Find employee records for Ahmed Khan, display current designation, and retrieve current annual salary',
           desc: 'Fetches comprehensive employee profile with designation and annual salary details.'
+        }
+      ]
+    },
+    {
+      id: 'reports_documents',
+      title: '7. Enterprise HR Intelligence & Document Artifacts',
+      icon: FileText,
+      color: 'from-blue-600 to-cyan-600',
+      borderColor: 'border-blue-500/30',
+      badge: 'EXECUTIVE REPORTS',
+      howItWorks: [
+        'Compile comprehensive multi-domain HR reports covering headcount, recruitment, compensation bands, expense audits, budgets, and employee data.',
+        'Generate official 5-day workforce orientation and induction schedules for engineering intern cohorts in IT.',
+        'Produce corporate expense audit & compliance reports with KPI cards, category breakdown, policy violations, and 11-column claims ledger.',
+        'Filter expense claims dynamically against user-defined daily limits (e.g. $20.00 meal threshold) with exact variance calculations.'
+      ],
+      commands: [
+        {
+          id: 'rep1',
+          text: 'Generate comprehensive HR reports covering workforce, recruitment, compensation, expenses, budgets, compliance, onboarding, staffing, and employee data.',
+          desc: 'Compiles a 16-section executive HR report directly from live database tables with complete figures.'
+        },
+        {
+          id: 'rep2',
+          text: 'Generate 5-day workforce orientation and induction schedule for summer engineering interns in IT.',
+          desc: 'Compiles an official 5-day orientation framework and hourly technical syllabus for IT engineering interns.'
+        },
+        {
+          id: 'rep3',
+          text: 'Generate corporate expense audit and compliance report.',
+          desc: 'Produces an executive financial audit report with KPI cards, category analysis, POL-FIN-002 violations, and ledger.'
+        },
+        {
+          id: 'rep4',
+          text: 'Show all meal expense claims exceeding the $20 daily limit.',
+          desc: 'Filters meal claims against a custom $20.00 daily threshold and computes policy variance.'
         }
       ]
     }

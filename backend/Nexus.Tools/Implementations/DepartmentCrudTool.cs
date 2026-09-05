@@ -42,7 +42,7 @@ public class DepartmentCrudTool : IAgentTool
           ""required"": [""operation"", ""name""]
         }",
         RequiredPermission = "department.create",
-        RiskLevel = RiskLevel.Medium
+        RiskLevel = RiskLevel.High
     };
 
     public Task<ValidationResult> ValidateInputAsync(ToolExecutionContext context)
@@ -215,10 +215,9 @@ public class DepartmentCrudTool : IAgentTool
         return ToolExecutionResult.Success(new
         {
             message = $"Department '{name}' created successfully (Head: {displayHead}, Budget: ${initialBudget:N2}).",
-            dept.Id,
-            dept.Name,
-            dept.Description,
+            id = dept.Id,
             name = dept.Name,
+            description = dept.Description,
             department = dept.Name,
             head = headName,
             headOfDepartment = headName,
@@ -256,7 +255,9 @@ public class DepartmentCrudTool : IAgentTool
         return ToolExecutionResult.Success(new
         {
             message = $"Department '{dept.Name}' updated successfully (Head: {head ?? "Updated"}).",
-            dept.Id, dept.Name, dept.Description
+            id = dept.Id,
+            name = dept.Name,
+            description = dept.Description
         }, RiskLevel.Medium, sw.ElapsedMilliseconds);
     }
 
@@ -322,8 +323,8 @@ public class DepartmentCrudTool : IAgentTool
             return ToolExecutionResult.Success(new
             {
                 message = $"Department '{dept.Name}' and its {empCount} employee(s) have been permanently deleted.",
-                dept.Id,
-                dept.Name,
+                id = dept.Id,
+                name = dept.Name,
                 deletedEmployees = empCount
             }, RiskLevel.High, sw.ElapsedMilliseconds);
         }

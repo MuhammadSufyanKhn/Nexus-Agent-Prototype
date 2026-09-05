@@ -1,4 +1,6 @@
 import hrCommandsRaw from '../data/hrCommands.json';
+import { INSTRUCTION_COMMANDS_DATA } from '../data/instructionCommands';
+import type { InstructionCommandItem } from '../data/instructionCommands';
 
 export interface HRCommand {
   id: string;
@@ -9,6 +11,10 @@ export interface HRCommand {
   aliases: string[];
   examples: string[];
   template: string;
+  isInstructionGuide?: boolean;
+  sectionTitle?: string;
+  badge?: string;
+  description?: string;
 }
 
 export interface CommandSuggestion {
@@ -17,11 +23,31 @@ export interface CommandSuggestion {
   completedText: string;
   score: number;
   matchedBy: 'prefix' | 'keyword' | 'alias' | 'example' | 'template' | 'fuzzy';
+  isInstructionGuide?: boolean;
 }
 
 const DEFAULT_DEPARTMENTS = ['IT', 'HR', 'Marketing', 'Operations', 'R&D'];
 
-export const HR_COMMANDS: HRCommand[] = hrCommandsRaw as HRCommand[];
+// Convert Instruction Commands to standard HRCommand format
+export const INSTRUCTION_HR_COMMANDS: HRCommand[] = INSTRUCTION_COMMANDS_DATA.map((item: InstructionCommandItem) => ({
+  id: item.id,
+  intent: item.intent,
+  category: item.category,
+  label: item.label,
+  keywords: item.keywords,
+  aliases: item.aliases,
+  examples: [item.text],
+  template: item.text,
+  isInstructionGuide: true,
+  sectionTitle: item.sectionTitle,
+  badge: item.badge,
+  description: item.desc
+}));
+
+export const HR_COMMANDS: HRCommand[] = [
+  ...INSTRUCTION_HR_COMMANDS,
+  ...(hrCommandsRaw as HRCommand[])
+];
 
 export function getCommandSuggestions(
   input: string,
@@ -33,7 +59,63 @@ export function getCommandSuggestions(
   const activeDepts = departments.length > 0 ? departments : DEFAULT_DEPARTMENTS;
   const suggestions: CommandSuggestion[] = [];
 
-  for (const cmd of HR_COMMANDS) {
+  // 1. Process Instruction Guide Commands First (Highest Priority)
+  for (const instCmd of INSTRUCTION_HR_COMMANDS) {
+    let score = 0;
+    let matchedBy: CommandSuggestion['matchedBy'] = 'fuzzy';
+    const textLower = instCmd.template.toLowerCase();
+    const labelLower = instCmd.label.toLowerCase();
+
+    // Exact or prefix match on full instruction text (Direct Ghost Copilot & Dropdown match)
+    if (textLower.startsWith(query)) {
+      score = 150;
+      matchedBy = 'prefix';
+    }
+    // Prefix match on label
+    else if (labelLower.startsWith(query)) {
+      score = 140;
+      matchedBy = 'prefix';
+    }
+    // Prefix match on any alias
+    else if (instCmd.aliases.some(al => al.toLowerCase().startsWith(query))) {
+      score = 130;
+      matchedBy = 'alias';
+    }
+    // Keyword match
+    else if (instCmd.keywords.some(kw => kw.toLowerCase().startsWith(query) || query.startsWith(kw.toLowerCase()))) {
+      score = 115;
+      matchedBy = 'keyword';
+    }
+    // Substring match inside instruction command text or label
+    else if (
+      textLower.includes(query) ||
+      labelLower.includes(query) ||
+      instCmd.keywords.some(kw => kw.toLowerCase().includes(query)) ||
+      (instCmd.description && instCmd.description.toLowerCase().includes(query))
+    ) {
+      score = 95;
+      matchedBy = 'example';
+    }
+    // Fuzzy match
+    else if (isFuzzyMatch(query, textLower) || instCmd.keywords.some(kw => isFuzzyMatch(query, kw))) {
+      score = 65;
+      matchedBy = 'fuzzy';
+    }
+
+    if (score > 0) {
+      suggestions.push({
+        command: instCmd,
+        displayText: instCmd.label,
+        completedText: instCmd.template,
+        score,
+        matchedBy,
+        isInstructionGuide: true
+      });
+    }
+  }
+
+  // 2. Process General HR Commands
+  for (const cmd of (hrCommandsRaw as HRCommand[])) {
     let score = 0;
     let matchedBy: CommandSuggestion['matchedBy'] = 'fuzzy';
     let bestCompletedText = cmd.examples[0] || cmd.template;
@@ -54,28 +136,28 @@ export function getCommandSuggestions(
       if (matchingEx) bestCompletedText = matchingEx;
     }
     // 3. Prefix match on aliases
-    else if (cmd.aliases.some(al => al.toLowerCase().startsWith(query))) {
+    else if (cmd.aliases && cmd.aliases.some(al => al.toLowerCase().startsWith(query))) {
       score = 90;
       matchedBy = 'alias';
     }
     // 4. Keyword match
-    else if (cmd.keywords.some(kw => kw.toLowerCase().startsWith(query) || query.startsWith(kw.toLowerCase()))) {
+    else if (cmd.keywords && cmd.keywords.some(kw => kw.toLowerCase().startsWith(query) || query.startsWith(kw.toLowerCase()))) {
       score = 80;
       matchedBy = 'keyword';
     }
     // 5. Substring match anywhere in label, category, keywords, or examples
     else if (
       labelLower.includes(query) ||
-      cmd.category.toLowerCase().includes(query) ||
-      cmd.keywords.some(kw => kw.toLowerCase().includes(query)) ||
-      cmd.examples.some(ex => ex.toLowerCase().includes(query)) ||
+      (cmd.category && cmd.category.toLowerCase().includes(query)) ||
+      (cmd.keywords && cmd.keywords.some(kw => kw.toLowerCase().includes(query))) ||
+      (cmd.examples && cmd.examples.some(ex => ex.toLowerCase().includes(query))) ||
       intentLower.includes(query)
     ) {
       score = 60;
       matchedBy = 'template';
     }
     // 6. Basic fuzzy match (tolerates minor typos like allocat, budgt, onboar)
-    else if (isFuzzyMatch(query, labelLower) || cmd.keywords.some(kw => isFuzzyMatch(query, kw))) {
+    else if (isFuzzyMatch(query, labelLower) || (cmd.keywords && cmd.keywords.some(kw => isFuzzyMatch(query, kw)))) {
       score = 40;
       matchedBy = 'fuzzy';
     }
@@ -131,16 +213,29 @@ export function getCommandSuggestions(
         displayText: cmd.label,
         completedText: resolvedText,
         score,
-        matchedBy
+        matchedBy,
+        isInstructionGuide: false
       });
     }
   }
 
+  // Deduplicate by completedText
+  const uniqueSuggestions: CommandSuggestion[] = [];
+  const seenTexts = new Set<string>();
+
+  for (const sug of suggestions) {
+    const key = sug.completedText.trim().toLowerCase();
+    if (!seenTexts.has(key)) {
+      seenTexts.add(key);
+      uniqueSuggestions.push(sug);
+    }
+  }
+
   // Sort by score descending
-  suggestions.sort((a, b) => b.score - a.score);
+  uniqueSuggestions.sort((a, b) => b.score - a.score);
 
   // Return top 8 unique suggestions
-  return suggestions.slice(0, 8);
+  return uniqueSuggestions.slice(0, 8);
 }
 
 function isFuzzyMatch(query: string, text: string): boolean {

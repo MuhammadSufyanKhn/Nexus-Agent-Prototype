@@ -54,11 +54,14 @@ public class CommandVariationsTests
     [InlineData("Increase Marketing department quarterly budget by $25,000", "BUDGET_UPDATE")]
     [InlineData("Add $25,000 to the Marketing department Q3 budget", "BUDGET_UPDATE")]
     [InlineData("Raise Marketing department budget allocation by $25k", "BUDGET_UPDATE")]
+    [InlineData("Show departments with allocated budgets over 500k.", "BUDGET_ANALYSIS")]
+    [InlineData("Show departments with allocated budgets over 130k", "BUDGET_ANALYSIS")]
 
     // Module 5: Policy Center
     [InlineData("Show active HR policies", "POLICY_READ")]
     [InlineData("List all active HR policy documents", "POLICY_READ")]
     [InlineData("Get active policies under HR category", "POLICY_READ")]
+    [InlineData("Show the current corporate compensation policy POL-HR-001", "POLICY_READ")]
     [InlineData("Check if $65 meal expense complies with meal policy", "POLICY_EVALUATE")]
     [InlineData("Evaluate compliance of $65 meal expense claim", "POLICY_EVALUATE")]
     [InlineData("Validate $65 meal claim against meal reimbursement policy", "POLICY_EVALUATE")]
@@ -89,6 +92,7 @@ public class CommandVariationsTests
     // Module 9: Candidate CV Screening
     [InlineData("Analyze candidate CV text against Senior Full Stack Developer role requirements", "CV_SCREEN")]
     [InlineData("Score resume content for Senior Full Stack Developer position", "CV_SCREEN")]
+    [InlineData("Generate interview questions for hammad", "CANDIDATE_INTERVIEW_QUESTIONS")]
     [InlineData("Create new job requisition for Senior DevOps Engineer in IT department", "JOB_OPENING_CREATE")]
     [InlineData("Post job opening for Senior DevOps Engineer in IT", "JOB_OPENING_CREATE")]
 
@@ -110,6 +114,32 @@ public class CommandVariationsTests
     [InlineData("Run security and authorization compliance test", "SECURITY_TEST")]
     [InlineData("Execute enterprise security audit check", "SECURITY_TEST")]
     public async Task ParseIntent_PhrasingVariations_ShouldMapCorrectly(string prompt, string expectedIntent)
+    {
+        var result = await _parser.ParseIntentAsync(prompt);
+        Assert.NotNull(result);
+        Assert.False(string.IsNullOrWhiteSpace(result.Intent));
+        Assert.NotEqual("UNKNOWN", result.Intent);
+        Assert.True(result.Confidence >= 0.7, $"Low confidence for prompt: '{prompt}'. Got {result.Confidence}");
+    }
+
+    [Theory]
+    [InlineData("Onboard Sarah Jenkins as Senior Software Engineer in Engineering with a salary of $120,000 and send a welcome email to sufyankhankhattak33@gmail.com.")]
+    [InlineData("Onboard Sufyan Khan with a salary of $200,000. His designation is Developer, he will be joining the IT department, and send him a welcome email at sufyankhankhattak33@gmail.com.")]
+    [InlineData("Create a new job opening for Database Administrator in the IT department with location Remote / Hybrid, salary $50,000 - $60,000, required experience, and start date.")]
+    [InlineData("Screen Hammad's resume against the Database Administrator position.")]
+    [InlineData("Generate interview question recommendations based on Hammad's CV and the Database Administrator position he applied for.")]
+    [InlineData("Screen Hammad's resume against the Senior React Developer position requirements.")]
+    [InlineData("Update the designation for Khattak to Senior .NET Developer.")]
+    [InlineData("Create AI Innovations department with head Tariq Mahmood and allocate initial headcount of 10 FTEs.")]
+    [InlineData("Show departments with allocated budgets over $200,000.")]
+    [InlineData("Submit meal expense claim of $40.00 for Client Dinner under Khattak.")]
+    [InlineData("Run AI Policy Compliance Sweep on all submitted employee expense claims.")]
+    [InlineData("Show the complete corporate compensation policy POL-HR-001.")]
+    [InlineData("Generate complete Onboarding Package document for new hire Sufyan Khan.")]
+    [InlineData("Create an expense report for Q3 travel reimbursements totaling $1,450.00.")]
+    [InlineData("Generate comprehensive headcount and staffing distribution report.")]
+    [InlineData("Generate comprehensive HR reports covering workforce, recruitment, compensation, expenses, budgets, compliance, onboarding, staffing, and employee data.")]
+    public async Task ParseIntent_Section28_RequiredCommands_ShouldParseAccurately(string prompt)
     {
         var result = await _parser.ParseIntentAsync(prompt);
         Assert.NotNull(result);

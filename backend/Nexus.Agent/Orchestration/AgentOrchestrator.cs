@@ -19,6 +19,7 @@ using Nexus.Data.DTOs;
 using Nexus.Data.Entities;
 using Nexus.Data.Enums;
 using Nexus.Data.Services;
+using Nexus.Data.LLM;
 using Nexus.Security.Permissions;
 using Nexus.Security.Risk;
 using Nexus.Tools.Core;
@@ -36,6 +37,7 @@ public class AgentOrchestrator : IAgentOrchestrator
     private readonly IAgentEventBroadcaster _broadcaster;
     private readonly Nexus.Agent.LLM.GeminiFunctionCallingService? _functionCallingService;
     private readonly IDocumentService _documentService;
+    private readonly ILLMService? _llmService;
     private readonly ILogger<AgentOrchestrator> _logger;
 
     public AgentOrchestrator(
@@ -47,7 +49,8 @@ public class AgentOrchestrator : IAgentOrchestrator
         IPermissionService? permissionService = null,
         IAgentEventBroadcaster? broadcaster = null,
         Nexus.Agent.LLM.GeminiFunctionCallingService? functionCallingService = null,
-        IDocumentService? documentService = null)
+        IDocumentService? documentService = null,
+        ILLMService? llmService = null)
     {
         _intentParser = intentParser;
         _toolRegistry = toolRegistry;
@@ -58,6 +61,7 @@ public class AgentOrchestrator : IAgentOrchestrator
         _broadcaster = broadcaster ?? new Nexus.Agent.Events.AgentEventBroadcaster(NullLogger<Nexus.Agent.Events.AgentEventBroadcaster>.Instance);
         _functionCallingService = functionCallingService;
         _documentService = documentService ?? new Nexus.Data.Services.PdfDocumentService(db);
+        _llmService = llmService;
     }
 
     public async Task<AgentResult> ExecuteAsync(string userPrompt, int? userId = null, string userRole = "Admin", CancellationToken cancellationToken = default)
@@ -233,7 +237,10 @@ public class AgentOrchestrator : IAgentOrchestrator
 
         bool isExplicitMutationVerb = isOnboardingRequest ||
             parsedIntent.ParsedIntentType == IntentType.JOB_OPENING_CREATE ||
+            parsedIntent.ParsedIntentType == IntentType.DEPARTMENT_CREATE ||
+            parsedIntent.ParsedIntentType == IntentType.DEPARTMENT_UPDATE ||
             parsedIntent.ParsedIntentType == IntentType.DEPARTMENT_DELETE ||
+            (promptLower.Contains("department") && (promptLower.Contains("create") || promptLower.Contains("add") || promptLower.Contains("new") || promptLower.Contains("make") || promptLower.Contains("update") || promptLower.Contains("delete") || promptLower.Contains("remove"))) ||
             promptLower.Contains("job opening") || promptLower.Contains("new opening") ||
             promptLower.Contains("create opening") || promptLower.Contains("post a job") ||
             promptLower.Contains("onboard ") ||
@@ -712,7 +719,26 @@ public class AgentOrchestrator : IAgentOrchestrator
         else if (parsedIntent.ParsedIntentType == IntentType.POLICY_READ)
         {
             var pLower = userPrompt.ToLower();
-            if (pLower.Contains("reimbursement") || pLower.Contains("meal") || pLower.Contains("business meals") || pLower.Contains("limit"))
+            if (pLower.Contains("pol-hr-001") || pLower.Contains("compensation") || pLower.Contains("salary band") || pLower.Contains("salary policy"))
+            {
+                lastResultData = new
+                {
+                    policyCode = "POL-HR-001",
+                    policyTitle = "Corporate Compensation Policy & Salary Band Guidelines",
+                    category = "HR & Compensation",
+                    salaryBands = new[]
+                    {
+                        new { Band = "Band 1", Level = "Entry / Junior", Range = "$60,000 - $80,000", Description = "Associate Engineers, Junior Developers, Entry Analysts" },
+                        new { Band = "Band 2", Level = "Mid-Level / Professional", Range = "$80,000 - $110,000", Description = "Software Engineers, System Administrators, Marketing Specialists" },
+                        new { Band = "Band 3", Level = "Senior / Lead", Range = "$110,000 - $140,000", Description = "Senior Engineers, Tech Leads, Senior Product Managers" },
+                        new { Band = "Band 4", Level = "Principal / Executive", Range = "$140,000 - $160,000+", Description = "Principal Architects, Engineering Directors, Department Heads" }
+                    },
+                    annualReview = "Annual performance review cycle occurs in Q4 with compensation adjustments effective January 1.",
+                    governance = "Any compensation adjustment exceeding 15% or deviating above the top of the assigned salary band requires explicit executive authorization (C-Suite / VP HR).",
+                    summary = "Corporate Compensation Policy (POL-HR-001) establishes standardized salary bands across Nexus Enterprise: Band 1 ($60,000 - $80,000), Band 2 ($80,000 - $110,000), Band 3 ($110,000 - $140,000), and Band 4 ($140,000 - $160,000+). All compensation reviews occur annually in Q4. Any salary increase exceeding 15% or outside standard bands requires dual executive approval."
+                };
+            }
+            else if (pLower.Contains("reimbursement") || pLower.Contains("meal") || pLower.Contains("business meals") || pLower.Contains("limit"))
             {
                 lastResultData = new
                 {
@@ -868,65 +894,135 @@ public class AgentOrchestrator : IAgentOrchestrator
 
                 case IntentType.EXPENSE_READ:
                 {
-                    var isMealQuery = userPrompt.Contains("meal", StringComparison.OrdinalIgnoreCase) ||
-                                      string.Equals(parsedIntent.Parameters?.GetValueOrDefault("category")?.ToString(), "Meal", StringComparison.OrdinalIgnoreCase);
-                    var isExceedingQuery = userPrompt.Contains("exceed", StringComparison.OrdinalIgnoreCase) ||
-                                           userPrompt.Contains("limit", StringComparison.OrdinalIgnoreCase) ||
-                                           userPrompt.Contains("over", StringComparison.OrdinalIgnoreCase);
+                    bool isReportQuery = string.Equals(parsedIntent.Parameters?.GetValueOrDefault("reportType")?.ToString(), "EXPENSE_AUDIT", StringComparison.OrdinalIgnoreCase) ||
+                                         userPrompt.Contains("audit", StringComparison.OrdinalIgnoreCase) ||
+                                         userPrompt.Contains("report", StringComparison.OrdinalIgnoreCase) ||
+                                         parsedIntent.Parameters?.ContainsKey("generateReport") == true ||
+                                         parsedIntent.Entities?.ContainsKey("generateReport") == true;
 
-                    if (isMealQuery && isExceedingQuery)
+                    if (isReportQuery)
                     {
-                        var allExpenses = await _db.Expenses.Include(e => e.Employee).AsNoTracking().ToListAsync(cancellationToken);
-                        var exceeding = allExpenses.Where(e => (e.ExpenseType == ExpenseType.Meal || string.Equals(e.Category, "Meal", StringComparison.OrdinalIgnoreCase)) && e.Amount > 50.00m).ToList();
+                        var allExpenses = await _db.Expenses.Include(e => e.Employee).ThenInclude(emp => emp!.Department).OrderByDescending(e => e.ExpenseDate).ToListAsync(cancellationToken);
+                        var allPolicies = await _db.Policies.Where(p => p.IsActive).ToListAsync(cancellationToken);
+                        var totalClaimed = allExpenses.Sum(e => e.Amount);
+                        var totalApproved = allExpenses.Where(e => e.Status == ExpenseStatus.Approved).Sum(e => e.Amount);
+                        var totalFlagged = allExpenses.Where(e => e.ComplianceStatus == "Flagged" || (e.Variance.HasValue && e.Variance.Value > 0)).Sum(e => e.Amount);
+                        var approvedCount = allExpenses.Count(e => e.Status == ExpenseStatus.Approved);
+                        var flaggedCount = allExpenses.Count(e => e.ComplianceStatus == "Flagged" || (e.Variance.HasValue && e.Variance.Value > 0));
 
-                        if (exceeding.Count > 0)
+                        var generatedDoc = await _documentService.GenerateCorporateExpenseAuditReportAsync(allExpenses, allPolicies, agentRun.Id);
+
+                        lastResultData = new
                         {
-                            var sb = new StringBuilder();
-                            sb.AppendLine($"Found {exceeding.Count} meal expense claim(s) exceeding the $50 daily meal limit policy:\n");
-                            foreach (var exp in exceeding)
-                            {
-                                var limit = exp.PolicyLimit ?? 50.00m;
-                                var variance = exp.Variance ?? (exp.Amount - limit);
-                                var statusDisplay = exp.Status == ExpenseStatus.Approved ? "Approved" : (exp.Status == ExpenseStatus.Rejected ? "Rejected" : (exp.ComplianceStatus ?? "Flagged"));
-                                sb.AppendLine($"• {exp.ClaimNumber} — {exp.Employee?.Name ?? "Unknown"} — {exp.Description}\n  Claimed: ${exp.Amount:F2}\n  Limit: ${limit:F2}\n  Variance: +${variance:F2}\n  Status: {statusDisplay}");
-                            }
-                            lastResultData = new
-                            {
-                                count = exceeding.Count,
-                                category = "Meal",
-                                policyLimit = 50.00m,
-                                claims = exceeding.Select(e => new
-                                {
-                                    id = e.Id,
-                                    claimNumber = e.ClaimNumber,
-                                    employee = e.Employee?.Name,
-                                    amount = e.Amount,
-                                    variance = e.Amount - 50.00m,
-                                    status = (int)e.Status,
-                                    statusName = e.Status == ExpenseStatus.Approved ? "Approved" : (e.Status == ExpenseStatus.Rejected ? "Rejected" : (e.ComplianceStatus ?? "Flagged")),
-                                    complianceStatus = e.ComplianceStatus
-                                }),
-                                summary = sb.ToString().TrimEnd()
-                            };
-                        }
-                        else
-                        {
-                            lastResultData = new
-                            {
-                                count = 0,
-                                summary = "No meal expense claims currently exceed the $50 daily policy limit."
-                            };
-                        }
+                            documentId = generatedDoc.Id,
+                            title = generatedDoc.Title,
+                            claimsCount = allExpenses.Count,
+                            totalClaimed = totalClaimed,
+                            totalApproved = totalApproved,
+                            totalFlagged = totalFlagged,
+                            approvedCount = approvedCount,
+                            flaggedCount = flaggedCount,
+                            downloadUrl = $"/api/documents/{generatedDoc.Id}/download",
+                            previewUrl = $"/api/documents/{generatedDoc.Id}/preview",
+                            contentHtml = generatedDoc.ContentHtml,
+                            summary = $"Corporate Expense Audit and Compliance Report generated successfully ({allExpenses.Count} claims analyzed: {approvedCount} approved, {flaggedCount} flagged). Total Claimed: ${totalClaimed:N2} (Approved: ${totalApproved:N2}, Flagged: ${totalFlagged:N2}). Document is ready for preview and download."
+                        };
                     }
                     else
                     {
-                        var all = (await expService.GetAllAsync()).ToList();
-                        lastResultData = new
+                        var isMealQuery = userPrompt.Contains("meal", StringComparison.OrdinalIgnoreCase) ||
+                                          string.Equals(parsedIntent.Parameters?.GetValueOrDefault("category")?.ToString(), "Meal", StringComparison.OrdinalIgnoreCase);
+                        var isExceedingQuery = userPrompt.Contains("exceed", StringComparison.OrdinalIgnoreCase) ||
+                                               userPrompt.Contains("limit", StringComparison.OrdinalIgnoreCase) ||
+                                               userPrompt.Contains("over", StringComparison.OrdinalIgnoreCase) ||
+                                               userPrompt.Contains("above", StringComparison.OrdinalIgnoreCase);
+
+                        if (isMealQuery && isExceedingQuery)
                         {
-                            count = all.Count,
-                            claims = all,
-                            summary = $"Found {all.Count} expense claim(s) in the system."
-                        };
+                            decimal limit = 50.00m;
+                            if (parsedIntent.Parameters?.TryGetValue("threshold", out var tVal) == true && tVal != null && decimal.TryParse(tVal.ToString(), out var pLimit))
+                            {
+                                limit = pLimit;
+                            }
+                            else if (parsedIntent.Parameters?.TryGetValue("limit", out var lVal) == true && lVal != null && decimal.TryParse(lVal.ToString(), out var pLimit2))
+                            {
+                                limit = pLimit2;
+                            }
+                            else
+                            {
+                                var limitMatch = Regex.Match(userPrompt, @"(?:\$|limit\s+(?:of\s+)?\$?|exceeding\s+(?:the\s+)?\$?|over\s+\$?|above\s+\$?)(\d+(?:\.\d{1,2})?)", RegexOptions.IgnoreCase);
+                                if (limitMatch.Success && decimal.TryParse(limitMatch.Groups[1].Value, NumberStyles.Any, CultureInfo.InvariantCulture, out var parsedLimit))
+                                {
+                                    limit = parsedLimit;
+                                }
+                            }
+
+                            var allExpenses = await _db.Expenses.Include(e => e.Employee).ThenInclude(emp => emp!.Department).AsNoTracking().ToListAsync(cancellationToken);
+                            var exceeding = allExpenses.Where(e => (e.ExpenseType == ExpenseType.Meal || string.Equals(e.Category, "Meal", StringComparison.OrdinalIgnoreCase)) && e.Amount > limit).ToList();
+
+                            if (exceeding.Count > 0)
+                            {
+                                var sb = new StringBuilder();
+                                sb.AppendLine($"Found {exceeding.Count} meal expense claim(s) exceeding the ${limit:F2} daily limit (Policy POL-FIN-002):\n");
+                                foreach (var exp in exceeding)
+                                {
+                                    var empName = exp.Employee?.Name ?? $"Employee #{exp.EmployeeId}";
+                                    var deptName = exp.Employee?.Department?.Name ?? "Unassigned";
+                                    var variance = exp.Amount - limit;
+                                    var statusDisplay = exp.Status == ExpenseStatus.Approved ? "Approved" : (exp.Status == ExpenseStatus.Rejected ? "Rejected" : (exp.ComplianceStatus ?? "Flagged"));
+                                    sb.AppendLine($"• Claim: {exp.ClaimNumber} | Employee: {empName} | Department: {deptName} | Date: {exp.ExpenseDate:yyyy-MM-dd} | Description: {exp.Description}");
+                                    sb.AppendLine($"  Claimed: ${exp.Amount:F2} | Daily Limit: ${limit:F2} | Amount Over Limit: +${variance:F2} | Policy: POL-FIN-002 | Status: {statusDisplay} | Compliance: Non-Compliant");
+                                }
+                                lastResultData = new
+                                {
+                                    count = exceeding.Count,
+                                    category = "Meal",
+                                    dailyLimit = limit,
+                                    policyLimit = limit,
+                                    claims = exceeding.Select(e => new
+                                    {
+                                        id = e.Id,
+                                        claimNumber = e.ClaimNumber,
+                                        employee = e.Employee?.Name ?? $"Employee #{e.EmployeeId}",
+                                        department = e.Employee?.Department?.Name ?? "Unassigned",
+                                        date = e.ExpenseDate.ToString("yyyy-MM-dd"),
+                                        description = e.Description,
+                                        amount = e.Amount,
+                                        claimedAmount = e.Amount,
+                                        dailyLimit = limit,
+                                        policyLimit = limit,
+                                        variance = e.Amount - limit,
+                                        amountOverLimit = e.Amount - limit,
+                                        policy = "POL-FIN-002",
+                                        status = (int)e.Status,
+                                        statusName = e.Status == ExpenseStatus.Approved ? "Approved" : (e.Status == ExpenseStatus.Rejected ? "Rejected" : (e.ComplianceStatus ?? "Flagged")),
+                                        complianceStatus = "Non-Compliant",
+                                        recommendedAction = "Manager Review Required"
+                                    }),
+                                    summary = sb.ToString().TrimEnd()
+                                };
+                            }
+                            else
+                            {
+                                lastResultData = new
+                                {
+                                    count = 0,
+                                    category = "Meal",
+                                    dailyLimit = limit,
+                                    summary = $"No meal expense claims exceeding the ${limit:F2} daily limit were found."
+                                };
+                            }
+                        }
+                        else
+                        {
+                            var all = (await expService.GetAllAsync()).ToList();
+                            lastResultData = new
+                            {
+                                count = all.Count,
+                                claims = all,
+                                summary = $"Found {all.Count} expense claim(s) in the system."
+                            };
+                        }
                     }
                     break;
                 }
@@ -1131,7 +1227,7 @@ public class AgentOrchestrator : IAgentOrchestrator
             if (targetApp == null && !string.IsNullOrWhiteSpace(candName))
             {
                 targetApp = await _db.CandidateApplications.Include(a => a.JobOpening)
-                    .FirstOrDefaultAsync(a => a.CandidateName.ToLower().Contains(candName.ToLower()), cancellationToken);
+                    .FirstOrDefaultAsync(a => a.CandidateName.ToLower().Contains(candName.ToLower()) && (a.JobOpening == null || a.JobOpening.Status == "Active"), cancellationToken);
             }
 
             // If no candidate name was given and no candidate was specified:
@@ -1181,16 +1277,41 @@ public class AgentOrchestrator : IAgentOrchestrator
             if (string.IsNullOrWhiteSpace(requestedRole))
             {
                 var rm = Regex.Match(userPrompt, @"(?:for|against|as)\s+([A-Za-z0-9\s\.\+#\-/]+?)(?=(?:\s+position|\s+role|\s+requirements|\s+and|\s+with|\s+requiring|\.|$))", RegexOptions.IgnoreCase);
-                if (rm.Success && !rm.Groups[1].Value.Equals("candidate", StringComparison.OrdinalIgnoreCase) && !rm.Groups[1].Value.Equals("applicant", StringComparison.OrdinalIgnoreCase))
+                if (rm.Success)
                 {
-                    requestedRole = rm.Groups[1].Value.Trim();
+                    var candVal = rm.Groups[1].Value.Trim();
+                    var badRoles = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "candidate", "applicant", "him", "her", "them", "interview", "resume", "cv" };
+                    if (!badRoles.Contains(candVal) &&
+                        !candVal.Equals(finalCandidateName, StringComparison.OrdinalIgnoreCase) &&
+                        !finalCandidateName.Contains(candVal, StringComparison.OrdinalIgnoreCase) &&
+                        !candVal.Contains(finalCandidateName, StringComparison.OrdinalIgnoreCase))
+                    {
+                        requestedRole = candVal;
+                    }
                 }
             }
+
+            // Candidate's name should never be used as the target role
+            if (!string.IsNullOrWhiteSpace(requestedRole) && (requestedRole.Equals(finalCandidateName, StringComparison.OrdinalIgnoreCase) || finalCandidateName.Contains(requestedRole, StringComparison.OrdinalIgnoreCase)))
+            {
+                requestedRole = null;
+            }
+
             if (string.IsNullOrWhiteSpace(requestedRole) && targetApp?.JobOpening != null)
             {
                 requestedRole = targetApp.JobOpening.Title;
             }
-            string activeRole = !string.IsNullOrWhiteSpace(requestedRole) ? requestedRole : (targetApp?.JobOpening?.Title ?? "Software Engineer");
+
+            if (string.IsNullOrWhiteSpace(requestedRole))
+            {
+                var empMatch = await _db.Employees.FirstOrDefaultAsync(e => e.Name.ToLower().Contains(finalCandidateName.ToLower()), cancellationToken);
+                if (empMatch != null && !string.IsNullOrWhiteSpace(empMatch.Designation))
+                {
+                    requestedRole = empMatch.Designation;
+                }
+            }
+
+            string activeRole = !string.IsNullOrWhiteSpace(requestedRole) ? requestedRole : "Software Engineer";
 
             JobOpening? matchedJob = null;
             if (!string.IsNullOrWhiteSpace(requestedRole))
@@ -1384,21 +1505,90 @@ public class AgentOrchestrator : IAgentOrchestrator
             }
             else if (parsedIntent.ParsedIntentType == IntentType.CANDIDATE_INTERVIEW_QUESTIONS)
             {
-                var questions = new List<string>
+                var questions = new List<string>();
+
+                // 1. Try Gemini LLM Generation if available
+                if (_llmService != null)
                 {
-                    $"Can you describe an architectural challenge you encountered while working in {activeRole}, and how you structured the solution?",
-                    $"How do you handle conflicting priorities between stakeholder timelines and technical debt reduction?",
-                    $"Walk us through a critical production bug or system degradation you resolved. What monitoring and debugging steps did you take?",
-                    $"How do you ensure test coverage, code quality, and maintainability across multidisciplinary feature releases?",
-                    $"Describe your experience mentoring peers or driving alignment on technical standards across a development team."
-                };
+                    try
+                    {
+                        var prompt = $"Generate 6 tailored interview questions for candidate '{finalCandidateName}' applying for or working in the role '{activeRole}'. Include 2 Foundational/Basic questions, 2 Technical/Intermediate questions, and 2 Scenario/Advanced questions. Return each question on a separate line prefixed with [Basic], [Intermediate], or [Advanced].";
+                        var llmResp = await _llmService.GenerateCompletionAsync(prompt, "You are a senior technical hiring manager and enterprise recruiter at Nexus Enterprise.", requestJson: false);
+                        if (llmResp.IsSuccess && !string.IsNullOrWhiteSpace(llmResp.Content))
+                        {
+                            var lines = llmResp.Content.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+                            foreach (var line in lines)
+                            {
+                                var clean = Regex.Replace(line.Trim(), @"^[-*•\d\.\)]+\s*", "").Trim();
+                                if (!string.IsNullOrWhiteSpace(clean) && clean.Length > 10 && !clean.StartsWith("#") && !clean.StartsWith("Here are"))
+                                {
+                                    questions.Add(clean);
+                                }
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "LLM Interview Question generation failed, falling back to role-tailored deterministic question bank.");
+                    }
+                }
+
+                // 2. Role-tailored deterministic fallback if LLM is unavailable or returned insufficient questions
+                if (questions.Count < 3)
+                {
+                    questions.Clear();
+                    var roleLower = activeRole.ToLower();
+
+                    if (roleLower.Contains("database") || roleLower.Contains("dba") || roleLower.Contains("sql"))
+                    {
+                        questions.Add("[Basic] Explain the difference between clustered and non-clustered indexes in SQL Server, and how index fragmentation impacts query performance.");
+                        questions.Add("[Basic] What are transaction isolation levels (Read Committed, Snapshot, Serializable), and how do they balance dirty reads versus deadlocks?");
+                        questions.Add("[Intermediate] Walk us through how you identify, analyze, and resolve a high-CPU or deadlocking query under high concurrent traffic.");
+                        questions.Add("[Intermediate] Describe how you design and automate database backup schedules (Full, Differential, Transaction Log) with point-in-time recovery SLAs.");
+                        questions.Add("[Advanced] How would you design and implement High Availability & Disaster Recovery (Always On Availability Groups vs Log Shipping) for mission-critical databases?");
+                        questions.Add("[Advanced] Describe your approach to table partitioning, index maintenance routines, and query optimizer tuning on multi-terabyte datasets.");
+                    }
+                    else if (roleLower.Contains("full stack") || roleLower.Contains("software") || roleLower.Contains(".net") || roleLower.Contains("developer") || roleLower.Contains("engineer") || roleLower.Contains("c#"))
+                    {
+                        questions.Add("[Basic] What are the differences between Scoped, Transient, and Singleton service lifetimes in ASP.NET Core dependency injection?");
+                        questions.Add("[Basic] Explain asynchronous programming in C# (async/await, Task scheduling) and how you avoid thread pool exhaustion.");
+                        questions.Add("[Intermediate] How do you design RESTful APIs and Entity Framework queries to ensure low latency and eliminate N+1 query problems?");
+                        questions.Add("[Intermediate] Walk us through how you manage distributed caching (e.g. Redis), state synchronization, and background job processing.");
+                        questions.Add("[Advanced] Describe an architectural challenge you solved involving microservices, event-driven messaging (e.g. RabbitMQ/Kafka), and eventual consistency.");
+                        questions.Add("[Advanced] How do you implement robust automated testing (Unit, Integration, E2E) and CI/CD pipelines to guarantee zero-downtime releases?");
+                    }
+                    else if (roleLower.Contains("devops") || roleLower.Contains("cloud") || roleLower.Contains("infrastructure") || roleLower.Contains("sre"))
+                    {
+                        questions.Add("[Basic] What are the fundamental differences between Docker containerization and virtual machines in terms of resource isolation?");
+                        questions.Add("[Basic] Explain the core components of Kubernetes (Pods, Services, Deployments, Ingress) and how pod scaling operates.");
+                        questions.Add("[Intermediate] How do you design CI/CD deployment pipelines with automated rollback, canary deployments, and secrets management?");
+                        questions.Add("[Intermediate] Describe how you manage Infrastructure as Code (Terraform / Bicep) including state locking, drift detection, and modularization.");
+                        questions.Add("[Advanced] Walk us through an outage or severe latency incident you resolved, and how observability tools (Prometheus, Grafana, OpenTelemetry) guided your root-cause analysis.");
+                    }
+                    else if (roleLower.Contains("hr") || roleLower.Contains("recruiter") || roleLower.Contains("people") || roleLower.Contains("operations"))
+                    {
+                        questions.Add("[Basic] What are the key statutory compliance requirements and onboarding documentation needed for newly hired full-time employees?");
+                        questions.Add("[Basic] How do you manage and verify employee payroll records and authorized salary bands under corporate governance policies?");
+                        questions.Add("[Intermediate] Describe your process for handling confidential employee grievances, workplace conflict mediation, and performance improvement plans.");
+                        questions.Add("[Intermediate] How do you evaluate and optimize HRIS workflows to streamline leave tracking, benefits administration, and compliance auditing?");
+                        questions.Add("[Advanced] How would you design an enterprise-wide employee retention and workforce development strategy across multidisciplinary departments?");
+                    }
+                    else
+                    {
+                        questions.Add($"[Basic] Can you describe your foundational background and experience in {activeRole} workflows and core tooling?");
+                        questions.Add($"[Basic] How do you approach prioritizing daily deliverables and managing dependencies when facing tight stakeholder deadlines?");
+                        questions.Add($"[Intermediate] Walk us through a complex problem you resolved in {activeRole}, and how you structured and executed the solution.");
+                        questions.Add($"[Intermediate] How do you ensure accuracy, compliance, and quality standards in your day-to-day deliverables?");
+                        questions.Add($"[Advanced] Describe a situation where you had to drive cross-functional alignment, resolve conflicting technical priorities, or mentor team members.");
+                    }
+                }
 
                 lastResultData = new
                 {
                     candidateName = finalCandidateName,
                     targetRole = activeRole,
                     recommendedQuestions = questions,
-                    summary = $"Generated 5 tailored interview question recommendations for {finalCandidateName} ({activeRole}) based on CV experience and role competencies."
+                    summary = $"Generated {questions.Count} structured interview questions (Basic, Intermediate, Advanced) for {finalCandidateName} for the {activeRole} role."
                 };
             }
             else
@@ -1466,25 +1656,127 @@ public class AgentOrchestrator : IAgentOrchestrator
         }
         else if (parsedIntent.ParsedIntentType == IntentType.ONBOARDING_DOCUMENT_GENERATE)
         {
-            var empName = parsedIntent.Parameters?.GetValueOrDefault("employeeName")?.ToString()
-                ?? parsedIntent.Entities?.GetValueOrDefault("employeeName")
-                ?? parsedIntent.Entities?.GetValueOrDefault("name") ?? "Ali Khan";
+            var isOrientationDoc = string.Equals(parsedIntent.Parameters?.GetValueOrDefault("documentType")?.ToString(), "ORIENTATION_SCHEDULE", StringComparison.OrdinalIgnoreCase) ||
+                                   userPrompt.Contains("orientation", StringComparison.OrdinalIgnoreCase) ||
+                                   userPrompt.Contains("induction", StringComparison.OrdinalIgnoreCase) ||
+                                   userPrompt.Contains("intern", StringComparison.OrdinalIgnoreCase);
 
-            var emp = await _db.Employees.Include(e => e.Department)
-                .FirstOrDefaultAsync(e => e.Name.ToLower().Contains(empName.ToLower()), cancellationToken);
+            if (isOrientationDoc)
+            {
+                var deptName = parsedIntent.Parameters?.GetValueOrDefault("department")?.ToString()
+                    ?? (userPrompt.Contains(" in it", StringComparison.OrdinalIgnoreCase) || userPrompt.Contains("it department", StringComparison.OrdinalIgnoreCase) ? "IT" : "IT");
+                var targetAudience = parsedIntent.Parameters?.GetValueOrDefault("targetAudience")?.ToString() ?? "Summer Engineering Interns";
+                int duration = 5;
 
-            var candApp = emp == null
-                ? await _db.CandidateApplications.Include(a => a.JobOpening).FirstOrDefaultAsync(a => a.CandidateName.ToLower().Contains(empName.ToLower()), cancellationToken)
-                : null;
+                var generatedDoc = await _documentService.GenerateSummerInternInductionScheduleAsync(deptName, targetAudience, duration, agentRun.Id);
+
+                lastResultData = new
+                {
+                    documentId = generatedDoc.Id,
+                    documentTitle = generatedDoc.Title,
+                    type = generatedDoc.DocumentType,
+                    department = deptName,
+                    targetAudience = targetAudience,
+                    durationDays = duration,
+                    downloadUrl = $"/api/documents/{generatedDoc.Id}/download",
+                    previewUrl = $"/api/documents/{generatedDoc.Id}/preview",
+                    contentHtml = generatedDoc.ContentHtml,
+                    summary = $"Summer Engineering Interns — 5-Day Workforce Orientation & Induction Schedule generated successfully for {deptName} department ({duration} Days). Document is ready for preview and download."
+                };
+            }
+            else
+            {
+                var empName = parsedIntent.Parameters?.GetValueOrDefault("employeeName")?.ToString()
+                    ?? parsedIntent.Entities?.GetValueOrDefault("employeeName")
+                    ?? parsedIntent.Entities?.GetValueOrDefault("name") ?? "Ali Khan";
+
+            var matchingEmps = await _db.Employees.Include(e => e.Department)
+                .Where(e => e.Name.ToLower().Contains(empName.ToLower()))
+                .ToListAsync(cancellationToken);
+
+            var matchingCands = await _db.CandidateApplications.Include(a => a.JobOpening)
+                .Where(a => a.CandidateName.ToLower().Contains(empName.ToLower()))
+                .ToListAsync(cancellationToken);
+
+            bool isExactSingleMatch = matchingEmps.Count(e => e.Name.Equals(empName, StringComparison.OrdinalIgnoreCase)) == 1 && matchingCands.Count == 0;
+            if (!isExactSingleMatch && (matchingEmps.Count + matchingCands.Count) > 1)
+            {
+                sw.Stop();
+                var ambiguityChoices = matchingEmps.Select(e => new NextActionChoice
+                {
+                    Id = $"select_emp_{e.Id}",
+                    Label = $"{e.Name} ({e.Designation} - {e.Department?.Name})",
+                    ActionType = "EXECUTE_PROMPT",
+                    PromptToExecute = $"Generate complete Onboarding Package document for new hire {e.Name}."
+                }).Concat(matchingCands.Select(c => new NextActionChoice
+                {
+                    Id = $"select_cand_{c.Id}",
+                    Label = $"{c.CandidateName} (Candidate - {c.JobOpening?.Title ?? "Applicant"})",
+                    ActionType = "EXECUTE_PROMPT",
+                    PromptToExecute = $"Generate complete Onboarding Package document for new hire {c.CandidateName}."
+                })).ToList();
+
+                return new AgentResult
+                {
+                    RunId = agentRun.Id,
+                    OriginalPrompt = userPrompt,
+                    Intent = parsedIntent.Intent,
+                    IsSuccess = false,
+                    Plan = plan,
+                    ExecutedSteps = executedSteps,
+                    ExecutionFeed = feed,
+                    ExecutionTimeMs = sw.ElapsedMilliseconds,
+                    State = WorkflowState.CLARIFICATION_REQUIRED.ToString(),
+                    UserMessage = $"Multiple individuals match '{empName}'. Please specify which candidate or employee you want to generate the onboarding package for:",
+                    Choices = ambiguityChoices,
+                    TargetSystem = "DOCUMENT_MANAGEMENT",
+                    ConfirmationDetails = new ConfirmationDetails
+                    {
+                        ProposedAction = "Select Candidate Recipient",
+                        ActionSummary = $"Found {matchingEmps.Count + matchingCands.Count} individuals matching '{empName}'.",
+                        RequiresUserAction = true
+                    }
+                };
+            }
+
+            if (matchingEmps.Count == 0 && matchingCands.Count == 0)
+            {
+                sw.Stop();
+                return new AgentResult
+                {
+                    RunId = agentRun.Id,
+                    OriginalPrompt = userPrompt,
+                    Intent = parsedIntent.Intent,
+                    IsSuccess = false,
+                    Plan = plan,
+                    ExecutedSteps = executedSteps,
+                    ExecutionFeed = feed,
+                    ExecutionTimeMs = sw.ElapsedMilliseconds,
+                    State = WorkflowState.CLARIFICATION_REQUIRED.ToString(),
+                    UserMessage = $"No employee or candidate record was found for '{empName}'.",
+                    TargetSystem = "DOCUMENT_MANAGEMENT",
+                    ConfirmationDetails = new ConfirmationDetails
+                    {
+                        ProposedAction = "Verify Employee Record",
+                        ActionSummary = $"No matching record was found for '{empName}' in the database.",
+                        RequiresUserAction = true
+                    }
+                };
+            }
+
+            var emp = matchingEmps.FirstOrDefault();
+            var candApp = emp == null ? matchingCands.FirstOrDefault() : null;
+            string finalEmpName = emp?.Name ?? candApp?.CandidateName ?? empName;
 
             string deptName = emp?.Department?.Name
+                ?? candApp?.JobOpening?.Department
                 ?? parsedIntent.Entities?.GetValueOrDefault("department")
                 ?? "IT";
 
             string designation = emp?.Designation
                 ?? candApp?.JobOpening?.Title
                 ?? parsedIntent.Entities?.GetValueOrDefault("designation")
-                ?? "Senior Developer";
+                ?? "Developer";
 
             decimal salary = emp?.Salary ?? 95000m;
             if (salary == 95000m && parsedIntent.Entities?.TryGetValue("salary", out var salStr) == true && decimal.TryParse(salStr, out var salVal) && salVal > 0)
@@ -1498,21 +1790,22 @@ public class AgentOrchestrator : IAgentOrchestrator
             var generatedDoc = await _documentService.GenerateOnboardingPackageAsync(
                 empName, deptName, designation, salary, startDate, agentRun.Id);
 
-            lastResultData = new
-            {
-                documentId = generatedDoc.Id,
-                documentTitle = generatedDoc.Title,
-                type = generatedDoc.DocumentType,
-                employeeName = empName,
-                department = deptName,
-                designation = designation,
-                salary = salary,
-                startDate = startDate,
-                downloadUrl = $"/api/documents/{generatedDoc.Id}/download",
-                previewUrl = $"/api/documents/{generatedDoc.Id}/preview",
-                contentHtml = generatedDoc.ContentHtml,
-                summary = $"Complete Onboarding Package document for {empName} generated successfully and stored in the document repository."
-            };
+                lastResultData = new
+                {
+                    documentId = generatedDoc.Id,
+                    documentTitle = generatedDoc.Title,
+                    type = generatedDoc.DocumentType,
+                    employeeName = empName,
+                    department = deptName,
+                    designation = designation,
+                    salary = salary,
+                    startDate = startDate,
+                    downloadUrl = $"/api/documents/{generatedDoc.Id}/download",
+                    previewUrl = $"/api/documents/{generatedDoc.Id}/preview",
+                    contentHtml = generatedDoc.ContentHtml,
+                    summary = $"Complete Onboarding Package document for {empName} generated successfully and stored in the document repository."
+                };
+            }
         }
         else if (parsedIntent.ParsedIntentType == IntentType.ONBOARDING_DOCUMENT_PREVIEW)
         {
@@ -1675,6 +1968,62 @@ public class AgentOrchestrator : IAgentOrchestrator
                 openings = jobSummaries,
                 summary = $"Found {allJobs.Count} active job requisition(s) in database. {summaryList}"
             };
+        }
+        else if (parsedIntent.ParsedIntentType == IntentType.DASHBOARD_ANALYTICS)
+        {
+            var isComprehensiveHr = string.Equals(parsedIntent.Parameters?.GetValueOrDefault("reportType")?.ToString(), "COMPREHENSIVE_HR", StringComparison.OrdinalIgnoreCase)
+                || userPrompt.Contains("comprehensive hr", StringComparison.OrdinalIgnoreCase)
+                || (userPrompt.Contains("comprehensive", StringComparison.OrdinalIgnoreCase) && userPrompt.Contains("hr", StringComparison.OrdinalIgnoreCase))
+                || (userPrompt.Contains("workforce", StringComparison.OrdinalIgnoreCase) && userPrompt.Contains("recruitment", StringComparison.OrdinalIgnoreCase));
+
+            if (isComprehensiveHr)
+            {
+                var employees = await _db.Employees.Include(e => e.Department).AsNoTracking().ToListAsync(cancellationToken);
+                var departments = await _db.Departments.AsNoTracking().ToListAsync(cancellationToken);
+                var jobOpenings = await _db.JobOpenings.AsNoTracking().ToListAsync(cancellationToken);
+                var candidates = await _db.CandidateApplications.Include(c => c.JobOpening).AsNoTracking().ToListAsync(cancellationToken);
+                var expenses = await _db.Expenses.Include(e => e.Employee).ThenInclude(emp => emp!.Department).AsNoTracking().ToListAsync(cancellationToken);
+                var budgets = await _db.Budgets.Include(b => b.Department).AsNoTracking().ToListAsync(cancellationToken);
+                var masterBudget = await _db.MasterBudgets.AsNoTracking().FirstOrDefaultAsync(cancellationToken);
+                var policies = await _db.Policies.Where(p => p.IsActive).AsNoTracking().ToListAsync(cancellationToken);
+                var onboardingTasks = await _db.OnboardingTasks.Include(t => t.Employee).AsNoTracking().ToListAsync(cancellationToken);
+
+                var generatedDoc = await _documentService.GenerateComprehensiveHrReportAsync(
+                    employees, departments, jobOpenings, candidates, expenses, budgets, masterBudget, policies, onboardingTasks, agentRun.Id);
+
+                lastResultData = new
+                {
+                    documentId = generatedDoc.Id,
+                    title = generatedDoc.Title,
+                    departmentName = generatedDoc.DepartmentName,
+                    headcount = employees.Count,
+                    departmentsCount = departments.Count,
+                    jobOpeningsCount = jobOpenings.Count,
+                    candidatesCount = candidates.Count,
+                    expensesCount = expenses.Count,
+                    budgetsCount = budgets.Count,
+                    downloadUrl = $"/api/documents/{generatedDoc.Id}/download",
+                    previewUrl = $"/api/documents/{generatedDoc.Id}/preview",
+                    contentHtml = generatedDoc.ContentHtml,
+                    summary = $"Comprehensive Enterprise HR & Workforce Intelligence Report generated successfully covering {employees.Count} employees across {departments.Count} departments, {jobOpenings.Count} active job requisitions, {candidates.Count} candidates, ${expenses.Sum(e => e.Amount):N2} expense claims, and ${budgets.Sum(b => b.AllocatedAmount):N2} department budgets. Document is ready for preview and download."
+                };
+            }
+            else
+            {
+                var employees = await _db.Employees.Include(e => e.Department).AsNoTracking().ToListAsync(cancellationToken);
+                var depts = await _db.Departments.AsNoTracking().ToListAsync(cancellationToken);
+                var deptCounts = employees.GroupBy(e => e.Department?.Name ?? "Unassigned")
+                    .Select(g => new { Department = g.Key, Headcount = g.Count(), TotalSalary = g.Sum(e => e.Salary) })
+                    .ToList();
+
+                lastResultData = new
+                {
+                    totalHeadcount = employees.Count,
+                    activeHeadcount = employees.Count(e => e.Status == EmployeeStatus.Active),
+                    departmentBreakdown = deptCounts,
+                    summary = $"Enterprise Headcount Overview: {employees.Count} total workforce across {depts.Count} departments."
+                };
+            }
         }
 
         // Build execution payload for READY_TO_EXECUTE state
@@ -1999,6 +2348,11 @@ public class AgentOrchestrator : IAgentOrchestrator
                         }
                         feed.Add(AgentEvent.Create(AgentEventType.TOOL_COMPLETED, $"Step {step.StepNumber} ({step.ToolName}) completed successfully."));
                         affectedCount++;
+
+                        if (execRes.Data is EmployeeDto empDto)
+                        {
+                            resultMessage = $"Successfully updated {empDto.Name}'s record in SQL Server database (Designation: {empDto.Designation}, Department: {empDto.DepartmentName}, Salary: ${empDto.Salary:N2}).";
+                        }
                     }
                     else
                     {
@@ -2017,31 +2371,77 @@ public class AgentOrchestrator : IAgentOrchestrator
 
         if (!executedAnyTool && (intentType == IntentType.UPDATE_SALARY || intentType == IntentType.EMPLOYEE_UPDATE))
         {
-            decimal pct = 10m;
-            if (parsedIntent?.Entities?.TryGetValue("percentage", out var pStr) == true && decimal.TryParse(pStr, out var pDec))
-                pct = pDec;
-
-            var empName = parsedIntent?.Entities?.GetValueOrDefault("name") ?? parsedIntent?.Entities?.GetValueOrDefault("employee_name");
-            var toUpdate = targetRecordIds.Count > 0
-                ? await _db.Employees.Where(e => targetRecordIds.Contains(e.Id)).ToListAsync(cancellationToken)
-                : !string.IsNullOrWhiteSpace(empName)
-                    ? await _db.Employees.Where(e => e.Name.ToLower().Contains(empName.ToLower())).ToListAsync(cancellationToken)
-                    : await _db.Employees.ToListAsync(cancellationToken);
-
-            foreach (var emp in toUpdate)
+            var newDesig = combinedArgs.TryGetValue("designation", out var cd) && cd != null ? cd.ToString() : null;
+            if (string.IsNullOrWhiteSpace(newDesig))
             {
-                emp.Salary = Math.Round(emp.Salary * (1m + (pct / 100m)), 2);
-                emp.UpdatedAt = DateTime.UtcNow;
+                newDesig = parsedIntent?.Entities?.GetValueOrDefault("designation")
+                    ?? parsedIntent?.Parameters?.GetValueOrDefault("designation")?.ToString()
+                    ?? parsedIntent?.Entities?.GetValueOrDefault("role");
             }
-            await _db.SaveChangesAsync(cancellationToken);
-            affectedCount = Math.Max(affectedCount, toUpdate.Count);
-            resultMessage = $"Updated compensation (+{pct}%) for {toUpdate.Count} employee(s) in SQL Server database.";
+
+            bool isSalaryUpdate = intentType == IntentType.UPDATE_SALARY ||
+                                 prompt.Contains("salary", StringComparison.OrdinalIgnoreCase) ||
+                                 prompt.Contains("raise", StringComparison.OrdinalIgnoreCase) ||
+                                 parsedIntent?.Entities?.ContainsKey("percentage") == true;
+
+            if (!string.IsNullOrWhiteSpace(newDesig) && !isSalaryUpdate)
+            {
+                var empName = parsedIntent?.Entities?.GetValueOrDefault("name") ?? parsedIntent?.Entities?.GetValueOrDefault("employee_name");
+                var toUpdate = targetRecordIds.Count > 0
+                    ? await _db.Employees.Include(e => e.Department).Where(e => targetRecordIds.Contains(e.Id)).ToListAsync(cancellationToken)
+                    : !string.IsNullOrWhiteSpace(empName)
+                        ? await _db.Employees.Include(e => e.Department).Where(e => e.Name.ToLower().Contains(empName.ToLower())).ToListAsync(cancellationToken)
+                        : await _db.Employees.Include(e => e.Department).ToListAsync(cancellationToken);
+
+                foreach (var emp in toUpdate)
+                {
+                    emp.Designation = newDesig;
+                    emp.UpdatedAt = DateTime.UtcNow;
+                }
+                await _db.SaveChangesAsync(cancellationToken);
+                affectedCount = Math.Max(affectedCount, toUpdate.Count);
+                var targetDeptName = toUpdate.FirstOrDefault()?.Department?.Name ?? "their department";
+                resultMessage = $"Updated designation to '{newDesig}' for {toUpdate.Count} employee(s) in {targetDeptName} in SQL Server database.";
+            }
+            else
+            {
+                decimal pct = 10m;
+                if (parsedIntent?.Entities?.TryGetValue("percentage", out var pStr) == true && decimal.TryParse(pStr, out var pDec))
+                    pct = pDec;
+
+                var empName = parsedIntent?.Entities?.GetValueOrDefault("name") ?? parsedIntent?.Entities?.GetValueOrDefault("employee_name");
+                var toUpdate = targetRecordIds.Count > 0
+                    ? await _db.Employees.Where(e => targetRecordIds.Contains(e.Id)).ToListAsync(cancellationToken)
+                    : !string.IsNullOrWhiteSpace(empName)
+                        ? await _db.Employees.Where(e => e.Name.ToLower().Contains(empName.ToLower())).ToListAsync(cancellationToken)
+                        : await _db.Employees.ToListAsync(cancellationToken);
+
+                foreach (var emp in toUpdate)
+                {
+                    emp.Salary = Math.Round(emp.Salary * (1m + (pct / 100m)), 2);
+                    emp.UpdatedAt = DateTime.UtcNow;
+                }
+                await _db.SaveChangesAsync(cancellationToken);
+                affectedCount = Math.Max(affectedCount, toUpdate.Count);
+                resultMessage = $"Updated compensation (+{pct}%) for {toUpdate.Count} employee(s) in SQL Server database.";
+            }
         }
         else if (intentType == IntentType.EMPLOYEE_ONBOARDING || intentType == IntentType.EMPLOYEE_CREATE)
         {
             var empName = parsedIntent?.Entities?.GetValueOrDefault("name") ?? parsedIntent?.Entities?.GetValueOrDefault("employee_name") ?? "Ali";
             var desig = parsedIntent?.Entities?.GetValueOrDefault("designation") ?? "Developer";
             var deptName = parsedIntent?.Entities?.GetValueOrDefault("department") ?? parsedIntent?.Entities?.GetValueOrDefault("targetDepartment") ?? "IT";
+            
+            var inDeptExecMatch = Regex.Match(desig, @"^(.*?)\s+in\s+(?:the\s+)?([A-Za-z0-9\s\&]+)$", RegexOptions.IgnoreCase);
+            if (inDeptExecMatch.Success)
+            {
+                desig = inDeptExecMatch.Groups[1].Value.Trim();
+                if (string.IsNullOrWhiteSpace(deptName) || deptName == "IT" || deptName == "[Pending]")
+                {
+                    deptName = IntentParser.CleanDepartmentName(inDeptExecMatch.Groups[2].Value.Trim());
+                }
+            }
+
             string? empEmail = parsedIntent?.Entities?.GetValueOrDefault("email")
                 ?? parsedIntent?.Parameters?.GetValueOrDefault("email")?.ToString();
 
@@ -2155,13 +2555,25 @@ public class AgentOrchestrator : IAgentOrchestrator
         else if (intentType == IntentType.DEPARTMENT_CREATE)
         {
             var deptName = parsedIntent?.Entities?.GetValueOrDefault("name") ?? parsedIntent?.Entities?.GetValueOrDefault("department") ?? "New Department";
+            var hcVal = parsedIntent?.Entities?.GetValueOrDefault("headcount") 
+                ?? parsedIntent?.Parameters?.GetValueOrDefault("headcount")?.ToString() 
+                ?? parsedIntent?.Entities?.GetValueOrDefault("fte")
+                ?? parsedIntent?.Parameters?.GetValueOrDefault("fte")?.ToString();
+            if (string.IsNullOrWhiteSpace(hcVal))
+            {
+                var fteMatch = Regex.Match(prompt, @"(?:\b(?:and\s+)?(\d+)\s*(?:fte[s]?|full\s*time\s*employees?|headcount|staff|members|seats)\b|\b(?:headcount|staff\s*size|team\s*size|target\s*headcount)\s*(?:of|is|:)?\s*(\d+)\b)", RegexOptions.IgnoreCase);
+                if (fteMatch.Success) hcVal = !string.IsNullOrEmpty(fteMatch.Groups[1].Value) ? fteMatch.Groups[1].Value : fteMatch.Groups[2].Value;
+            }
+
+            var deptDesc = !string.IsNullOrWhiteSpace(hcVal) ? $"{deptName} Department (Target Headcount: {hcVal} FTEs)" : $"{deptName} Department";
+
             var existingDept = await _db.Departments.FirstOrDefaultAsync(d => d.Name.ToLower() == deptName.ToLower(), cancellationToken);
             if (existingDept == null)
             {
                 var newDept = new Department
                 {
                     Name = deptName,
-                    Description = $"{deptName} Department"
+                    Description = deptDesc
                 };
                 _db.Departments.Add(newDept);
                 await _db.SaveChangesAsync(cancellationToken);
@@ -2248,7 +2660,8 @@ public class AgentOrchestrator : IAgentOrchestrator
 
             await _db.SaveChangesAsync(cancellationToken);
             var displayHeadMsg = !string.IsNullOrWhiteSpace(headName) ? headName : "Not Assigned";
-            resultMessage = $"Department '{deptName}' created successfully in database (Head: {displayHeadMsg}, Budget: ${initialBudget:N2}).";
+            var hcPartMsg = !string.IsNullOrWhiteSpace(hcVal) ? $", Headcount: {hcVal} FTEs" : "";
+            resultMessage = $"Department '{deptName}' created successfully in database (Head: {displayHeadMsg}, Budget: ${initialBudget:N2}{hcPartMsg}).";
         }
         else if (intentType == IntentType.DEPARTMENT_DELETE)
         {
@@ -2661,11 +3074,11 @@ public class AgentOrchestrator : IAgentOrchestrator
                 break;
 
             case IntentType.DEPARTMENT_CREATE:
-                plan.Steps.Add(new AgentStep { StepNumber = 1, ToolName = "department.crud", Description = "Create new department", RiskLevel = RiskLevel.Medium });
+                plan.Steps.Add(new AgentStep { StepNumber = 1, ToolName = "department.crud", Description = "Create new department", RiskLevel = RiskLevel.High });
                 break;
 
             case IntentType.DEPARTMENT_UPDATE:
-                plan.Steps.Add(new AgentStep { StepNumber = 1, ToolName = "department.crud", Description = "Update department record", RiskLevel = RiskLevel.Medium });
+                plan.Steps.Add(new AgentStep { StepNumber = 1, ToolName = "department.crud", Description = "Update department record", RiskLevel = RiskLevel.High });
                 break;
 
             case IntentType.DEPARTMENT_DELETE:
@@ -2864,6 +3277,15 @@ public class AgentOrchestrator : IAgentOrchestrator
         if (intent.Parameters.TryGetValue("target_system", out var tsObj) && tsObj is string ts && !string.IsNullOrWhiteSpace(ts))
             return ts.ToUpperInvariant();
 
+        if (intent.TargetEntity is "REPORT" or "DOCUMENT" or "AUDIT_REPORT" or "ORIENTATION_SCHEDULE" ||
+            intent.Parameters.ContainsKey("generateReport") ||
+            intent.Parameters.ContainsKey("reportType") ||
+            intent.Parameters.ContainsKey("documentType") ||
+            intent.ParsedIntentType == IntentType.ONBOARDING_DOCUMENT_GENERATE)
+        {
+            return "DOCUMENT_MANAGEMENT";
+        }
+
         // Rule-based fallback by intent type
         return intent.ParsedIntentType switch
         {
@@ -2906,6 +3328,16 @@ public class AgentOrchestrator : IAgentOrchestrator
                 var desig = e.GetValueOrDefault("designation") ?? e.GetValueOrDefault("role") ?? intent.Parameters.GetValueOrDefault("designation")?.ToString();
                 if (string.IsNullOrWhiteSpace(desig) || desig == "[Pending]") desig = "Senior .NET Developer";
 
+                var inDeptOnboardMatch = Regex.Match(desig, @"^(.*?)\s+in\s+(?:the\s+)?([A-Za-z0-9\s\&]+)$", RegexOptions.IgnoreCase);
+                if (inDeptOnboardMatch.Success)
+                {
+                    desig = inDeptOnboardMatch.Groups[1].Value.Trim();
+                    if (string.IsNullOrWhiteSpace(dept) || dept == "IT" || dept == "[Pending]")
+                    {
+                        dept = IntentParser.CleanDepartmentName(inDeptOnboardMatch.Groups[2].Value.Trim());
+                    }
+                }
+
                 var salStr = e.GetValueOrDefault("salary") ?? intent.Parameters.GetValueOrDefault("salary")?.ToString();
                 string salFormatted = salStr ?? "$100,000 / mo ($1,200,000 / yr)";
                 if (decimal.TryParse(salStr, out var dSal) && dSal > 0) salFormatted = $"${dSal:N2} / yr";
@@ -2929,6 +3361,32 @@ public class AgentOrchestrator : IAgentOrchestrator
                 message = $"I have prepared a new job opening for '{jTitle}' in {jDept}. Please review and confirm before publishing to the candidate portal:";
                 proposed = $"Publish Job Opening: {jTitle}";
                 summary = $"Role: {jTitle} | Department: {jDept} | Salary Range: {jSal}";
+                break;
+
+            case IntentType.EMPLOYEE_UPDATE:
+                var updateDesig = e.GetValueOrDefault("designation") ?? e.GetValueOrDefault("role") ?? intent.Parameters.GetValueOrDefault("designation")?.ToString() ?? "New Role";
+                message = $"I have prepared the designation update for {name}. Please review and confirm before updating the directory:";
+                proposed = $"Update Designation: {name}";
+                summary = $"Employee: {name} | New Designation: {updateDesig}";
+                break;
+
+            case IntentType.DEPARTMENT_CREATE:
+                var dName = e.GetValueOrDefault("name") ?? e.GetValueOrDefault("department") ?? intent.Parameters.GetValueOrDefault("name")?.ToString() ?? "New Department";
+                dName = IntentParser.CleanDepartmentName(dName);
+                var dHead = e.GetValueOrDefault("head") ?? e.GetValueOrDefault("manager") ?? intent.Parameters.GetValueOrDefault("head")?.ToString() ?? "Not Assigned";
+                var dBudget = e.GetValueOrDefault("budgetAmount") ?? e.GetValueOrDefault("budget") ?? intent.Parameters.GetValueOrDefault("budget")?.ToString() ?? "$0.00";
+                var dHeadcount = e.GetValueOrDefault("headcount") ?? e.GetValueOrDefault("fte") ?? intent.Parameters.GetValueOrDefault("headcount")?.ToString();
+                var hcPart = !string.IsNullOrWhiteSpace(dHeadcount) ? $" | Headcount: {dHeadcount} FTEs" : "";
+                message = $"I have prepared the action plan to create the '{dName}' Department. Please review and confirm before saving to database:";
+                proposed = $"Create Department: {dName}";
+                summary = $"Department: {dName} | Head: {dHead} | Initial Budget: {dBudget}{hcPart}";
+                break;
+
+            case IntentType.DEPARTMENT_DELETE:
+                var delName = e.GetValueOrDefault("name") ?? e.GetValueOrDefault("department") ?? "Target Department";
+                message = $"CAUTION: Department deletion is a high-impact operation. Please review and confirm:";
+                proposed = $"Delete Department: {delName}";
+                summary = $"Target: {delName} | Action: Permanent Deletion & Record Cleanup";
                 break;
 
             default:
@@ -2987,6 +3445,9 @@ public class AgentOrchestrator : IAgentOrchestrator
 
     private async Task<Nexus.Data.ActionPlan.ActionPlan> BuildActionPlanAsync(Guid runId, string prompt, ParsedIntentResult intent, CancellationToken ct)
     {
+        intent.Entities ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        intent.Parameters ??= new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+
         var pLower = prompt.ToLower();
         var intentType = intent.ParsedIntentType;
 
@@ -3038,32 +3499,32 @@ public class AgentOrchestrator : IAgentOrchestrator
         // ── 1. DEPARTMENT CREATION / MANAGEMENT ────────────────────────────────
         if (!pLower.Contains("payroll") && !pLower.Contains("hold") && (intentType == IntentType.DEPARTMENT_CREATE || intentType == IntentType.DEPARTMENT_UPDATE || (intent.TargetEntity == "DEPARTMENT" && (intent.Operation == "CREATE" || intent.Operation == "UPDATE"))))
         {
-            var deptName = intent.Parameters.GetValueOrDefault("name")?.ToString()
-                ?? intent.Entities.GetValueOrDefault("name")
-                ?? intent.Parameters.GetValueOrDefault("department")?.ToString()
-                ?? intent.Entities.GetValueOrDefault("department");
+            var deptName = intent.Parameters?.GetValueOrDefault("name")?.ToString()
+                ?? intent.Entities?.GetValueOrDefault("name")
+                ?? intent.Parameters?.GetValueOrDefault("department")?.ToString()
+                ?? intent.Entities?.GetValueOrDefault("department");
             if (!string.IsNullOrWhiteSpace(deptName))
             {
                 deptName = IntentParser.CleanDepartmentName(deptName);
             }
             if (string.IsNullOrWhiteSpace(deptName)) deptName = "New Department";
 
-            var head = intent.Parameters.GetValueOrDefault("head")?.ToString()
-                ?? intent.Entities.GetValueOrDefault("head")
-                ?? intent.Parameters.GetValueOrDefault("departmentHead")?.ToString()
-                ?? intent.Entities.GetValueOrDefault("departmentHead")
-                ?? intent.Parameters.GetValueOrDefault("manager")?.ToString()
-                ?? intent.Entities.GetValueOrDefault("manager");
+            var head = intent.Parameters?.GetValueOrDefault("head")?.ToString()
+                ?? intent.Entities?.GetValueOrDefault("head")
+                ?? intent.Parameters?.GetValueOrDefault("departmentHead")?.ToString()
+                ?? intent.Entities?.GetValueOrDefault("departmentHead")
+                ?? intent.Parameters?.GetValueOrDefault("manager")?.ToString()
+                ?? intent.Entities?.GetValueOrDefault("manager");
 
             var displayHead = !string.IsNullOrWhiteSpace(head) ? head : "Not Assigned";
 
             decimal budgetAmt = 0m;
-            var bObj = intent.Parameters.GetValueOrDefault("budgetAmount")
-                ?? intent.Entities.GetValueOrDefault("budgetAmount")
-                ?? intent.Parameters.GetValueOrDefault("budget")
-                ?? intent.Entities.GetValueOrDefault("budget")
-                ?? intent.Parameters.GetValueOrDefault("amount")
-                ?? intent.Entities.GetValueOrDefault("amount");
+            var bObj = intent.Parameters?.GetValueOrDefault("budgetAmount")
+                ?? intent.Entities?.GetValueOrDefault("budgetAmount")
+                ?? intent.Parameters?.GetValueOrDefault("budget")
+                ?? intent.Entities?.GetValueOrDefault("budget")
+                ?? intent.Parameters?.GetValueOrDefault("amount")
+                ?? intent.Entities?.GetValueOrDefault("amount");
 
             if (bObj != null)
             {
@@ -3076,11 +3537,24 @@ public class AgentOrchestrator : IAgentOrchestrator
             var actionPlan = new Nexus.Data.ActionPlan.ActionPlan
             {
                 Title = $"Plan of Action: Create Department '{deptName}'",
-                RiskLevel = RiskLevel.Medium,
+                RiskLevel = RiskLevel.High,
                 Status = "AWAITING_APPROVAL",
                 TotalFinancialImpact = budgetAmt,
                 Metadata = JsonSerializer.Serialize(intent)
             };
+
+            var hcVal = intent.Parameters?.GetValueOrDefault("headcount")?.ToString()
+                ?? intent.Entities?.GetValueOrDefault("headcount")
+                ?? intent.Parameters?.GetValueOrDefault("fte")?.ToString()
+                ?? intent.Entities?.GetValueOrDefault("fte");
+            if (string.IsNullOrWhiteSpace(hcVal))
+            {
+                var fteMatch = Regex.Match(prompt, @"(?:\b(?:and\s+)?(\d+)\s*(?:fte[s]?|full\s*time\s*employees?|headcount|staff|members|seats)\b|\b(?:headcount|staff\s*size|team\s*size|target\s*headcount)\s*(?:of|is|:)?\s*(\d+)\b)", RegexOptions.IgnoreCase);
+                if (fteMatch.Success) hcVal = !string.IsNullOrEmpty(fteMatch.Groups[1].Value) ? fteMatch.Groups[1].Value : fteMatch.Groups[2].Value;
+            }
+
+            var initialStaffDisplay = !string.IsNullOrWhiteSpace(hcVal) ? $"{hcVal} FTEs" : "0";
+            var initialStaffDiff = !string.IsNullOrWhiteSpace(hcVal) ? "Initial Headcount Target" : "Empty Dept";
 
             actionPlan.AffectedRecords.Add(new Nexus.Data.ActionPlan.AffectedRecord
             {
@@ -3091,18 +3565,19 @@ public class AgentOrchestrator : IAgentOrchestrator
                 {
                     new Nexus.Data.ActionPlan.ChangePreview { FieldName = "Department Name", OldValue = "[NEW]", NewValue = deptName, Difference = "New Entity" },
                     new Nexus.Data.ActionPlan.ChangePreview { FieldName = "Department Head", OldValue = "None", NewValue = displayHead, Difference = "Assignment" },
-                    new Nexus.Data.ActionPlan.ChangePreview { FieldName = "Initial Staff Count", OldValue = "0", NewValue = "0", Difference = "Empty Dept" },
+                    new Nexus.Data.ActionPlan.ChangePreview { FieldName = "Initial Staff Count", OldValue = "0", NewValue = initialStaffDisplay, Difference = initialStaffDiff },
                     new Nexus.Data.ActionPlan.ChangePreview { FieldName = "Allocated Q3 Budget", OldValue = "$0.00", NewValue = $"${budgetAmt:N2}", Difference = "Budget Allocation" }
                 }
             });
 
-            actionPlan.Steps.Add(new Nexus.Data.ActionPlan.ActionPlanStep { StepNumber = 1, ToolName = "department.crud", Description = $"Create Department record '{deptName}' (Head: {displayHead})", RiskLevel = RiskLevel.Medium });
+            actionPlan.Steps.Add(new Nexus.Data.ActionPlan.ActionPlanStep { StepNumber = 1, ToolName = "department.crud", Description = $"Create Department record '{deptName}' (Head: {displayHead})", RiskLevel = RiskLevel.High });
             if (budgetAmt > 0)
             {
-                actionPlan.Steps.Add(new Nexus.Data.ActionPlan.ActionPlanStep { StepNumber = 2, ToolName = "budget.update", Description = $"Initialize allocated Q3 budget (${budgetAmt:N2})", RiskLevel = RiskLevel.Medium });
+                actionPlan.Steps.Add(new Nexus.Data.ActionPlan.ActionPlanStep { StepNumber = 2, ToolName = "budget.update", Description = $"Initialize allocated Q3 budget (${budgetAmt:N2})", RiskLevel = RiskLevel.High });
             }
 
-            actionPlan.Warnings.Add($"Creates new {deptName} department with ${budgetAmt:N2} allocated Q3 budget and {displayHead} as Department Head.");
+            var hcWarn = !string.IsNullOrWhiteSpace(hcVal) ? $", and target headcount of {hcVal} FTEs" : "";
+            actionPlan.Warnings.Add($"Creates new {deptName} department with ${budgetAmt:N2} allocated Q3 budget, {displayHead} as Department Head{hcWarn}.");
             return actionPlan;
         }
 
@@ -3417,6 +3892,16 @@ public class AgentOrchestrator : IAgentOrchestrator
             var dept = intent.Entities.GetValueOrDefault("department") ?? intent.Parameters.GetValueOrDefault("department")?.ToString() ?? "IT";
             var desig = intent.Entities.GetValueOrDefault("designation") ?? intent.Parameters.GetValueOrDefault("designation")?.ToString() ?? "Team Member";
             
+            var inDeptPlanMatch = Regex.Match(desig, @"^(.*?)\s+in\s+(?:the\s+)?([A-Za-z0-9\s\&]+)$", RegexOptions.IgnoreCase);
+            if (inDeptPlanMatch.Success)
+            {
+                desig = inDeptPlanMatch.Groups[1].Value.Trim();
+                if (string.IsNullOrWhiteSpace(dept) || dept == "IT" || dept == "[Pending]")
+                {
+                    dept = IntentParser.CleanDepartmentName(inDeptPlanMatch.Groups[2].Value.Trim());
+                }
+            }
+
             decimal proposedSalary = 68000.00m;
             string? salString = intent.Entities.GetValueOrDefault("salary") ?? intent.Parameters.GetValueOrDefault("salary")?.ToString();
             if (!string.IsNullOrWhiteSpace(salString) && decimal.TryParse(salString, NumberStyles.Any, CultureInfo.InvariantCulture, out var salVal) && salVal > 0)
@@ -3569,6 +4054,55 @@ public class AgentOrchestrator : IAgentOrchestrator
             actionPlan.Warnings.Add(isAppointment
                 ? $"Leadership appointment: Designates {emp?.Name ?? empName} as {targetRole} for the {targetDept} Department."
                 : $"Transfers employee to {targetDept} with role updated to {targetRole}.");
+            return actionPlan;
+        }
+
+        // ── 5.0. EMPLOYEE DESIGNATION / TITLE UPDATE ──
+        if (intentType == IntentType.EMPLOYEE_UPDATE &&
+            (intent.Entities.ContainsKey("designation") || intent.Entities.ContainsKey("role") || intent.Parameters?.ContainsKey("designation") == true || pLower.Contains("designation") || pLower.Contains("title") || pLower.Contains("role")) &&
+            !pLower.Contains("salary") && !pLower.Contains("raise") && !pLower.Contains("pay") && !intent.Entities.ContainsKey("percentage"))
+        {
+            var empName = intent.Entities.GetValueOrDefault("name") ?? intent.Entities.GetValueOrDefault("employee_name") ?? "";
+            var newDesig = intent.Entities.GetValueOrDefault("designation") 
+                ?? intent.Entities.GetValueOrDefault("role") 
+                ?? intent.Parameters?.GetValueOrDefault("designation")?.ToString() 
+                ?? "Senior .NET Developer";
+
+            var emp = await _db.Employees.Include(e => e.Department)
+                .FirstOrDefaultAsync(e => e.Name.ToLower().Contains(empName.ToLower()), ct);
+
+            var actionPlan = new Nexus.Data.ActionPlan.ActionPlan
+            {
+                Title = $"Plan of Action: Update Designation for {emp?.Name ?? empName}",
+                RiskLevel = RiskLevel.High,
+                Status = "AWAITING_APPROVAL",
+                Metadata = JsonSerializer.Serialize(intent)
+            };
+
+            var deptName = emp?.Department?.Name ?? intent.Entities.GetValueOrDefault("department") ?? "IT";
+
+            actionPlan.AffectedRecords.Add(new Nexus.Data.ActionPlan.AffectedRecord
+            {
+                RecordId = emp?.Id ?? 0,
+                EntityName = "Employee Profile",
+                PrimaryLabel = emp?.Name ?? empName,
+                Changes = new List<Nexus.Data.ActionPlan.ChangePreview>
+                {
+                    new Nexus.Data.ActionPlan.ChangePreview { FieldName = "Designation", OldValue = emp?.Designation ?? "(current)", NewValue = newDesig, Difference = "Role Update" },
+                    new Nexus.Data.ActionPlan.ChangePreview { FieldName = "Department", OldValue = deptName, NewValue = deptName, Difference = "Current Department" },
+                    new Nexus.Data.ActionPlan.ChangePreview { FieldName = "Salary", OldValue = emp != null ? $"${emp.Salary:N2}" : "(current)", NewValue = emp != null ? $"${emp.Salary:N2}" : "(current)", Difference = "Unchanged" }
+                }
+            });
+
+            actionPlan.Steps.Add(new Nexus.Data.ActionPlan.ActionPlanStep
+            {
+                StepNumber = 1,
+                ToolName = "employee.update",
+                Description = $"Update designation for {emp?.Name ?? empName} to '{newDesig}' in {deptName} department",
+                RiskLevel = RiskLevel.High
+            });
+
+            actionPlan.Warnings.Add($"Modifies formal job title for {emp?.Name ?? empName} to '{newDesig}' in {deptName} department. No compensation change is applied.");
             return actionPlan;
         }
 
@@ -3763,6 +4297,9 @@ public class AgentOrchestrator : IAgentOrchestrator
 
     private List<NextActionChoice> GenerateNextActionChoices(ParsedIntentResult intent, object? resultData)
     {
+        intent.Entities ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        intent.Parameters ??= new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+
         var choices = new List<NextActionChoice>();
         var entityName = intent.Entities?.GetValueOrDefault("name") ?? intent.Entities?.GetValueOrDefault("employee_name");
         var deptName = intent.Entities?.GetValueOrDefault("department");
@@ -3880,6 +4417,35 @@ public class AgentOrchestrator : IAgentOrchestrator
                         TargetTab = "departments"
                     });
                 }
+                break;
+
+            case IntentType.DEPARTMENT_CREATE:
+            case IntentType.DEPARTMENT_UPDATE:
+            case IntentType.DEPARTMENT_DELETE:
+            case IntentType.DEPARTMENT_READ:
+                var targetDept = !string.IsNullOrWhiteSpace(deptName) ? deptName : (!string.IsNullOrWhiteSpace(entityName) ? entityName : "IT");
+                choices.Add(new NextActionChoice
+                {
+                    Id = "open_departments",
+                    Label = $"Open Departments (View {targetDept})",
+                    ActionType = "NAVIGATE",
+                    TargetTab = "departments",
+                    Context = new Dictionary<string, string> { { "department", targetDept } }
+                });
+                choices.Add(new NextActionChoice
+                {
+                    Id = "view_budget_pool",
+                    Label = "Check Unallocated Budget Pool",
+                    ActionType = "EXECUTE_PROMPT",
+                    PromptToExecute = "Check remaining unallocated corporate budget pool balance"
+                });
+                choices.Add(new NextActionChoice
+                {
+                    Id = "view_directory",
+                    Label = "Open Employee Directory",
+                    ActionType = "NAVIGATE",
+                    TargetTab = "employees"
+                });
                 break;
 
             case IntentType.EMPLOYEE_UPDATE:
@@ -4035,11 +4601,127 @@ public class AgentOrchestrator : IAgentOrchestrator
                 });
                 break;
 
-            case IntentType.EXPENSE_READ:
-            case IntentType.EXPENSE_COMPLIANCE:
-            case IntentType.EXPENSE_COMPLIANCE_SWEEP:
-            case IntentType.EXPENSE_FILTER:
             case IntentType.EXPENSE_CREATE:
+                string? createdClaimNo = null;
+                if (resultData != null)
+                {
+                    var claimProp = resultData.GetType().GetProperty("claim");
+                    var claimObj = claimProp?.GetValue(resultData);
+                    if (claimObj != null)
+                    {
+                        var noProp = claimObj.GetType().GetProperty("ClaimNumber");
+                        createdClaimNo = noProp?.GetValue(claimObj)?.ToString();
+                    }
+                }
+                if (!string.IsNullOrWhiteSpace(createdClaimNo))
+                {
+                    choices.Add(new NextActionChoice
+                    {
+                        Id = $"approve_{createdClaimNo}",
+                        Label = $"Approve Claim ({createdClaimNo})",
+                        ActionType = "EXECUTE_PROMPT",
+                        PromptToExecute = $"Approve expense claim {createdClaimNo}"
+                    });
+                    choices.Add(new NextActionChoice
+                    {
+                        Id = $"reject_{createdClaimNo}",
+                        Label = $"Reject Claim ({createdClaimNo})",
+                        ActionType = "EXECUTE_PROMPT",
+                        PromptToExecute = $"Reject expense claim {createdClaimNo}"
+                    });
+                    choices.Add(new NextActionChoice
+                    {
+                        Id = $"flag_{createdClaimNo}",
+                        Label = $"Flag Claim for Audit ({createdClaimNo})",
+                        ActionType = "EXECUTE_PROMPT",
+                        PromptToExecute = $"Flag expense claim {createdClaimNo}"
+                    });
+                }
+                choices.Add(new NextActionChoice
+                {
+                    Id = "open_expense_review",
+                    Label = "Open Expense Review & Compliance",
+                    ActionType = "NAVIGATE",
+                    TargetTab = "expenses"
+                });
+                break;
+
+            case IntentType.EXPENSE_COMPLIANCE_SWEEP:
+                if (resultData is ExpenseSweepResultDto sweepResult)
+                {
+                    foreach (var fc in sweepResult.FlaggedClaims.Take(3))
+                    {
+                        choices.Add(new NextActionChoice
+                        {
+                            Id = $"approve_{fc.ClaimNumber}",
+                            Label = $"Approve {fc.ClaimNumber} ({fc.EmployeeName})",
+                            ActionType = "EXECUTE_PROMPT",
+                            PromptToExecute = $"Approve expense claim {fc.ClaimNumber}"
+                        });
+                        choices.Add(new NextActionChoice
+                        {
+                            Id = $"reject_{fc.ClaimNumber}",
+                            Label = $"Reject {fc.ClaimNumber} ({fc.EmployeeName})",
+                            ActionType = "EXECUTE_PROMPT",
+                            PromptToExecute = $"Reject expense claim {fc.ClaimNumber}"
+                        });
+                    }
+                }
+                choices.Add(new NextActionChoice
+                {
+                    Id = "filter_violations",
+                    Label = "Filter Policy Violations",
+                    ActionType = "EXECUTE_PROMPT",
+                    PromptToExecute = "Filter expense claims by Policy Violation"
+                });
+                choices.Add(new NextActionChoice
+                {
+                    Id = "generate_expense_report",
+                    Label = "Create Expense Report",
+                    ActionType = "EXECUTE_PROMPT",
+                    PromptToExecute = "Create expense report"
+                });
+                break;
+
+            case IntentType.EXPENSE_READ:
+                string? prevUrl = null;
+                string? dlUrl = null;
+                if (resultData != null)
+                {
+                    prevUrl = resultData.GetType().GetProperty("previewUrl")?.GetValue(resultData)?.ToString();
+                    dlUrl = resultData.GetType().GetProperty("downloadUrl")?.GetValue(resultData)?.ToString();
+                }
+                if (!string.IsNullOrWhiteSpace(prevUrl))
+                {
+                    choices.Add(new NextActionChoice
+                    {
+                        Id = "preview_expense_report",
+                        Label = "Preview Expense Report",
+                        ActionType = "OPEN_URL",
+                        Url = prevUrl
+                    });
+                }
+                if (!string.IsNullOrWhiteSpace(dlUrl))
+                {
+                    choices.Add(new NextActionChoice
+                    {
+                        Id = "download_expense_report",
+                        Label = "Download Report HTML",
+                        ActionType = "OPEN_URL",
+                        Url = dlUrl
+                    });
+                }
+                choices.Add(new NextActionChoice
+                {
+                    Id = "open_expense_review",
+                    Label = "Open Expense Review & Compliance",
+                    ActionType = "NAVIGATE",
+                    TargetTab = "expenses"
+                });
+                break;
+
+            case IntentType.EXPENSE_COMPLIANCE:
+            case IntentType.EXPENSE_FILTER:
             case IntentType.EXPENSE_APPROVE:
             case IntentType.EXPENSE_REJECT:
             case IntentType.EXPENSE_FLAG:

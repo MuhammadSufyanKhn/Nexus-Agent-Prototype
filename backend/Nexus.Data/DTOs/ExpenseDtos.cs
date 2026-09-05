@@ -84,6 +84,7 @@ public class ExpenseSweepResultDto
     public int FlaggedClaimsCount { get; set; }
     public decimal TotalPolicyVariance { get; set; }
     public List<FlaggedClaimDto> FlaggedClaims { get; set; } = new();
+    public List<ExpenseDto> AllClaims { get; set; } = new();
     public string Summary { get; set; } = string.Empty;
 }
 

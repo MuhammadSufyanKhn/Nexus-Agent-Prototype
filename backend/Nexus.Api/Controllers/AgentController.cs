@@ -26,12 +26,28 @@ public class AgentController : ControllerBase
     {
         if (!ModelState.IsValid) return BadRequest(ModelState);
 
-        // Pass UserRole so the orchestrator enforces RBAC correctly
-        var result = await _orchestrator.ExecuteAsync(
-            request.Prompt,
-            request.UserId,
-            request.UserRole ?? "Admin");
+        try
+        {
+            // Pass UserRole so the orchestrator enforces RBAC correctly
+            var result = await _orchestrator.ExecuteAsync(
+                request.Prompt,
+                request.UserId,
+                request.UserRole ?? "Admin");
 
-        return Ok(result);
+            return Ok(result);
+        }
+        catch (System.Exception ex)
+        {
+            return Ok(new AgentResult
+            {
+                RunId = System.Guid.NewGuid(),
+                OriginalPrompt = request.Prompt,
+                Intent = "UNKNOWN",
+                IsSuccess = false,
+                ErrorMessage = ex.Message,
+                UserMessage = $"Error processing request: {ex.Message}",
+                State = "FAILED"
+            });
+        }
     }
 }
